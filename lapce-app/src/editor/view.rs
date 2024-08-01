@@ -1,7 +1,7 @@
 use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
-    action::{set_ime_allowed, set_ime_cursor_area},
+    action::{add_overlay, set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
@@ -12,7 +12,7 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{CursorColor, CursorStyle, Style, TextColor},
+    style::{AlignItems, CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     views::{
         clip, container, dyn_stack,
@@ -31,10 +31,11 @@ use floem::{
         },
         empty, label,
         scroll::{scroll, HideBar, PropagatePointerWheel},
-        stack, svg, Decorators,
+        stack, svg, text, Decorators,
     },
     Renderer, View, ViewId,
 };
+use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
@@ -50,6 +51,7 @@ use crate::{
     config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
+    main_split::ScoredCodeLensItem,
     text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -1466,30 +1468,52 @@ fn editor_gutter(
         })
     };
 
-    let code_lens_view = move |line: usize| {
-        let line_y = screen_lines
-            .with_untracked(|s| s.info_for_line(line))
-            .map(|l| l.y)
-            .unwrap_or_default();
-        container(svg(move || config.get().ui_svg(LapceIcons::START)).style(
-            move |s| {
+    let code_lens_view = {
+        let window_tab_data = window_tab_data.clone();
+        move |(line, lens): (usize, Vector<Arc<ScoredCodeLensItem>>)| {
+            let window_tab_data = window_tab_data.clone();
+            let view = container(
+                svg(move || config.get().ui_svg(LapceIcons::START)).style(
+                    move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32 + 2.0;
+                        s.size(size, size)
+                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                    },
+                ),
+            );
+            let id = view.id();
+            view.on_click_stop({
+                let window_tab_data = window_tab_data.clone();
+                let lens = lens.clone();
+                move |event| {
+                    if let Event::PointerUp(_) = event {
+                        let window_tab = window_tab_data.clone();
+                        let rec = id.layout_rect();
+                        let line_height =
+                            config.get_untracked().editor.line_height() as f64;
+                        let pos = Point::new(rec.x1, rec.y0 + line_height);
+                        let lens = lens.clone();
+                        let view_id = add_overlay(pos, move |_| {
+                            code_lens(window_tab.clone(), lens)
+                        });
+                        window_tab_data.update_code_lens_id(Some(view_id));
+                    }
+                }
+            })
+            .style(move |s| {
+                let line_info = screen_lines.with(|s| s.info_for_line(line));
+                let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
+                let rect = viewport.get();
                 let config = config.get();
-                let size = config.ui.icon_size() as f32 + 2.0;
-                s.size(size, size)
-                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-            },
-        ))
-        .on_click_stop(move |_| {
-            // todo
-        })
-        .style(move |s| {
-            s.width(padding_right)
-                .height(config.get().editor.line_height() as f32)
-                .justify_center()
-                .items_center()
-                .cursor(CursorStyle::Pointer)
-                .margin_top(line_y as f32 - viewport.get().y0 as f32)
-        })
+                s.absolute()
+                    .width(padding_right)
+                    .height(config.editor.line_height() as f32)
+                    .justify_center()
+                    .items_center()
+                    .margin_top(line_y as f32 - rect.y0 as f32)
+            })
+        }
     };
 
     stack((
@@ -1593,35 +1617,30 @@ fn editor_gutter(
                 dyn_stack(
                     move || {
                         let doc = doc.get();
-                        let lines = doc.code_lens.with(|x| {
-                            let lines: Vec<usize> = x
-                                .iter()
-                                .map(|(_, lens)| {
-                                    lens.iter()
-                                        .map(|len| len.range.start.line as usize)
-                                        .collect()
-                                })
-                                .fold(
-                                    Vec::new(),
-                                    |mut x: Vec<usize>, mut y: Vec<usize>| {
-                                        x.append(&mut y);
-                                        x
-                                    },
-                                );
+                        doc.code_lens.with(|x| {
+                            let mut lines = im::HashMap::<
+                                usize,
+                                Vector<Arc<ScoredCodeLensItem>>,
+                            >::new();
+                            for (_, lens) in x.iter() {
+                                for item in lens {
+                                    lines
+                                        .entry(item.range.start.line as usize)
+                                        .or_default()
+                                        .push_back(item.clone());
+                                }
+                            }
                             lines
-                        });
-                        lines
+                        })
                     },
-                    move |i| *i,
+                    move |i| i.0,
                     code_lens_view,
                 )
                 .style(move |s| {
-                    let config = config.get();
                     let gutter_width = gutter_width.get();
-                    let size = config.ui.icon_size() as f32;
-                    let margin_left =
-                        gutter_width as f32 + (padding_right - size) / 2.0 - 4.0;
-                    s.absolute().size_pct(100.0, 100.0).margin_left(margin_left)
+                    s.absolute()
+                        .size_pct(100.0, 100.0)
+                        .margin_left(gutter_width)
                 })
                 .debug_name("CodeLens Stack"),
                 container(
@@ -2410,4 +2429,65 @@ pub fn changes_colors_all(
     }
 
     colors
+}
+
+fn code_lens(
+    window_tab_data: Rc<WindowTabData>,
+    code_lens: im::Vector<Arc<ScoredCodeLensItem>>,
+) -> floem::views::Container {
+    let config = window_tab_data.common.config;
+    let main_split = window_tab_data.main_split.clone();
+    container(
+        dyn_stack(
+            move || code_lens.clone().into_iter().enumerate(),
+            move |(i, _item)| *i,
+            {
+                let main_split = main_split.clone();
+                let window_tab_data = window_tab_data.clone();
+                move |(_, item): (usize, Arc<ScoredCodeLensItem>)| {
+                    let value = main_split.clone();
+                    container(
+                        text(item.title.replace('\n', " "))
+                            .style(|s| s.text_ellipsis().min_width(0.0)),
+                    )
+                    .on_click_stop({
+                        let window_tab_data = window_tab_data.clone();
+                        move |_| {
+                            window_tab_data.update_code_lens_id(None);
+                            value.run_code_lens(&item.args, &item.command);
+                        }
+                    })
+                    .on_event_stop(EventListener::PointerDown, |_| {})
+                    .style(move |s| {
+                        let config = config.get();
+                        s.padding_horiz(10.0)
+                            .align_items(Some(AlignItems::Center))
+                            .min_width(0.0)
+                            .width_full()
+                            .line_height(1.6)
+                            .border_radius(6.0)
+                            .cursor(CursorStyle::Pointer)
+                            .hover(move |s| {
+                                s.background(
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                            })
+                    })
+                }
+            },
+        )
+        .style(|s| s.width_full().flex_col()),
+    )
+    .style(move |s| {
+        let config = config.get();
+        let color = config.color(LapceColor::COMPLETION_BACKGROUND);
+        s.width(400.0)
+            .max_height(400.0)
+            .padding_vert(4.0)
+            .background(color)
+            .border_radius(6.0)
+    })
+    .on_event_stop(EventListener::PointerMove, |_| {})
+    .debug_name("Code Lens Layer 11")
 }
