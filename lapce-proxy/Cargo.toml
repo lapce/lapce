@@ -42,7 +42,7 @@ floem-editor-core = { workspace = true }
 
 dyn-clone     = "1.0.16"
 walkdir       = "2.4.0"
-locale_config = "0.3.0"
+locale_config = { git = "https://github.com/lapce/locale_config.git", branch = "lapce" }
 jsonrpc-lite  = "0.6.0"
 polling       = "3.5.0"
 libc          = "0.2"
