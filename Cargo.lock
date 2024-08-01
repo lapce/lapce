@@ -3209,7 +3209,7 @@ checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 [[package]]
 name = "locale_config"
 version = "0.3.1-alpha.0"
-source = "git+https://github.com/lapce/locale_config.git?branch=lapce#de4a42db27d720bd5ba003904227c930f5dcfb0b"
+source = "git+https://github.com/lapce/locale_config.git?branch=lapce#54c9fe6a247c3618c224ec57e6c3a747bc3a96e4"
 dependencies = [
  "lazy_static",
  "objc2 0.5.2",
