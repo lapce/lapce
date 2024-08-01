@@ -17,8 +17,6 @@ use crate::{
     syntax::highlight::{HighlightConfiguration, HighlightIssue},
 };
 
-pub static RUNTIME_LANGUAGES: Lazy<Vec<SyntaxProperties>> = Lazy::new(Vec::new);
-
 #[remain::sorted]
 pub enum Indent {
     Space(u8),
@@ -49,8 +47,8 @@ impl Indent {
     }
 }
 
-const DEFAULT_CODE_LENS_LIST: &[&str] = &["source_file"];
-const DEFAULT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
+const DEFAULT_CODE_GLANCE_LIST: &[&str] = &["source_file"];
+const DEFAULT_CODE_GLANCE_IGNORE_LIST: &[&str] = &["source_file"];
 
 #[macro_export]
 macro_rules! comment_properties {
@@ -123,6 +121,10 @@ struct TreeSitterProperties {
     grammar: Option<&'static str>,
     /// the query folder name
     query: Option<&'static str>,
+    /// Preface: Originally this feature was called "Code Lens", which is not
+    /// an LSP "Code Lens". It is renamed to "Code Glance", below doc text is
+    /// left unchanged.  
+    ///
     /// Lists of tree-sitter node types that control how code lenses are built.
     /// The first is a list of nodes that should be traversed and included in
     /// the lens, along with their children. The second is a list of nodes that
@@ -132,10 +134,10 @@ struct TreeSitterProperties {
     /// The tree-sitter playground may be useful when creating these lists:
     /// https://tree-sitter.github.io/tree-sitter/playground
     ///
-    /// If unsure, use `DEFAULT_CODE_LENS_LIST` and
-    /// `DEFAULT_CODE_LENS_IGNORE_LIST`.
-    code_lens: (&'static [&'static str], &'static [&'static str]),
-    /// the tree sitter tag names that can be put in sticky headers
+    /// If unsure, use `DEFAULT_CODE_GLANCE_LIST` and
+    /// `DEFAULT_CODE_GLANCE_IGNORE_LIST`.
+    code_glance: (&'static [&'static str], &'static [&'static str]),
+    /// the tree-sitter tag names that can be put in sticky headers
     sticky_headers: &'static [&'static str],
 }
 
@@ -143,21 +145,10 @@ impl TreeSitterProperties {
     const DEFAULT: Self = Self {
         grammar: None,
         query: None,
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
         sticky_headers: &[],
     };
 }
-
-// impl Default for TreeSitterProperties {
-//     fn default() -> Self {
-//         Self {
-//             grammar: None,
-//             query: None,
-//             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-//             sticky_headers: &[],
-//         }
-//     }
-// }
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
 struct CommentProperties {
@@ -554,7 +545,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["function_definition", "struct_specifier"],
         },
     },
@@ -584,7 +575,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["function_definition"],
         },
     },
@@ -605,7 +596,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[
                 "function_definition",
                 "class_specifier",
@@ -622,7 +613,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[
                 "interface_declaration",
                 "class_declaration",
@@ -683,7 +674,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (
+            code_glance: (
                 &["program", "class_definition"],
                 &[
                     "program",
@@ -736,7 +727,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["do_block"],
         },
     },
@@ -874,7 +865,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (
+            code_glance: (
                 &[
                     "source_file",
                     "type_declaration",
@@ -1000,7 +991,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (&["source_file", "program"], &["source_file"]),
+            code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
     },
@@ -1045,7 +1036,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (&["source_file", "program"], &["source_file"]),
+            code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
     },
@@ -1168,7 +1159,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: Some("markdown"),
             query: Some("markdown.inline"),
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[],
         },
     },
@@ -1283,7 +1274,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (
+            code_glance: (
                 &[
                     "program",
                     "class_declaration",
@@ -1355,7 +1346,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (
+            code_glance: (
                 &[
                     "source_file",
                     "module",
@@ -1435,7 +1426,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["module", "class", "method", "do_block"],
         },
     },
@@ -1448,7 +1439,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: None,
             query: None,
-            code_lens: (
+            code_glance: (
                 &["source_file", "impl_item", "trait_item", "declaration_list"],
                 &["source_file", "use_declaration", "line_comment"],
             ),
@@ -1573,7 +1564,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: Some("tsx"),
             query: Some("tsx"),
-            code_lens: (&["source_file", "program"], &["source_file"]),
+            code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
     },
@@ -1586,7 +1577,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties {
             grammar: Some("typescript"),
             query: Some("typescript"),
-            code_lens: (&["source_file", "program"], &["source_file"]),
+            code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
     },
@@ -1868,7 +1859,7 @@ impl LapceLanguage {
         cursor: &mut TreeCursor,
         normal_lines: &mut HashSet<usize>,
     ) {
-        let (list, ignore_list) = self.properties().tree_sitter.code_lens;
+        let (list, ignore_list) = self.properties().tree_sitter.code_glance;
         walk_tree(cursor, normal_lines, list, ignore_list);
     }
 }
@@ -1929,7 +1920,7 @@ fn load_grammar(
     Ok(language)
 }
 
-/// Walk an AST and determine which lines to include in the code lens.
+/// Walk an AST and determine which lines to include in the code glance.
 ///
 /// Node types listed in `list` will be walked, along with their children. All
 /// nodes encountered will be included, unless they are listed in `ignore_list`.

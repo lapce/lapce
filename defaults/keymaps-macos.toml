@@ -16,7 +16,7 @@ command = "palette.command"
 
 [[keymaps]]
 key = "meta+e"
-command = "toggle_code_lens"
+command = "toggle_code_glance"
 mode = "i"
 
 [[keymaps]]

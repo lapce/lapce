@@ -9,7 +9,7 @@ custom-titlebar = true
 [editor]
 font-family = "monospace"
 font-size = 13
-code-lens-font-size = 2
+code-glance-font-size = 2
 line-height = 1.5
 smart-tab = true
 tab-width = 4
