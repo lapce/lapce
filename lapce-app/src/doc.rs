@@ -626,7 +626,7 @@ impl Doc {
         self.buffer.with_untracked(|b| b.line_ending())
     }
 
-    pub fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         batch(|| {
             self.trigger_syntax_change(edits);
             self.trigger_head_change();
@@ -800,7 +800,7 @@ impl Doc {
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(&self) {
+    pub fn get_semantic_styles(&self) {
         if !self.loaded() {
             return;
         }
