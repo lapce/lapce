@@ -1370,6 +1370,13 @@ impl WindowTabData {
                     }
                 }
             }
+            ShowCallHierarchy => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.show_call_hierarchy();
+                }
+            }
         }
     }
 

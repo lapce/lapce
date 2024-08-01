@@ -11,11 +11,12 @@ use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse, CodeLens,
-    CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
-    Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
-    Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
-    TextDocumentItem, TextEdit, WorkspaceEdit,
+    request::GotoTypeDefinitionResponse, CallHierarchyIncomingCall,
+    CallHierarchyItem, CodeAction, CodeActionResponse, CodeLens, CompletionItem,
+    Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint,
+    InlineCompletionResponse, InlineCompletionTriggerKind, Location, Position,
+    PrepareRenameResponse, SelectionRange, SymbolInformation, TextDocumentItem,
+    TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -103,6 +104,14 @@ pub enum ProxyRequest {
         request_id: usize,
         path: PathBuf,
         position: Position,
+    },
+    ShowCallHierarchy {
+        path: PathBuf,
+        position: Position,
+    },
+    CallHierarchyIncoming {
+        path: PathBuf,
+        call_hierarchy_item: CallHierarchyItem,
     },
     GetTypeDefinition {
         request_id: usize,
@@ -357,6 +366,12 @@ pub enum ProxyResponse {
     GetDefinitionResponse {
         request_id: usize,
         definition: GotoDefinitionResponse,
+    },
+    ShowCallHierarchyResponse {
+        items: Option<Vec<CallHierarchyItem>>,
+    },
+    CallHierarchyIncomingResponse {
+        items: Option<Vec<CallHierarchyIncomingCall>>,
     },
     GetTypeDefinition {
         request_id: usize,
@@ -833,6 +848,30 @@ impl ProxyRpcHandler {
                 request_id,
                 path,
                 position,
+            },
+            f,
+        );
+    }
+
+    pub fn show_call_hierarchy(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::ShowCallHierarchy { path, position }, f);
+    }
+
+    pub fn call_hierarchy_incoming(
+        &self,
+        path: PathBuf,
+        call_hierarchy_item: CallHierarchyItem,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::CallHierarchyIncoming {
+                path,
+                call_hierarchy_item,
             },
             f,
         );

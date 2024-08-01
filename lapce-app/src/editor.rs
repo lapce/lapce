@@ -26,6 +26,7 @@ use floem::{
         Editor,
     },
 };
+use itertools::Itertools;
 use lapce_core::{
     buffer::{
         diff::DiffLines,
@@ -46,7 +47,8 @@ use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
-    InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
+    InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location, MarkedString,
+    MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1265,6 +1267,49 @@ impl EditorData {
         );
     }
 
+    pub fn show_call_hierarchy(&self) {
+        let doc = self.doc();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor().with_untracked(|c| c.offset());
+        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
+            (start_position, position)
+        });
+
+        let send = create_ext_action(self.scope, move |_rs| {
+            tracing::debug!("{:?}", _rs);
+        });
+        let proxy = self.common.proxy.clone();
+        self.common.proxy.show_call_hierarchy(
+            path.clone(),
+            position,
+            move |result| {
+                if let Ok(ProxyResponse::ShowCallHierarchyResponse {
+                    items, ..
+                }) = result
+                {
+                    if let Some(item) = items.and_then(|x| x.into_iter().next()) {
+                        proxy.call_hierarchy_incoming(
+                            path.clone(),
+                            item.clone(),
+                            send,
+                        );
+                    }
+                }
+            },
+        );
+    }
+
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
@@ -2389,20 +2434,41 @@ impl EditorData {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
-                if cfg!(target_os = "macos") && pointer_event.modifiers.meta() {
-                    self.common.lapce_command.send(LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::GotoDefinition),
-                        data: None,
-                    })
-                }
-
-                if cfg!(not(target_os = "macos"))
-                    && pointer_event.modifiers.control()
+                if (cfg!(target_os = "macos") && pointer_event.modifiers.meta())
+                    || (cfg!(not(target_os = "macos"))
+                        && pointer_event.modifiers.control())
                 {
-                    self.common.lapce_command.send(LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::GotoDefinition),
-                        data: None,
-                    })
+                    let rs = self.find_hint(pointer_event.pos);
+                    match rs {
+                        FindHintRs::NoMatchBreak
+                        | FindHintRs::NoMatchContinue { .. } => {
+                            self.common.lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(
+                                    FocusCommand::GotoDefinition,
+                                ),
+                                data: None,
+                            })
+                        }
+                        FindHintRs::MatchWithoutLocation => {}
+                        FindHintRs::Match(location) => {
+                            let Ok(path) = location.uri.to_file_path() else {
+                                return;
+                            };
+                            self.common.internal_command.send(
+                                InternalCommand::GoToLocation {
+                                    location: EditorLocation {
+                                        path,
+                                        position: Some(EditorPosition::Position(
+                                            location.range.start,
+                                        )),
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: true,
+                                        same_editor_tab: false,
+                                    },
+                                },
+                            );
+                        }
+                    }
                 }
             }
             PointerButton::Secondary => {
@@ -2410,6 +2476,40 @@ impl EditorData {
             }
             _ => {}
         }
+    }
+
+    fn find_hint(&self, pos: Point) -> FindHintRs {
+        let rs = self.editor.line_col_of_point_with_phantom(pos);
+        let line = rs.0 as u32;
+        let index = rs.1 as u32;
+        self.doc().inlay_hints.with_untracked(|x| {
+            if let Some(hints) = x {
+                let mut pre_len = 0;
+                for hint in hints
+                    .iter()
+                    .filter_map(|(_, hint)| {
+                        if hint.position.line == line {
+                            Some(hint)
+                        } else {
+                            None
+                        }
+                    })
+                    .sorted_by(|pre, next| {
+                        pre.position.character.cmp(&next.position.character)
+                    })
+                {
+                    match find_hint(pre_len, index, hint) {
+                        FindHintRs::NoMatchContinue { pre_hint_len } => {
+                            pre_len = pre_hint_len;
+                        }
+                        rs => return rs,
+                    }
+                }
+                FindHintRs::NoMatchBreak
+            } else {
+                FindHintRs::NoMatchBreak
+            }
+        })
     }
 
     #[instrument]
@@ -2525,6 +2625,9 @@ impl EditorData {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+                // Some(CommandKind::Workbench(
+                //     LapceWorkbenchCommand::ShowCallHierarchy,
+                // )),
                 None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 None,
@@ -3400,5 +3503,49 @@ fn parse_hover_resp(
             MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
             MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
+    }
+}
+
+#[derive(Debug)]
+enum FindHintRs {
+    NoMatchBreak,
+    NoMatchContinue { pre_hint_len: u32 },
+    MatchWithoutLocation,
+    Match(Location),
+}
+
+fn find_hint(mut pre_hint_len: u32, index: u32, hint: &InlayHint) -> FindHintRs {
+    use FindHintRs::*;
+    match &hint.label {
+        InlayHintLabel::String(text) => {
+            let actual_col = pre_hint_len + hint.position.character;
+            let actual_col_end = actual_col + (text.len() as u32);
+            if actual_col > index {
+                NoMatchBreak
+            } else if actual_col <= index && index < actual_col_end {
+                MatchWithoutLocation
+            } else {
+                pre_hint_len += text.len() as u32;
+                NoMatchContinue { pre_hint_len }
+            }
+        }
+        InlayHintLabel::LabelParts(parts) => {
+            for part in parts {
+                let actual_col = pre_hint_len + hint.position.character;
+                let actual_col_end = actual_col + part.value.len() as u32;
+                if index < actual_col {
+                    return NoMatchBreak;
+                } else if actual_col <= index && index < actual_col_end {
+                    if let Some(location) = &part.location {
+                        return Match(location.clone());
+                    } else {
+                        return MatchWithoutLocation;
+                    }
+                } else {
+                    pre_hint_len += part.value.len() as u32;
+                }
+            }
+            NoMatchContinue { pre_hint_len }
+        }
     }
 }

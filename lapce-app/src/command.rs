@@ -183,6 +183,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open File")]
     OpenFile,
 
+    #[strum(serialize = "show_call_hierarchy")]
+    #[strum(message = "Show Call Hierarchy")]
+    ShowCallHierarchy,
+
     #[strum(serialize = "reveal_in_file_tree")]
     #[strum(message = "Reveal in File Tree")]
     RevealInFileTree,
