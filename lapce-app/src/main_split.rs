@@ -3062,8 +3062,8 @@ struct RustArgs {
     pub location: lsp_types::LocationLink,
 }
 
-fn get_rust_command_config(args: &Vec<Value>) -> Option<RunDebugConfig> {
-    if let Some(args) = args.get(0) {
+fn get_rust_command_config(args: &[Value]) -> Option<RunDebugConfig> {
+    if let Some(args) = args.first() {
         let Ok(mut cargo_args) = serde_json::from_value::<RustArgs>(args.clone())
         else {
             error!("serde error");
@@ -3093,6 +3093,6 @@ fn get_rust_command_config(args: &Vec<Value>) -> Option<RunDebugConfig> {
         })
     } else {
         error!("no args");
-        return None;
+        None
     }
 }

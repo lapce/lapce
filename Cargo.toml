@@ -25,7 +25,7 @@ members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 [workspace.package]
 version      = "0.4.0"
 edition      = "2021"
-rust-version = "1.77"
+rust-version = "1.77.0"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
