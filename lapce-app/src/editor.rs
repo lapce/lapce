@@ -2512,41 +2512,6 @@ impl EditorData {
     }
 
     #[tracing::instrument]
-    fn find_hint(&self, pos: Point) -> FindHintRs {
-        let rs = self.editor.line_col_of_point_with_phantom(pos);
-        let line = rs.0 as u32;
-        let index = rs.1 as u32;
-        self.doc().inlay_hints.with_untracked(|x| {
-            if let Some(hints) = x {
-                let mut pre_len = 0;
-                for hint in hints
-                    .iter()
-                    .filter_map(|(_, hint)| {
-                        if hint.position.line == line {
-                            Some(hint)
-                        } else {
-                            None
-                        }
-                    })
-                    .sorted_by(|pre, next| {
-                        pre.position.character.cmp(&next.position.character)
-                    })
-                {
-                    match find_hint(pre_len, index, hint) {
-                        FindHintRs::NoMatchContinue { pre_hint_len } => {
-                            pre_len = pre_hint_len;
-                        }
-                        rs => return rs,
-                    }
-                }
-                FindHintRs::NoMatchBreak
-            } else {
-                FindHintRs::NoMatchBreak
-            }
-        })
-    }
-
-    #[tracing::instrument]
     fn left_click(&self, pointer_event: &PointerInputEvent) {
         match pointer_event.count {
             1 => {
