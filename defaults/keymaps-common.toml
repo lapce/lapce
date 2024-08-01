@@ -718,7 +718,7 @@ mode = "n"
 
 [[keymaps]]
 key = "space"
-command = "toggle_code_lens"
+command = "toggle_code_glance"
 mode = "nv"
 
 [[keymaps]]
