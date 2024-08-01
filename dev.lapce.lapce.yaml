@@ -1,0 +1,37 @@
+app-id: dev.lapce.lapce
+runtime: org.freedesktop.Sdk
+runtime-version: 23.08
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: lapce
+finish-args:
+  - --device=dri
+  - --filesystem=host
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=ssh-auth
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  - name: lapce
+    buildsystem: simple
+    build-commands:
+      - cargo fetch --verbose --locked
+      - cargo build --verbose --frozen --no-default-features -p lapce-app --features all-languages --profile release-lto
+
+      - install -Dm0755 target/release-lto/lapce /app/bin/lapce
+      - install -Dm0644 extra/images/logo_color.svg /app/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
+      - install -Dm0644 extra/linux/${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop
+      - install -Dm0644 extra/linux/${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/lapce/cargo
+        RELEASE_TAG_NAME: v0.4.0
+    sources:
+      - type: dir
+        path: .
+      - type: file
+        path: vendor.tar.gz

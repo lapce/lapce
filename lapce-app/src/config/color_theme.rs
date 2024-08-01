@@ -5,8 +5,14 @@ use std::{
 
 use floem::peniko::Color;
 use serde::{Deserialize, Serialize};
+use tracing::{trace, TraceLevel};
 
 use super::color::LoadThemeError;
+
+pub mod dark;
+pub mod light;
+
+pub const CONFIG_KEY: &str = "color-theme";
 
 #[derive(Debug, Clone, Default)]
 pub enum ThemeColorPreference {
@@ -63,22 +69,16 @@ impl ThemeBaseConfig {
                 Ok(Some(color)) => {
                     let color = Color::parse(color)
                         .unwrap_or_else(|| {
-                            tracing::warn!(
-                                "Failed to parse color theme variable for ({key}: {value})"
-                            );
+                            trace!(TraceLevel::WARN, "Failed to parse color theme variable for ({key}: {value})");
                             Color::HOT_PINK
                         });
                     base.0.insert(key.to_string(), color);
                 }
                 Ok(None) => {
-                    tracing::warn!(
-                        "Failed to resolve color theme variable for ({key}: {value})"
-                    );
+                    trace!(TraceLevel::WARN, "Failed to resolve color theme variable for ({key}: {value})");
                 }
                 Err(err) => {
-                    tracing::error!(
-                        "Failed to resolve color theme variable ({key}: {value}): {err}"
-                    );
+                    trace!(TraceLevel::ERROR, "Failed to resolve color theme variable ({key}: {value}): {err}");
                 }
             }
         }
@@ -191,7 +191,7 @@ mod tests {
         // Mimicking load
         let workspace = LapceWorkspace::default();
 
-        let config = LapceConfig::merge_config(&workspace, None, None);
+        let config = LapceConfig::merge_config(&workspace, None, None, None);
         let mut lapce_config: LapceConfig = config.try_deserialize().unwrap();
 
         let test_theme_str = r##"
@@ -227,7 +227,7 @@ color-preference = "dark"
         // lapce_config.available_icon_themes = Some(vec![]);
         lapce_config.core.color_theme = "test".to_string();
 
-        lapce_config.resolve_theme(&workspace);
+        lapce_config.resolve_theme(&workspace, None);
 
         println!("Hot Pink: {:?}", Color::HOT_PINK);
         // test basic override

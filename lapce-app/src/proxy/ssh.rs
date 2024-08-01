@@ -1,19 +1,20 @@
 use std::{path::Path, process::Command};
 
 use anyhow::Result;
-use tracing::debug;
+use tracing::{trace, TraceLevel};
 
-use super::remote::Remote;
-use crate::{proxy::new_command, workspace::SshHost};
+use crate::{
+    proxy::{new_command, remote::Remote},
+    workspace::ssh::Host,
+};
 
 pub struct SshRemote {
-    pub ssh: SshHost,
+    pub host: Host,
 }
 
 impl SshRemote {
     #[cfg(windows)]
     const SSH_ARGS: &'static [&'static str] = &[];
-
     #[cfg(unix)]
     const SSH_ARGS: &'static [&'static str] = &[
         "-o",
@@ -33,17 +34,25 @@ impl Remote for SshRemote {
 
         cmd.args(Self::SSH_ARGS);
 
-        if let Some(port) = self.ssh.port {
+        if let Some(port) = self.host.port {
             cmd.arg("-P").arg(port.to_string());
         }
 
         let output = cmd
             .arg(local.as_ref())
-            .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
+            .arg(dbg!(format!("{}:{remote}", self.host.user_host())))
             .output()?;
 
-        debug!("{}", String::from_utf8_lossy(&output.stderr));
-        debug!("{}", String::from_utf8_lossy(&output.stdout));
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
 
         Ok(())
     }
@@ -52,11 +61,11 @@ impl Remote for SshRemote {
         let mut cmd = new_command("ssh");
         cmd.args(Self::SSH_ARGS);
 
-        if let Some(port) = self.ssh.port {
+        if let Some(port) = self.host.port {
             cmd.arg("-p").arg(port.to_string());
         }
 
-        cmd.arg(self.ssh.user_host());
+        cmd.arg(self.host.user_host());
 
         if !std::env::var("LAPCE_DEBUG").unwrap_or_default().is_empty() {
             cmd.arg("-v");

@@ -5,13 +5,14 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
-use lapce_core::directory::Directory;
+use directory::Directory;
+use tracing::{trace, TraceLevel};
 
-use crate::{tracing::*, update::ReleaseInfo};
+use crate::update::ReleaseInfo;
 
 fn get_github_api(url: &str) -> Result<String> {
     let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent(format!("Lapce/{}", lapce_core::meta::VERSION))
+        .user_agent(format!("Lapce/{}", meta::VERSION))
         .build()?
         .get(url)
         .send()?;
@@ -27,7 +28,7 @@ pub fn find_release() -> Result<ReleaseInfo> {
         "https://api.github.com/repos/lapce/tree-sitter-grammars/releases?per_page=100",
     ).context("Failed to retrieve releases for tree-sitter-grammars")?)?;
 
-    use lapce_core::meta::{ReleaseType, RELEASE, VERSION};
+    use meta::{ReleaseType, RELEASE, VERSION};
 
     let releases = releases
         .into_iter()
@@ -63,8 +64,8 @@ pub fn find_release() -> Result<ReleaseInfo> {
 }
 
 pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
-    let dir = Directory::grammars_directory()
-        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
+    let dir =
+        Directory::grammars_directory().context("can't get grammars directory")?;
 
     let file_name = format!("grammars-{}-{}", env::consts::OS, env::consts::ARCH);
 
@@ -76,8 +77,8 @@ pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
 }
 
 pub fn fetch_queries(release: &ReleaseInfo) -> Result<()> {
-    let dir = Directory::queries_directory()
-        .ok_or_else(|| anyhow!("can't get queries directory"))?;
+    let dir =
+        Directory::queries_directory().context("can't get queries directory")?;
 
     let file_name = "queries";
 

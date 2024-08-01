@@ -5,30 +5,33 @@ version      = { workspace = true }
 authors      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
+publish      = { workspace = true }
 
 [dependencies]
-directories  = { workspace = true }
+anyhow       = { workspace = true }
+include_dir  = { workspace = true }
 itertools    = { workspace = true }
 once_cell    = { workspace = true }
+remain       = { workspace = true }
 strum        = { workspace = true }
 strum_macros = { workspace = true }
 thiserror    = { workspace = true }
-tracing      = { workspace = true }
-include_dir  = { workspace = true }
 regex        = { workspace = true }
 
+directory         = { workspace = true }
 lsp-types         = { workspace = true }
+meta              = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
+tracing           = { workspace = true }
 
-libloading  = "0.8.1"
-slotmap     = "1.0"
-arc-swap    = "1.6.0"
-tree-sitter = "0.22.6"
-ahash       = "0.8.11"
+ahash       = { version = "0.8.11" }
+arc-swap    = { version = "1.6.0" }
 hashbrown   = { version = "0.14.5", features = ["raw"] }
-
+libloading  = { version = "0.8.1" }
+slotmap     = { version = "1.0" }
+tree-sitter = { version = "0.22.6" }
 
 [features]
 default      = []

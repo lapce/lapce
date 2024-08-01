@@ -7,6 +7,7 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
+use tracing::{trace, TraceLevel};
 
 use crate::{RpcError, RpcMessage, RpcObject};
 
@@ -95,7 +96,7 @@ where
     match parse_value(value) {
         Ok(msg) => Ok(Some(msg)),
         Err(e) => {
-            tracing::error!("receive rpc from stdio error: {e:#}");
+            trace!(TraceLevel::ERROR, "receive rpc from stdio error: {e:#}");
             Ok(None)
         }
     }

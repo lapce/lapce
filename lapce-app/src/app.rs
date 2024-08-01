@@ -1,17 +1,15 @@
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, IsTerminal, Read, Write},
     ops::Range,
     path::PathBuf,
-    process::Stdio,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use directory::Directory;
 use floem::{
     action::show_context_menu,
     cosmic_text::{Style as FontStyle, Weight},
@@ -49,8 +47,6 @@ use floem::{
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
-    directory::Directory,
-    meta,
     syntax::highlight::reset_highlight_configs,
 };
 use lapce_rpc::{
@@ -61,7 +57,10 @@ use lapce_rpc::{
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
-use tracing_subscriber::{filter::Targets, reload::Handle};
+use tracing::{
+    subscriber::{filter::Targets, reload::Handle},
+    trace, TraceLevel,
+};
 
 use crate::{
     about, alert,
@@ -90,7 +89,7 @@ use crate::{
     main_split::{
         SplitContent, SplitData, SplitDirection, SplitMoveDirection, TabCloseKind,
     },
-    markdown::MarkdownContent,
+    markdown::{markdown_preview_view, MarkdownContent},
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteStatus,
@@ -101,7 +100,6 @@ use crate::{
     status::status,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
-    tracing::*,
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -163,6 +161,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
+    /// Handle to tracing configuration
     pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
     /// Paths to extra plugins to load
@@ -171,9 +170,37 @@ pub struct AppData {
 
 impl AppData {
     pub fn reload_config(&self) {
-        let config =
-            LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths);
+        let previous_filter =
+            self.config.get_untracked().core.log_level_filter.clone();
+
+        let Ok(config) =
+            LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths)
+        else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            return;
+        };
         self.config.set(Arc::new(config));
+
+        let level_filter = self.config.get_untracked().core.log_level_filter.clone();
+        if level_filter != previous_filter {
+            if let Ok(new_targets) =
+                level_filter.parse::<tracing::subscriber::filter::Targets>()
+            {
+                trace!(
+                    TraceLevel::WARN,
+                    "Changing log level filters to '{new_targets}'"
+                );
+                if let Err(error) =
+                    self.tracing_handle.modify(|targets| *targets = new_targets)
+                {
+                    trace!(
+                        TraceLevel::ERROR,
+                        "Failed to update trace level filters: {error}"
+                    );
+                };
+            }
+        }
+
         let windows = self.windows.get_untracked();
         for (_, window) in windows {
             window.reload_config();
@@ -311,7 +338,7 @@ impl AppData {
                     .is_empty()
                     || !std::env::var("WSL_INTEROP").unwrap_or_default().is_empty()
                 {
-                    LapceWorkspaceType::RemoteWSL(crate::workspace::WslHost {
+                    LapceWorkspaceType::RemoteWSL(crate::workspace::wsl::Host {
                         host: String::new(),
                     })
                 } else {
@@ -1312,6 +1339,45 @@ fn editor_tab_content(
             EditorTabChild::Keymap(_) => keymap_view(editors, common).into_any(),
             EditorTabChild::Volt(_, id) => {
                 plugin_info_view(plugin.clone(), id).into_any()
+            }
+            EditorTabChild::Markdown(editor_id) => {
+                if let Some(editor_data) = editors.editor_untracked(editor_id) {
+                    let editor_scope = editor_data.scope;
+                    let editor_tab_id = editor_data.editor_tab_id;
+                    let is_active = move |tracked: bool| {
+                        editor_scope.track();
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
+                        if let Focus::Workbench = focus {
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
+                            let editor_tab = if tracked {
+                                editor_tab_id.get()
+                            } else {
+                                editor_tab_id.get_untracked()
+                            };
+                            editor_tab.is_some() && editor_tab == active_editor_tab
+                        } else {
+                            false
+                        }
+                    };
+                    let editor_data = create_rw_signal(editor_data);
+                    markdown_preview_view(
+                        window_tab_data.clone(),
+                        workspace.clone(),
+                        is_active,
+                        editor_data,
+                    )
+                    .into_any()
+                } else {
+                    text("empty editor").into_any()
+                }
             }
         };
         child.style(|s| s.size_full())
@@ -2460,13 +2526,18 @@ fn palette_item(
         }
         PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
+        | PaletteItemContent::CustomHost { .. }
+        | PaletteItemContent::GhHost { .. }
         | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::TsHost { .. }
         | PaletteItemContent::Language { .. }
         | PaletteItemContent::LineEnding { .. }
         | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::SCMReference { .. }
         | PaletteItemContent::TerminalProfile { .. }
-        | PaletteItemContent::IconTheme { .. } => {
+        | PaletteItemContent::FileIconTheme { .. }
+        | PaletteItemContent::Encoding { .. }
+        | PaletteItemContent::UIIconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container(
@@ -3241,7 +3312,10 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
     let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
     Some(match &workspace.kind {
         LapceWorkspaceType::Local => format!("{dir}"),
+        LapceWorkspaceType::RemoteCustom(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteGH(remote) => format!("{dir} [{remote}]"),
         LapceWorkspaceType::RemoteSSH(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteTS(remote) => format!("{dir} [{remote}]"),
         #[cfg(windows)]
         LapceWorkspaceType::RemoteWSL(remote) => format!("{dir} [{remote}]"),
     })
@@ -3592,6 +3666,11 @@ pub fn launch() {
     let (reload_handle, _guard) = logging::logging();
     trace!(TraceLevel::INFO, "Starting up Lapce..");
 
+    #[cfg(windows)]
+    if let Err(err) = attach_console() {
+        trace!(TraceLevel::ERROR, "Failed to attach console: {err}");
+    };
+
     #[cfg(feature = "vendored-fonts")]
     {
         use floem::cosmic_text::{fontdb::Source, FONT_SYSTEM};
@@ -3623,50 +3702,77 @@ pub fn launch() {
         load_shell_env();
     }
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
 
-    // small hack to unblock terminal if launched from it
-    // launch it as a separate process that waits
+    // It's an inefficient copy from stdin to file
+    // might improve that later
+    if !stdin.is_terminal() {
+        match read_stdin() {
+            Ok(v) => {
+                cli.paths = v;
+            }
+            Err(err) => {
+                trace!(TraceLevel::ERROR, "Failed to read from stdin: {err}");
+            }
+        }
+    }
+
     if !cli.wait {
-        let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--wait".to_string());
-        let mut cmd = std::process::Command::new(&args[0]);
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        #[cfg(unix)]
+        let fork = fork();
 
-        let stderr_file_path =
-            Directory::logs_directory().unwrap().join("stderr.log");
-        let stderr_file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .read(true)
-            .open(stderr_file_path)
-            .unwrap();
-        let stderr = Stdio::from(stderr_file);
+        #[cfg(windows)]
+        let fork: Result<(), anyhow::Error> = Ok(());
 
-        let stdout_file_path =
-            Directory::logs_directory().unwrap().join("stdout.log");
-        let stdout_file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .read(true)
-            .open(stdout_file_path)
-            .unwrap();
-        let stdout = Stdio::from(stdout_file);
+        if let Err(err) = fork {
+            trace!(TraceLevel::ERROR, "Failed to fork lapce: {err}");
+            trace!(TraceLevel::WARN, "Falling back to re-exec method");
 
-        if let Err(why) = cmd
-            .args(&args[1..])
-            .stderr(stderr)
-            .stdout(stdout)
-            .env("LAPCE_LOG", "lapce_app::app=error,off")
-            .spawn()
-        {
-            eprintln!("Failed to launch lapce: {why}");
-            std::process::exit(1);
-        };
-        return;
+            #[cfg(windows)]
+            use std::os::windows::process::CommandExt;
+            use std::process::Stdio;
+
+            let mut args = std::env::args().collect::<Vec<_>>();
+            args.push("--wait".to_string());
+            let mut cmd = std::process::Command::new(&args[0]);
+
+            #[cfg(windows)]
+            cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
+
+            let stderr_file_path =
+                Directory::logs_directory().unwrap().join("stderr.log");
+            let stderr_file = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .read(true)
+                .open(stderr_file_path)
+                .unwrap();
+            let stderr = Stdio::from(stderr_file);
+
+            let stdout_file_path =
+                Directory::logs_directory().unwrap().join("stdout.log");
+            let stdout_file = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .read(true)
+                .open(stdout_file_path)
+                .unwrap();
+            let stdout = Stdio::from(stdout_file);
+
+            if let Err(why) = cmd
+                .args(&args[1..])
+                .stderr(stderr)
+                .stdout(stdout)
+                .env("LAPCE_LOG", "lapce_app::app=error,off")
+                .spawn()
+            {
+                eprintln!("Failed to launch lapce: {why}");
+                std::process::exit(1);
+            };
+            return;
+        }
     }
 
     // If the cli is not requesting a new window, and we're not developing a plugin, we try to open
@@ -3729,26 +3835,66 @@ pub fn launch() {
 
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
-    if let Some(path) = LapceConfig::settings_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
-    if let Some(path) = Directory::themes_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
-    if let Some(path) = LapceConfig::keymaps_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
-    if let Some(path) = Directory::plugins_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+
+    fn watch(
+        watcher: &mut notify::RecommendedWatcher,
+        path: Result<PathBuf>,
+        recurse_mode: notify::RecursiveMode,
+    ) {
+        if let Ok(path) = path {
+            if watcher.watch(&path, recurse_mode).is_err() {
+                trace!(
+                    TraceLevel::ERROR,
+                    "Failed to add watcher for: {}",
+                    path.display()
+                );
+            };
+        }
     }
 
+    watch(
+        &mut watcher,
+        LapceConfig::settings_file(),
+        notify::RecursiveMode::NonRecursive,
+    );
+    watch(
+        &mut watcher,
+        Directory::themes_directory(),
+        notify::RecursiveMode::NonRecursive,
+    );
+    watch(
+        &mut watcher,
+        LapceConfig::keymaps_file(),
+        notify::RecursiveMode::NonRecursive,
+    );
+    watch(
+        &mut watcher,
+        Directory::plugins_directory(),
+        notify::RecursiveMode::Recursive,
+    );
+
     let windows = scope.create_rw_signal(im::HashMap::new());
-    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
+    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths)
+        .context("Failed to load config")
+        .unwrap();
 
     // Restore scale from config
     window_scale.set(config.ui.scale());
 
     let config = scope.create_rw_signal(Arc::new(config));
+
+    let level_filter = config.get_untracked().core.log_level_filter.clone();
+    if let Ok(new_targets) =
+        level_filter.parse::<tracing::subscriber::filter::Targets>()
+    {
+        if let Err(error) = reload_handle.modify(|targets| *targets = new_targets) {
+            trace!(
+                TraceLevel::ERROR,
+                "Failed to update trace level filters: {error}"
+            );
+        };
+    }
+
     let app_data = AppData {
         windows,
         active_window: scope.create_rw_signal(WindowId::from(0)),
@@ -3829,13 +3975,92 @@ pub fn launch() {
         }
     })
     .run();
+
+    #[cfg(windows)]
+    unsafe {
+        // Never fails
+        windows::Win32::System::Console::FreeConsole();
+    }
+}
+
+fn read_stdin() -> Result<Vec<PathObject>> {
+    let mut buf = vec![];
+    let i = std::io::stdin().lock().read_to_end(&mut buf)?;
+    trace!(TraceLevel::INFO, "Bytes read: {i}");
+
+    let stdin_dir = Directory::docs_dir()?;
+    let mut f = tempfile::Builder::new().tempfile_in(stdin_dir)?;
+    f.write_all(&buf)?;
+
+    let (_, path) = f.keep()?;
+
+    Ok(vec![PathObject {
+        path,
+        linecol: None,
+        is_dir: false,
+    }])
+}
+
+#[cfg(windows)]
+fn attach_console() -> Result<()> {
+    unsafe {
+        use windows::Win32::System::Console::{
+            AttachConsole, ATTACH_PARENT_PROCESS,
+        };
+
+        // Check if more than just program name are passed as args
+        // arg[0] = lapce.exe
+        if std::env::args().collect::<Vec<_>>().len() > 1 {
+            if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+                return Err(anyhow!("Failed to attach to parent process console!"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn fork() -> Result<()> {
+    use std::{os::fd::AsRawFd, process::exit};
+
+    match unsafe { libc::fork() } {
+        -1 => {
+            return Err(anyhow!("Failed to fork process"));
+        }
+        0 => {} // success, continue exec
+        _ => exit(0),
+    }
+
+    if unsafe { libc::setsid() } == -1 {
+        return Err(anyhow!("Failed to create new process session"));
+    }
+
+    let dev_null = match std::fs::File::open("/dev/null") {
+        Ok(v) => v,
+        Err(err) => {
+            return Err(anyhow!("Failed to open '/dev/null': {err}"));
+        }
+    };
+
+    fn redirect_fd(old_fd: i32, new_fd: i32) -> Result<()> {
+        if unsafe { libc::dup2(old_fd, new_fd) } == -1 {
+            let err = std::io::Error::last_os_error();
+            return Err(anyhow!("Failed to redirect file descriptor: {err}"));
+        }
+        Ok(())
+    }
+
+    redirect_fd(dev_null.as_raw_fd(), libc::STDIN_FILENO)?;
+    redirect_fd(dev_null.as_raw_fd(), libc::STDOUT_FILENO)?;
+    redirect_fd(dev_null.as_raw_fd(), libc::STDERR_FILENO)?;
+
+    Ok(())
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.
 fn load_shell_env() {
     use std::process::Command;
-
-    use tracing::warn;
 
     #[cfg(not(windows))]
     let shell = match std::env::var("SHELL") {
@@ -3878,7 +4103,7 @@ fn load_shell_env() {
         .for_each(|(key, value)| {
             if let Ok(v) = std::env::var(key) {
                 if v != value {
-                    warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+                    trace!(TraceLevel::WARN, "Overwriting '{key}', previous value: '{v}', new value '{value}'");
                 }
             };
             std::env::set_var(key, value);
@@ -3886,8 +4111,8 @@ fn load_shell_env() {
 }
 
 pub fn get_socket() -> Result<interprocess::local_socket::LocalSocketStream> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
     Ok(socket)
@@ -3922,8 +4147,8 @@ pub fn try_open_in_existing_process(
 }
 
 fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let _ = std::fs::remove_file(&local_socket);
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;

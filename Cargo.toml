@@ -5,6 +5,7 @@ authors      = { workspace = true }
 edition      = { workspace = true }
 license      = { workspace = true }
 rust-version = { workspace = true }
+publish      = { workspace = true }
 default-run  = "lapce"
 
 [dependencies]
@@ -20,7 +21,7 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
+members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core", "crates/*"]
 
 [workspace.package]
 version      = "0.4.0"
@@ -29,6 +30,7 @@ rust-version = "1.77"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
+publish      = false
 
 [workspace.dependencies]
 anyhow            = { version = "1.0" }
@@ -51,6 +53,7 @@ once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
 regex             = { version = "1.10.5" }
+remain            = { version = "0.2" }
 semver            = { version = "1.0" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
@@ -71,6 +74,10 @@ psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
+directory   = { path = "./crates/directory" }
+workspace        = { path = "./crates/workspace" }
+meta        = { path = "./crates/meta" }
+tracing     = { path = "./crates/tracing" }
 lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
@@ -86,22 +93,22 @@ lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
 
 
-[workspace.dependencies.tracing]
+[workspace.dependencies.tokio-tracing]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing"
 
-[workspace.dependencies.tracing-log]
+[workspace.dependencies.tokio-tracing-log]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-log"
 
-[workspace.dependencies.tracing-subscriber]
+[workspace.dependencies.tokio-tracing-subscriber]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-subscriber"
 
-[workspace.dependencies.tracing-appender]
+[workspace.dependencies.tokio-tracing-appender]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
@@ -127,7 +134,8 @@ codegen-units = 1
 #   cargo build --profile fastdev
 #   cargo run --profile fastdev --bin lapce
 [profile.fastdev.package."*"]
-opt-level = 3
+opt-level     = 3
+codegen-units = 1
 
 [profile.fastdev]
 inherits = "dev"

@@ -191,6 +191,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal in File Tree")]
     RevealInFileTree,
 
+    #[strum(serialize = "open_md_preview")]
+    #[strum(message = "Open Markdown Preview")]
+    OpenMarkdownPreview,
+
     #[strum(serialize = "reveal_active_file_in_file_explorer")]
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
@@ -207,9 +211,13 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
 
-    #[strum(serialize = "change_icon_theme")]
-    #[strum(message = "Change Icon Theme")]
-    ChangeIconTheme,
+    #[strum(serialize = "change_file_icon_theme")]
+    #[strum(message = "Change File Icon Theme")]
+    ChangeFileIconTheme,
+
+    #[strum(serialize = "change_ui_icon_theme")]
+    #[strum(message = "Change UI Icon Theme")]
+    ChangeUIIconTheme,
 
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
@@ -323,9 +331,21 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "new_file")]
     NewFile,
 
+    #[strum(serialize = "connect_custom_host")]
+    #[strum(message = "Connect to Custom Host")]
+    ConnectCustomHost,
+
+    #[strum(serialize = "connect_gh_host")]
+    #[strum(message = "Connect to GitHub Host")]
+    ConnectGhHost,
+
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
+
+    #[strum(serialize = "connect_ts_host")]
+    #[strum(message = "Connect to Tailscale Host")]
+    ConnectTsHost,
 
     #[cfg(windows)]
     #[strum(serialize = "connect_wsl_host")]
@@ -559,6 +579,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "diff_files")]
     DiffFiles,
 
+    #[strum(message = "Change Encoding")]
+    #[strum(serialize = "change_encoding")]
+    ChangeEncoding,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -696,16 +720,18 @@ pub enum InternalCommand {
         /// Whether to save the theme to the config file
         save: bool,
     },
-    SetIconTheme {
+    SetFileIconTheme {
+        name: String,
+        /// Whether to save the theme to the config file
+        save: bool,
+    },
+    SetUIIconTheme {
         name: String,
         /// Whether to save the theme to the config file
         save: bool,
     },
     SetModal {
         modal: bool,
-    },
-    UpdateLogLevel {
-        level: tracing_subscriber::filter::LevelFilter,
     },
     OpenWebUri {
         uri: String,
@@ -731,6 +757,9 @@ pub enum InternalCommand {
     },
     OpenVoltView {
         volt_id: VoltID,
+    },
+    OpenMarkdownPreview {
+        editor_tab_id: EditorTabId,
     },
     ResetBlinkCursor,
     OpenDiffFiles {

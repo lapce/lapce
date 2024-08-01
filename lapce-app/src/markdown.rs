@@ -1,13 +1,35 @@
-use floem::cosmic_text::{
-    Attrs, AttrsList, FamilyOwned, LineHeightValue, Style, TextLayout, Weight,
+use std::{
+    rc::Rc,
+    sync::{atomic::AtomicU64, Arc},
 };
-use lapce_core::{language::LapceLanguage, syntax::Syntax};
+
+use floem::{
+    cosmic_text::{
+        Attrs, AttrsList, FamilyOwned, LineHeightValue, Style, TextLayout, Weight,
+    },
+    kurbo::Rect,
+    reactive::{create_rw_signal, RwSignal},
+    views::{
+        container, dyn_container, dyn_stack, empty, rich_text, scroll, stack,
+        Decorators,
+    },
+    IntoView, View,
+};
+use lapce_core::{
+    buffer::rope_text::RopeText, language::LapceLanguage, syntax::Syntax,
+};
 use lapce_xi_rope::Rope;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;
+use tracing::{trace, TraceLevel};
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    editor::EditorData,
+    window_tab::WindowTabData,
+    workspace::LapceWorkspace,
+};
 
 #[derive(Clone)]
 pub enum MarkdownContent {
@@ -67,7 +89,7 @@ pub fn parse_markdown(
             Event::End(end_tag) => {
                 if let Some((start_offset, tag)) = tag_stack.pop() {
                     if end_tag != tag.to_end() {
-                        tracing::warn!("Mismatched markdown tag");
+                        trace!(TraceLevel::WARN, "Mismatched markdown tag");
                         continue;
                     }
 
@@ -134,7 +156,7 @@ pub fn parse_markdown(
                         }
                     }
                 } else {
-                    tracing::warn!("Unbalanced markdown tag")
+                    trace!(TraceLevel::WARN, "Unbalanced markdown tag")
                 }
             }
             Event::Text(text) => {
@@ -339,4 +361,82 @@ pub fn from_plaintext(
         ),
     );
     vec![MarkdownContent::Text(text_layout)]
+}
+
+pub fn markdown_preview_view(
+    _: Rc<WindowTabData>,
+    _: Arc<LapceWorkspace>,
+    _: impl Fn(bool) -> bool + 'static + Copy,
+    editor: RwSignal<EditorData>,
+) -> impl View {
+    let config = editor.get().common.config;
+    let header_rect = create_rw_signal(Rect::ZERO);
+    let scroll_width: RwSignal<f64> = create_rw_signal(0.0);
+
+    scroll(
+        dyn_container(
+            move || {},
+            move |_| {
+                stack(({
+                    {
+                        let id = AtomicU64::new(0);
+                        dyn_stack(
+                            move || {
+                                let rope_text = editor.get().rope_text();
+                                parse_markdown(
+                                    &rope_text.slice_to_cow(0..rope_text.len()),
+                                    2.0,
+                                    &config.get_untracked(),
+                                )
+                            },
+                            move |_| {
+                                id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                            },
+                            move |content| match content {
+                                MarkdownContent::Text(text_layout) => container(
+                                    rich_text(move || text_layout.clone())
+                                        .style(|s| s.width_full()),
+                                )
+                                .style(|s| s.width_full()),
+                                MarkdownContent::Image { .. } => container(empty()),
+                                MarkdownContent::Separator => {
+                                    container(empty().style(move |s| {
+                                        s.width_full()
+                                            .margin_vert(5.0)
+                                            .height(1.0)
+                                            .background(
+                                                config
+                                                    .get()
+                                                    .color(LapceColor::LAPCE_BORDER),
+                                            )
+                                    }))
+                                }
+                            },
+                        )
+                        .style(|s| s.flex_col().width_full())
+                    }
+                },))
+                .style(move |s| {
+                    let padding = 60.0;
+                    s.flex_col()
+                        .width(
+                            scroll_width
+                                .get()
+                                .min(800.0)
+                                .max(header_rect.get().width() + padding * 2.0),
+                        )
+                        .padding(padding)
+                })
+                .into_any()
+            },
+        )
+        .style(|s| s.min_width_full().justify_center()),
+    )
+    .on_resize(move |rect| {
+        if scroll_width.get_untracked() != rect.width() {
+            scroll_width.set(rect.width());
+        }
+    })
+    .style(|s| s.absolute().size_full())
+    .debug_name("Markdown Preview")
 }

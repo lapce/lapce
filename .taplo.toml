@@ -2,7 +2,6 @@ include = ["**/*.toml"]
 exclude = ["lapce-proxy/src/**"]
 
 [[rule]]
-include = ["**/Cargo.toml", ".taplo.toml", "Cargo.toml"]
 
 [rule.formatting]
 align_entries        = true

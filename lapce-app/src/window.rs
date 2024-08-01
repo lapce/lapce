@@ -8,6 +8,7 @@ use floem::{
     ViewId,
 };
 use serde::{Deserialize, Serialize};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     app::AppCommand,
@@ -91,8 +92,12 @@ impl WindowData {
         app_command: Listener<AppCommand>,
     ) -> Self {
         let cx = Scope::new();
-        let config =
-            LapceConfig::load(&LapceWorkspace::default(), &[], &extra_plugin_paths);
+        let Ok(config) =
+            LapceConfig::load(&LapceWorkspace::default(), &[], &extra_plugin_paths)
+        else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            panic!();
+        };
         let config = cx.create_rw_signal(Arc::new(config));
         let root_view_id = cx.create_rw_signal(ViewId::new());
 
@@ -184,11 +189,14 @@ impl WindowData {
     }
 
     pub fn reload_config(&self) {
-        let config = LapceConfig::load(
+        let Ok(config) = LapceConfig::load(
             &LapceWorkspace::default(),
             &[],
             &self.common.extra_plugin_paths,
-        );
+        ) else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            return;
+        };
         self.config.set(Arc::new(config));
         let window_tabs = self.window_tabs.get_untracked();
         for (_, window_tab) in window_tabs {

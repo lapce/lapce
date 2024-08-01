@@ -1,0 +1,19 @@
+[package]
+name         = "directory"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+
+[features]
+default  = []
+portable = []
+
+[dependencies]
+# 1st party dependencies
+meta = { workspace = true }
+
+# 3rd party dependencies
+anyhow      = { workspace = true }
+directories = { workspace = true }

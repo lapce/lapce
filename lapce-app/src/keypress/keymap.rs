@@ -5,6 +5,7 @@ use floem::{
     pointer::PointerButton,
 };
 use lapce_core::mode::Modes;
+use tracing::{trace, TraceLevel};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum KeymapMatch {
@@ -130,7 +131,7 @@ impl KeyMapPress {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
-                        tracing::warn!("Unrecognized key: {key}");
+                        trace!(TraceLevel::WARN, "Unrecognized key: {key}");
                         return None;
                     }
                 };
@@ -144,7 +145,11 @@ impl KeyMapPress {
                         "alt" => mods.set(Modifiers::ALT, true),
                         "altgr" => mods.set(Modifiers::ALTGR, true),
                         "" => (),
-                        other => tracing::warn!("Invalid key modifier: {}", other),
+                        other => trace!(
+                            TraceLevel::WARN,
+                            "Invalid key modifier: {}",
+                            other
+                        ),
                     }
                 }
 

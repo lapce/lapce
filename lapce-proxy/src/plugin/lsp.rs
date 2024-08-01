@@ -10,7 +10,6 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, Params};
-use lapce_core::meta;
 use lapce_rpc::{
     plugin::{PluginId, VoltID},
     style::LineStyle,

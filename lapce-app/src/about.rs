@@ -8,7 +8,7 @@ use floem::{
     views::{container, label, stack, svg, Decorators},
     View,
 };
-use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};
+use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
     command::{CommandExecuted, CommandKind},
@@ -21,11 +21,11 @@ use crate::{
 struct AboutUri {}
 
 impl AboutUri {
-    const LAPCE: &'static str = "https://lapce.dev";
-    const GITHUB: &'static str = "https://github.com/lapce/lapce";
-    const MATRIX: &'static str = "https://matrix.to/#/#lapce-editor:matrix.org";
-    const DISCORD: &'static str = "https://discord.gg/n8tGJ6Rn6D";
     const CODICONS: &'static str = "https://github.com/microsoft/vscode-codicons";
+    const DISCORD: &'static str = "https://discord.gg/n8tGJ6Rn6D";
+    const GITHUB: &'static str = "https://github.com/lapce/lapce";
+    const LAPCE: &'static str = "https://lapce.dev";
+    const MATRIX: &'static str = "https://matrix.to/#/#lapce-editor:matrix.org";
 }
 
 #[derive(Clone, Debug)]
@@ -110,7 +110,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .margin_top(10.0)
                     .color(config.get().color(LapceColor::EDITOR_FOREGROUND))
             }),
-            label(|| format!("Version: {}", VERSION)).style(move |s| {
+            label(|| format!("Version: {}", meta::VERSION)).style(move |s| {
                 s.margin_top(10.0)
                     .color(config.get().color(LapceColor::EDITOR_DIM))
             }),

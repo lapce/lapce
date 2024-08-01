@@ -1,4 +1,3 @@
-use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -8,7 +7,9 @@ use std::{
     time::Instant,
 };
 
+use alacritty_terminal::vte::ansi::Handler;
 use crossbeam_channel::Sender;
+use directory::Directory;
 use floem::{
     action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
@@ -23,8 +24,7 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
-    mode::Mode, register::Register,
+    command::FocusCommand, cursor::CursorAffinity, mode::Mode, register::Register,
 };
 use lapce_rpc::{
     core::CoreNotification,
@@ -37,7 +37,7 @@ use lapce_rpc::{
 };
 use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
-use tracing::{debug, error, event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     about::AboutData,
@@ -48,7 +48,7 @@ use crate::{
         LapceWorkbenchCommand, WindowCommand,
     },
     completion::{CompletionData, CompletionStatus},
-    config::LapceConfig,
+    config::{color_theme, LapceConfig},
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
@@ -78,7 +78,6 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
-    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -291,11 +290,14 @@ impl WindowTabData {
             info
         };
 
-        let config = LapceConfig::load(
+        let Ok(config) = LapceConfig::load(
             &workspace,
             &all_disabled_volts,
             &window_common.extra_plugin_paths,
-        );
+        ) else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            panic!("Failed to load config");
+        };
         let lapce_command = Listener::new_empty(cx);
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
@@ -614,11 +616,14 @@ impl WindowTabData {
         let mut all_disabled_volts = disabled_volts;
         all_disabled_volts.extend(workspace_disabled_volts);
 
-        let config = LapceConfig::load(
+        let Ok(config) = LapceConfig::load(
             &self.workspace,
             &all_disabled_volts,
             &self.common.window_common.extra_plugin_paths,
-        );
+        ) else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            return;
+        };
         self.common.keypress.update(|keypress| {
             keypress.update_keymaps(&config);
         });
@@ -678,7 +683,7 @@ impl WindowTabData {
                                 path: Some(if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    trace!(TraceLevel::ERROR, "No path");
                                     return;
                                 }),
                                 last_open: std::time::SystemTime::now()
@@ -713,11 +718,19 @@ impl WindowTabData {
                                 path: if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    trace!(TraceLevel::ERROR, "No path");
                                     return;
                                 },
                             })
                         }
+                    });
+                }
+            }
+            OpenMarkdownPreview => {
+                if let Some(editor_tab_id) = self.main_split.active_editor_tab.get_untracked() {
+                    let internal_command = self.common.internal_command;
+                    internal_command.send(InternalCommand::OpenMarkdownPreview {
+                        editor_tab_id,
                     });
                 }
             }
@@ -766,13 +779,14 @@ impl WindowTabData {
                     }
                 });
             }
+            ChangeEncoding => {}
 
             // ==== Configuration / Info Files and Folders ====
             OpenSettings => {
                 self.main_split.open_settings();
             }
             OpenSettingsFile => {
-                if let Some(path) = LapceConfig::settings_file() {
+                if let Ok(path) = LapceConfig::settings_file() {
                     self.main_split.jump_to_location(
                         EditorLocation {
                             path,
@@ -786,7 +800,7 @@ impl WindowTabData {
                 }
             }
             OpenSettingsDirectory => {
-                if let Some(dir) = Directory::config_directory() {
+                if let Ok(dir) = Directory::config_directory(None) {
                     open_uri(&dir);
                 }
             }
@@ -797,7 +811,7 @@ impl WindowTabData {
                 self.main_split.open_keymap();
             }
             OpenKeyboardShortcutsFile => {
-                if let Some(path) = LapceConfig::keymaps_file() {
+                if let Ok(path) = LapceConfig::keymaps_file() {
                     self.main_split.jump_to_location(
                         EditorLocation {
                             path,
@@ -811,7 +825,7 @@ impl WindowTabData {
                 }
             }
             OpenLogFile => {
-                if let Some(dir) = Directory::logs_directory() {
+                if let Ok(dir) = Directory::logs_directory() {
                     self.open_paths(&[PathObject::from_path(
                         dir.join(format!(
                             "lapce.{}.log",
@@ -822,32 +836,32 @@ impl WindowTabData {
                 }
             }
             OpenLogsDirectory => {
-                if let Some(dir) = Directory::logs_directory() {
+                if let Ok(dir) = Directory::logs_directory() {
                     open_uri(&dir);
                 }
             }
             OpenProxyDirectory => {
-                if let Some(dir) = Directory::proxy_directory() {
+                if let Ok(dir) = Directory::proxy_directory() {
                     open_uri(&dir);
                 }
             }
             OpenThemesDirectory => {
-                if let Some(dir) = Directory::themes_directory() {
+                if let Ok(dir) = Directory::themes_directory() {
                     open_uri(&dir);
                 }
             }
             OpenPluginsDirectory => {
-                if let Some(dir) = Directory::plugins_directory() {
+                if let Ok(dir) = Directory::plugins_directory() {
                     open_uri(&dir);
                 }
             }
             OpenGrammarsDirectory => {
-                if let Some(dir) = Directory::grammars_directory() {
+                if let Ok(dir) = Directory::grammars_directory() {
                     open_uri(&dir);
                 }
             }
             OpenQueriesDirectory => {
-                if let Some(dir) = Directory::queries_directory() {
+                if let Ok(dir) = Directory::queries_directory() {
                     open_uri(&dir);
                 }
             }
@@ -1014,8 +1028,17 @@ impl WindowTabData {
             }
 
             // ==== Remote ====
+            ConnectCustomHost => {
+                self.palette.run(PaletteKind::CustomHost);
+            }
+            ConnectGhHost => {
+                self.palette.run(PaletteKind::GhHost);
+            }
             ConnectSshHost => {
                 self.palette.run(PaletteKind::SshHost);
+            }
+            ConnectTsHost => {
+                self.palette.run(PaletteKind::TsHost);
             }
             #[cfg(windows)]
             ConnectWslHost => {
@@ -1060,8 +1083,11 @@ impl WindowTabData {
             ChangeColorTheme => {
                 self.palette.run(PaletteKind::ColorTheme);
             }
-            ChangeIconTheme => {
-                self.palette.run(PaletteKind::IconTheme);
+            ChangeFileIconTheme => {
+                self.palette.run(PaletteKind::FileIconTheme);
+            }
+            ChangeUIIconTheme => {
+                self.palette.run(PaletteKind::UIIconTheme);
             }
             ChangeFileLanguage => {
                 self.palette.run(PaletteKind::Language);
@@ -1098,7 +1124,7 @@ impl WindowTabData {
                 }
                 self.common.window_common.window_scale.set(scale);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(scale),
@@ -1113,7 +1139,7 @@ impl WindowTabData {
                 }
                 self.common.window_common.window_scale.set(scale);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(scale),
@@ -1122,7 +1148,7 @@ impl WindowTabData {
             ZoomReset => {
                 self.common.window_common.window_scale.set(1.0);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(1.0),
@@ -1237,7 +1263,7 @@ impl WindowTabData {
                         self.proxy.proxy_rpc.git_checkout(reference.to_string());
                     }
                 }
-                None => error!("No ref provided"),
+                None => trace!(TraceLevel::ERROR, "No ref provided"),
             },
             SourceControlCommit => {
                 self.source_control.commit();
@@ -1311,7 +1337,7 @@ impl WindowTabData {
                                 };
 
                                 if let Err(err) = do_update() {
-                                    error!("Failed to update: {err}");
+                                    trace!(TraceLevel::ERROR, "Failed to update: {err}");
                                 }
 
                                 send(false);
@@ -1383,10 +1409,6 @@ impl WindowTabData {
         match cmd {
             InternalCommand::ReloadConfig => {
                 self.reload_config();
-            }
-            InternalCommand::UpdateLogLevel { level } => {
-                // TODO: implement logging panel, runtime log level change
-                debug!("{level}");
             }
             InternalCommand::MakeConfirmed => {
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
@@ -1704,11 +1726,13 @@ impl WindowTabData {
             InternalCommand::SetColorTheme { name, save } => {
                 if save {
                     // The config file is watched
-                    LapceConfig::update_file(
-                        "core",
-                        "color-theme",
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
+                        color_theme::CONFIG_KEY,
                         toml_edit::Value::from(name),
-                    );
+                    ) {
+                        trace!(TraceLevel::ERROR, "{e}");
+                    };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
@@ -1716,27 +1740,48 @@ impl WindowTabData {
                     self.set_config.set(new_config);
                 }
             }
-            InternalCommand::SetIconTheme { name, save } => {
+            InternalCommand::SetFileIconTheme { name, save } => {
                 if save {
                     // The config file is watched
-                    LapceConfig::update_file(
-                        "core",
-                        "icon-theme",
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
+                        "file-icon-theme",
                         toml_edit::Value::from(name),
-                    );
+                    ) {
+                        trace!(TraceLevel::ERROR, "{e}");
+                    };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
-                        .set_icon_theme(&self.workspace, &name);
+                        .set_file_icon_theme(&self.workspace, &name);
+                    self.set_config.set(new_config);
+                }
+            }
+            InternalCommand::SetUIIconTheme { name, save } => {
+                if save {
+                    // The config file is watched
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
+                        "ui-icon-theme",
+                        toml_edit::Value::from(name),
+                    ) {
+                        trace!(TraceLevel::ERROR, "{e}");
+                    };
+                } else {
+                    let mut new_config = self.common.config.get_untracked();
+                    Arc::make_mut(&mut new_config)
+                        .set_ui_icon_theme(&self.workspace, &name);
                     self.set_config.set(new_config);
                 }
             }
             InternalCommand::SetModal { modal } => {
-                LapceConfig::update_file(
-                    "core",
+                if let Err(e) = LapceConfig::update_file(
+                    crate::config::core::CONFIG_KEY,
                     "modal",
                     toml_edit::Value::from(modal),
-                );
+                ) {
+                    trace!(TraceLevel::ERROR, "{e}");
+                };
             }
             InternalCommand::OpenWebUri { uri } => {
                 if !uri.is_empty() {
@@ -1778,6 +1823,9 @@ impl WindowTabData {
             InternalCommand::OpenVoltView { volt_id } => {
                 self.main_split.open_volt_view(volt_id);
             }
+            InternalCommand::OpenMarkdownPreview { editor_tab_id } => {
+                self.main_split.open_markdown_preview(editor_tab_id);
+            }
             InternalCommand::ResetBlinkCursor => {
                 // All the editors share the blinking information and logic, so we can just reset
                 // one of them.
@@ -1796,14 +1844,19 @@ impl WindowTabData {
                 {
                     Ok(v) => v,
                     Err(e) => {
-                        return event!(Level::ERROR, "Failed to spawn process: {e}")
+                        return trace!(
+                            TraceLevel::ERROR,
+                            "Failed to spawn process: {e}"
+                        )
                     }
                 };
 
                 match cmd.wait() {
-                    Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
+                    Ok(v) => {
+                        trace!(TraceLevel::TRACE, "Process exited with status {v}")
+                    }
                     Err(e) => {
-                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                        trace!(TraceLevel::ERROR, "Proces exited with an error: {e}")
                     }
                 };
             }
@@ -1821,7 +1874,10 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal tab data: index={tab_index}");
+                    trace!(
+                        TraceLevel::ERROR,
+                        "cound not find terminal tab data: index={tab_index}"
+                    );
                     return;
                 };
                 let Some(raw) = tab.terminals.with_untracked(|x| {
@@ -1833,7 +1889,10 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal data: index={terminal_index}");
+                    trace!(
+                        TraceLevel::ERROR,
+                        "cound not find terminal data: index={terminal_index}"
+                    );
                     return;
                 };
                 raw.write().term.reset_state();
@@ -2032,7 +2091,7 @@ impl WindowTabData {
                 target,
             } => {
                 use lapce_rpc::core::LogLevel;
-                use tracing_log::log::{log, Level};
+                use tracing::log::log::{log, Level};
 
                 let target = target.clone().unwrap_or(String::from("unknown"));
 
@@ -2056,7 +2115,7 @@ impl WindowTabData {
             }
             CoreNotification::LogMessage { message, target } => {
                 use lsp_types::MessageType;
-                use tracing_log::log::{log, Level};
+                use tracing::log::log::{log, Level};
                 match message.typ {
                     MessageType::ERROR => {
                         log!(target: target, Level::Error, "{}", message.message)
@@ -2646,10 +2705,13 @@ impl WindowTabData {
 fn open_uri(path: &Path) {
     match open::that(path) {
         Ok(_) => {
-            debug!("opened active file: {path:?}");
+            trace!(TraceLevel::DEBUG, "opened active file: {path:?}");
         }
         Err(e) => {
-            error!("failed to open active file: {path:?}, error: {e}");
+            trace!(
+                TraceLevel::ERROR,
+                "failed to open active file: {path:?}, error: {e}"
+            );
         }
     }
 }

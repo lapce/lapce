@@ -16,11 +16,11 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{Receiver, Sender};
+use directory::Directory;
 use dyn_clone::DynClone;
 use flate2::read::GzDecoder;
-use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
@@ -73,7 +73,7 @@ use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tar::Archive;
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 use self::{
     catalog::PluginCatalog,
@@ -1185,7 +1185,10 @@ impl PluginCatalogRpcHandler {
                 });
             }
             Err(_) => {
-                tracing::error!("Failed to parse URL from file path: {path:?}");
+                trace!(
+                    TraceLevel::ERROR,
+                    "Failed to parse URL from file path: {path:?}"
+                );
             }
         }
     }
@@ -1222,7 +1225,7 @@ impl PluginCatalogRpcHandler {
             f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
                 if let Err(e) = rs {
                     // maybe should send notification
-                    error!("{:?}", e);
+                    trace!(TraceLevel::ERROR, "{:?}", e);
                 }
             }),
         };
@@ -1237,9 +1240,9 @@ impl PluginCatalogRpcHandler {
             f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
                 if let Err(e) = rs {
                     // maybe should send notification
-                    error!("{:?}", e);
+                    trace!(TraceLevel::ERROR, "{:?}", e);
                 } else if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
-                    error!("{:?}", e);
+                    trace!(TraceLevel::ERROR, "{:?}", e);
                 }
             }),
         };
@@ -1455,7 +1458,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
 
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
+        .context("can't get plugin directory")?
         .join(id.to_string());
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;
@@ -1519,7 +1522,7 @@ pub fn remove_volt(
             }
         }
         if let Err(e) = rs {
-            error!("remove_dir_all {:?}", e);
+            trace!(TraceLevel::ERROR, "remove_dir_all {:?}", e);
             eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),

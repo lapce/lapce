@@ -4,10 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use crossbeam_channel::{unbounded, Sender};
+use directory::Directory;
 use floem::peniko::kurbo::Vec2;
-use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 use sha2::{Digest, Sha256};
 
@@ -47,11 +47,11 @@ pub struct LapceDb {
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let folder = Directory::config_directory()
-            .ok_or_else(|| anyhow!("can't get config directory"))?
+        let folder = Directory::config_directory(None)
+            .context("can't get config directory")?
             .join("db");
         let workspace_folder = folder.join("workspaces");
-        let _ = std::fs::create_dir_all(&workspace_folder);
+        std::fs::create_dir_all(&workspace_folder)?;
 
         let (save_tx, save_rx) = unbounded();
 

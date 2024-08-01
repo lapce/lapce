@@ -15,10 +15,10 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
+use directory::Directory;
 use dispatch::Dispatcher;
-use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
     file::PathObject,
@@ -26,7 +26,7 @@ use lapce_rpc::{
     stdio::stdio_transport,
     RpcMessage,
 };
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 #[derive(Parser)]
 #[clap(name = "Lapce-proxy")]
@@ -48,7 +48,7 @@ pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
         if let Err(e) = cli::try_open_in_existing_process(&cli.paths) {
-            error!("failed to open path(s): {e}");
+            trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
         };
         exit(1);
     }
@@ -136,8 +136,8 @@ pub fn register_lapce_path() -> Result<()> {
 }
 
 fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let _ = std::fs::remove_file(&local_socket);
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;

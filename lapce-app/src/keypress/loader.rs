@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
 use lapce_core::mode::Modes;
-use tracing::{debug, error};
+use tracing::{trace, TraceLevel};
 
 use super::keymap::{KeyMap, KeyMapPress};
 
@@ -37,7 +37,7 @@ impl KeyMapLoader {
                     continue;
                 }
                 Err(err) => {
-                    error!("Could not parse keymap: {err}");
+                    trace!(TraceLevel::ERROR, "Could not parse keymap: {err}");
                     continue;
                 }
             };
@@ -107,7 +107,7 @@ impl KeyMapLoader {
             && !modes.contains(Modes::INSERT)
             && !modes.contains(Modes::TERMINAL)
         {
-            debug!("Keymap ignored: {}", key);
+            trace!(TraceLevel::DEBUG, "Keymap ignored: {}", key);
             return Ok(None);
         }
 

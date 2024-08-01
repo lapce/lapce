@@ -1,9 +1,11 @@
-.vscode
-.lapce
-.idea
-.fleet
+/.vscode
+/.lapce
+/.idea
+/.fleet
+/.flatpak-builder
+/build
 shell.nix
-lib/
+/lib/
 target/
 core/languages/
 vendor/

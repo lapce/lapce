@@ -6,7 +6,7 @@ mod press;
 
 use std::{path::PathBuf, rc::Rc, str::FromStr};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use floem::{
     keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
     pointer::{PointerButton, PointerInputEvent},
@@ -15,6 +15,7 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
+use tracing::{trace, TraceLevel};
 
 pub use self::press::KeyPress;
 use self::{
@@ -29,7 +30,6 @@ use crate::{
         condition::{CheckCondition, Condition},
         keymap::KeymapMatch,
     },
-    tracing::*,
 };
 
 const DEFAULT_KEYMAPS_COMMON: &str =
@@ -560,7 +560,7 @@ impl KeyPressData {
             trace!(TraceLevel::ERROR, "Failed to load OS defaults: {err}");
         }
 
-        if let Some(path) = Self::file() {
+        if let Ok(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Err(err) = loader.load_from_str(&content, is_modal) {
                     trace!(TraceLevel::WARN, "Failed to load from {path:?}: {err}");
@@ -571,23 +571,25 @@ impl KeyPressData {
         Ok(loader.finalize())
     }
 
-    pub fn file() -> Option<PathBuf> {
+    pub fn file() -> Result<PathBuf> {
         LapceConfig::keymaps_file()
     }
 
-    fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
+    fn get_file_array() -> Result<toml_edit::ArrayOfTables> {
         let path = Self::file()?;
-        let content = std::fs::read_to_string(path).ok()?;
-        let document: toml_edit::Document = content.parse().ok()?;
-        document
+        let content = std::fs::read_to_string(path)?;
+        let document: toml_edit::Document = content.parse()?;
+        Ok(document
             .as_table()
-            .get("keymaps")?
+            .get("keymaps")
+            .ok_or(anyhow!("Failed to get key 'keymaps`"))?
             .as_array_of_tables()
-            .cloned()
+            .ok_or(anyhow!("Failed to get array of tables"))?
+            .clone())
     }
 
-    pub fn update_file(keymap: &KeyMap, keys: &[KeyMapPress]) -> Option<()> {
-        let mut array = Self::get_file_array().unwrap_or_default();
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyMapPress]) -> Result<()> {
+        let mut array = Self::get_file_array()?;
         let index = array.iter().position(|value| {
             Some(keymap.command.as_str())
                 == value.get("command").and_then(|c| c.as_str())
@@ -603,10 +605,15 @@ impl KeyPressData {
 
         if let Some(index) = index {
             if !keys.is_empty() {
-                array.get_mut(index)?.insert(
-                    "key",
-                    toml_edit::value(toml_edit::Value::from(keys.iter().join(" "))),
-                );
+                array
+                    .get_mut(index)
+                    .ok_or(anyhow!("Cannot get key `{index}`"))?
+                    .insert(
+                        "key",
+                        toml_edit::value(toml_edit::Value::from(
+                            keys.iter().join(" "),
+                        )),
+                    );
             } else {
                 array.remove(index);
             };
@@ -660,8 +667,8 @@ impl KeyPressData {
         let mut table = toml_edit::Document::new();
         table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
         let path = Self::file()?;
-        std::fs::write(path, table.to_string().as_bytes()).ok()?;
-        None
+        std::fs::write(path, table.to_string().as_bytes())?;
+        Ok(())
     }
 }
 

@@ -28,7 +28,7 @@ use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
@@ -49,7 +49,7 @@ use crate::{
     main_split::MainSplitData,
     source_control::SourceControlData,
     window_tab::{CommonData, Focus},
-    workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
+    workspace::{self, LapceWorkspace, LapceWorkspaceType},
 };
 
 pub mod item;
@@ -376,8 +376,17 @@ impl PaletteData {
             PaletteKind::WorkspaceSymbol => {
                 self.get_workspace_symbols();
             }
+            PaletteKind::CustomHost => {
+                self.get_custom_hosts();
+            }
+            PaletteKind::GhHost => {
+                self.get_gh_hosts();
+            }
             PaletteKind::SshHost => {
                 self.get_ssh_hosts();
+            }
+            PaletteKind::TsHost => {
+                self.get_ts_hosts();
             }
             #[cfg(windows)]
             PaletteKind::WslHost => {
@@ -389,8 +398,11 @@ impl PaletteData {
             PaletteKind::ColorTheme => {
                 self.get_color_themes();
             }
-            PaletteKind::IconTheme => {
-                self.get_icon_themes();
+            PaletteKind::FileIconTheme => {
+                self.get_file_icon_themes();
+            }
+            PaletteKind::UIIconTheme => {
+                self.get_ui_icon_themes();
             }
             PaletteKind::Language => {
                 self.get_languages();
@@ -401,7 +413,10 @@ impl PaletteData {
             PaletteKind::SCMReferences => {
                 self.get_scm_references();
             }
-            PaletteKind::TerminalProfile => self.get_terminal_profiles(),
+            PaletteKind::TerminalProfile => {
+                self.get_terminal_profiles();
+            }
+            PaletteKind::Encoding => {}
         }
     }
 
@@ -575,7 +590,16 @@ impl PaletteData {
                 let text = w.path.as_ref()?.to_str()?.to_string();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
+                    LapceWorkspaceType::RemoteCustom(remote) => {
+                        format!("[{remote}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteGH(remote) => {
+                        format!("[{remote}] {text}")
+                    }
                     LapceWorkspaceType::RemoteSSH(remote) => {
+                        format!("[{remote}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteTS(remote) => {
                         format!("[{remote}] {text}")
                     }
                     #[cfg(windows)]
@@ -741,6 +765,50 @@ impl PaletteData {
             });
     }
 
+    fn get_custom_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteCustom(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::CustomHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn get_gh_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteGH(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::GhHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
     fn get_ssh_hosts(&self) {
         let db: Arc<LapceDb> = use_context().unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
@@ -755,6 +823,28 @@ impl PaletteData {
             .iter()
             .map(|host| PaletteItem {
                 content: PaletteItemContent::SshHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn get_ts_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteTS(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::TsHost { host: host.clone() },
                 filter_text: host.to_string(),
                 score: 0,
                 indices: vec![],
@@ -812,7 +902,7 @@ impl PaletteData {
             .iter()
             .map(|host| PaletteItem {
                 content: PaletteItemContent::WslHost {
-                    host: crate::workspace::WslHost { host: host.clone() },
+                    host: workspace::wsl::Host { host: host.clone() },
                 },
                 filter_text: host.to_string(),
                 score: 0,
@@ -931,13 +1021,13 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_icon_themes(&self) {
+    fn get_file_icon_themes(&self) {
         let config = self.common.config.get_untracked();
         let items = config
-            .icon_theme_list()
+            .file_icon_theme_list()
             .iter()
             .map(|name| PaletteItem {
-                content: PaletteItemContent::IconTheme { name: name.clone() },
+                content: PaletteItemContent::FileIconTheme { name: name.clone() },
                 filter_text: name.clone(),
                 score: 0,
                 indices: Vec::new(),
@@ -945,7 +1035,26 @@ impl PaletteData {
             .collect();
         self.preselect_matching(
             &items,
-            &self.common.config.get_untracked().icon_theme.name,
+            &self.common.config.get_untracked().file_icon_theme.name,
+        );
+        self.items.set(items);
+    }
+
+    fn get_ui_icon_themes(&self) {
+        let config = self.common.config.get_untracked();
+        let items = config
+            .ui_icon_theme_list()
+            .iter()
+            .map(|name| PaletteItem {
+                content: PaletteItemContent::UIIconTheme { name: name.clone() },
+                filter_text: name.clone(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.preselect_matching(
+            &items,
+            &self.common.config.get_untracked().file_icon_theme.name,
         );
         self.items.set(items);
     }
@@ -1028,7 +1137,7 @@ impl PaletteData {
             )) {
                 Ok(v) => Some(v),
                 Err(e) => {
-                    error!("Failed to parse uri: {e}");
+                    trace!(TraceLevel::ERROR, "Failed to parse uri: {e}");
                     None
                 }
             };
@@ -1145,11 +1254,44 @@ impl PaletteData {
                         },
                     );
                 }
+                PaletteItemContent::CustomHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteCustom(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
+                PaletteItemContent::GhHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteGH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
                 PaletteItemContent::SshHost { host } => {
                     self.common.window_common.window_command.send(
                         WindowCommand::SetWorkspace {
                             workspace: LapceWorkspace {
                                 kind: LapceWorkspaceType::RemoteSSH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
+                PaletteItemContent::TsHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteTS(host.clone()),
                                 path: None,
                                 last_open: 0,
                             },
@@ -1219,10 +1361,17 @@ impl PaletteData {
                         name: name.clone(),
                         save: true,
                     }),
-                PaletteItemContent::IconTheme { name } => self
+                PaletteItemContent::FileIconTheme { name } => self
                     .common
                     .internal_command
-                    .send(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetFileIconTheme {
+                        name: name.clone(),
+                        save: true,
+                    }),
+                PaletteItemContent::UIIconTheme { name } => self
+                    .common
+                    .internal_command
+                    .send(InternalCommand::SetUIIconTheme {
                         name: name.clone(),
                         save: true,
                     }),
@@ -1266,16 +1415,25 @@ impl PaletteData {
                         data: Some(serde_json::json!(name.to_owned())),
                     });
                 }
-                PaletteItemContent::TerminalProfile { name: _, profile } => self
-                    .common
-                    .internal_command
-                    .send(InternalCommand::NewTerminal {
-                        profile: Some(profile.to_owned()),
-                    }),
+                PaletteItemContent::TerminalProfile { name: _, profile } => {
+                    self.common.internal_command.send(
+                        InternalCommand::NewTerminal {
+                            profile: Some(profile.to_owned()),
+                        },
+                    );
+                }
+                PaletteItemContent::Encoding { .. } => {
+                    // self
+                    // .common
+                    // .internal_command
+                    // .send(InternalCommand::NewTerminal {
+                    //     profile: Some(profile.to_owned()),
+                    // });
+                }
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
-            let ssh = SshHost::from_string(&input);
+            let ssh = workspace::ssh::Host::from_string(&input);
             self.common.window_common.window_command.send(
                 WindowCommand::SetWorkspace {
                     workspace: LapceWorkspace {
@@ -1332,7 +1490,10 @@ impl PaletteData {
                 PaletteItemContent::Command { .. } => {}
                 PaletteItemContent::Workspace { .. } => {}
                 PaletteItemContent::RunAndDebug { .. } => {}
+                PaletteItemContent::CustomHost { .. } => {}
+                PaletteItemContent::GhHost { .. } => {}
                 PaletteItemContent::SshHost { .. } => {}
+                PaletteItemContent::TsHost { .. } => {}
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { .. } => {}
                 PaletteItemContent::Language { .. } => {}
@@ -1395,23 +1556,32 @@ impl PaletteData {
                         name: name.clone(),
                         save: false,
                     }),
-                PaletteItemContent::IconTheme { name } => self
+                PaletteItemContent::FileIconTheme { name } => self
                     .common
                     .internal_command
-                    .send(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetFileIconTheme {
+                        name: name.clone(),
+                        save: false,
+                    }),
+                PaletteItemContent::UIIconTheme { name } => self
+                    .common
+                    .internal_command
+                    .send(InternalCommand::SetUIIconTheme {
                         name: name.clone(),
                         save: false,
                     }),
                 PaletteItemContent::SCMReference { .. } => {}
                 PaletteItemContent::TerminalProfile { .. } => {}
+                PaletteItemContent::Encoding { .. } => {}
             }
         }
     }
 
     /// Cancel the palette, doing cleanup specific to the palette kind.
     fn cancel(&self) {
-        if let PaletteKind::ColorTheme | PaletteKind::IconTheme =
-            self.kind.get_untracked()
+        if let PaletteKind::ColorTheme
+        | PaletteKind::FileIconTheme
+        | PaletteKind::UIIconTheme = self.kind.get_untracked()
         {
             // TODO(minor): We don't really need to reload the *entire config* here!
             self.common

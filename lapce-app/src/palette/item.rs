@@ -8,7 +8,7 @@ use crate::{
     command::{LapceCommand, LapceWorkbenchCommand},
     debug::RunDebugMode,
     editor::location::EditorLocation,
-    workspace::{LapceWorkspace, SshHost},
+    workspace::{self, LapceWorkspace},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,12 +54,21 @@ pub enum PaletteItemContent {
         container_name: Option<String>,
         location: EditorLocation,
     },
+    CustomHost {
+        host: workspace::custom::Host,
+    },
+    GhHost {
+        host: workspace::gh::Host,
+    },
     SshHost {
-        host: SshHost,
+        host: workspace::ssh::Host,
+    },
+    TsHost {
+        host: workspace::ts::Host,
     },
     #[cfg(windows)]
     WslHost {
-        host: crate::workspace::WslHost,
+        host: workspace::wsl::Host,
     },
     RunAndDebug {
         mode: RunDebugMode,
@@ -68,7 +77,10 @@ pub enum PaletteItemContent {
     ColorTheme {
         name: String,
     },
-    IconTheme {
+    FileIconTheme {
+        name: String,
+    },
+    UIIconTheme {
         name: String,
     },
     Language {
@@ -83,5 +95,8 @@ pub enum PaletteItemContent {
     TerminalProfile {
         name: String,
         profile: lapce_rpc::terminal::TerminalProfile,
+    },
+    Encoding {
+        name: String,
     },
 }

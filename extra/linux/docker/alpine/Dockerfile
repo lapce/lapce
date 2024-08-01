@@ -24,8 +24,6 @@ apk add --no-cache \
   ${DISTRIBUTION_PACKAGES}
 EOF
 
-SHELL [ "/bin/bash", "-c" ]
-
 WORKDIR /source
 COPY --link . .
 

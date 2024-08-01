@@ -164,6 +164,7 @@ pub struct Doc {
     pub loaded: RwSignal<bool>,
     pub buffer: RwSignal<Buffer>,
     pub syntax: RwSignal<Syntax>,
+    pub encoding: RwSignal<String>,
     semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// Inlay hints for the document
     pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
@@ -219,6 +220,7 @@ impl Doc {
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
             syntax: cx.create_rw_signal(syntax),
+            encoding: cx.create_rw_signal(String::from("UTF-8")),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             parser: Rc::new(RefCell::new(BracketParser::new(
                 String::new(),
@@ -267,6 +269,7 @@ impl Doc {
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
             syntax: cx.create_rw_signal(Syntax::plaintext()),
+            encoding: cx.create_rw_signal(String::from("UTF-8")),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             parser: Rc::new(RefCell::new(BracketParser::new(
                 String::new(),
@@ -316,6 +319,7 @@ impl Doc {
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
             syntax: cx.create_rw_signal(syntax),
+            encoding: cx.create_rw_signal(String::from("UTF-8")),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             parser: Rc::new(RefCell::new(BracketParser::new(
                 String::new(),

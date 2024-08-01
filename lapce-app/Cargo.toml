@@ -5,8 +5,20 @@ version      = { workspace = true }
 authors      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
+publish      = { workspace = true }
 
 [dependencies]
+# 1st party dependencies
+directory     = { workspace = true }
+floem         = { workspace = true }
+meta          = { workspace = true }
+lapce-core    = { workspace = true }
+lapce-proxy   = { workspace = true }
+lapce-rpc     = { workspace = true }
+lapce-xi-rope = { workspace = true }
+tracing       = { workspace = true }
+
+# 3rd party dependencies
 alacritty_terminal = { workspace = true }
 anyhow             = { workspace = true }
 backtrace          = { workspace = true }
@@ -20,10 +32,6 @@ include_dir        = { workspace = true }
 indexmap           = { workspace = true }
 interprocess       = { workspace = true }
 itertools          = { workspace = true }
-lapce-core         = { workspace = true }
-lapce-proxy        = { workspace = true }
-lapce-rpc          = { workspace = true }
-lapce-xi-rope      = { workspace = true }
 lsp-types          = { workspace = true }
 notify             = { workspace = true }
 once_cell          = { workspace = true }
@@ -42,13 +50,8 @@ tempfile           = { workspace = true }
 thiserror          = { workspace = true }
 toml               = { workspace = true }
 toml_edit          = { workspace = true }
-tracing            = { workspace = true }
-tracing-log        = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-appender   = { workspace = true }
 url                = { workspace = true }
 zstd               = { workspace = true }
-floem              = { workspace = true }
 
 pulldown-cmark   = { version = "0.11.0" }
 Inflector        = { version = "0.11.4" }
@@ -63,13 +66,21 @@ sha2             = { version = "0.10.8" }
 zip              = { version = "0.6.6", default-features = false, features = ["deflate"] }
 percent-encoding = { version = "2.3.1" }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg      = "0.1.1"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 workspace = true
-features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
+features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+]
 
 [features]
 default        = ["updater", "vendored-fonts"]

@@ -9,7 +9,6 @@ use floem::{
     views::{container, drag_window_area, empty, label, stack, svg, Decorators},
     View,
 };
-use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
@@ -83,11 +82,21 @@ fn left(
         )
         .popout_menu(move || {
             #[allow(unused_mut)]
-            let mut menu = Menu::new("").entry(
-                MenuItem::new("Connect to SSH Host").action(move || {
+            let mut menu = Menu::new("")
+                .entry(MenuItem::new("Connect to Custom Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectCustomHost);
+                }))
+                .entry(MenuItem::new("Connect to GitHub Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectGhHost);
+                }))
+                .entry(MenuItem::new("Connect to SSH Host").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
-                }),
-            );
+                }))
+                .entry(MenuItem::new("Connect to Tailscale Host").action(
+                    move || {
+                        workbench_command.send(LapceWorkbenchCommand::ConnectTsHost);
+                    },
+                ));
             if !is_local
                 && proxy_status.get().is_some_and(|p| {
                     matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)

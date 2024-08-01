@@ -37,7 +37,6 @@ pub mod terminal;
 pub mod text_area;
 pub mod text_input;
 pub mod title;
-pub mod tracing;
 pub mod update;
 pub mod wave;
 pub mod web_link;

@@ -11,9 +11,9 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
+use directory::Directory;
 use jsonrpc_lite::{Id, Params};
-use lapce_core::directory::Directory;
 use lapce_rpc::{
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,
@@ -29,6 +29,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
 use serde_json::Value;
+use tracing::{trace, TraceLevel};
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -68,6 +69,7 @@ impl Write for WasiPipe {
         self.buffer.extend(buf);
         Ok(buf.len())
     }
+
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
@@ -264,7 +266,7 @@ pub fn load_all_volts(
 /// As well, this function skips any volt in the typical plugin directory that match the name
 /// of the dev plugin so as to support developing a plugin you actively use.
 pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
-    let Some(plugin_dir) = Directory::plugins_directory() else {
+    let Ok(plugin_dir) = Directory::plugins_directory() else {
         return Vec::new();
     };
 
@@ -287,7 +289,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         .filter_map(|path| match load_volt(&path) {
             Ok(metadata) => Some(metadata),
             Err(e) => {
-                tracing::error!("Failed to load plugin: {:?}", e);
+                trace!(TraceLevel::ERROR, "Failed to load plugin: {:?}", e);
                 None
             }
         })
@@ -297,7 +299,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         let mut metadata = match load_volt(plugin_path) {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to load extra plugin: {:?}", e);
+                trace!(TraceLevel::ERROR, "Failed to load extra plugin: {:?}", e);
                 continue;
             }
         };
@@ -397,7 +399,7 @@ pub fn enable_volt(
     volt: VoltInfo,
 ) -> Result<()> {
     let path = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
+        .context("can't get plugin directory")?
         .join(volt.id().to_string());
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
@@ -502,7 +504,7 @@ pub fn start_volt(
     let plugin_meta = meta.clone();
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
-            tracing_log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing_log::log::Level::Debug, "{msg}");
+            tracing::log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing::log::log::Level::Debug, "{msg}");
         }
     })?;
     linker.module(&mut store, "", &module)?;

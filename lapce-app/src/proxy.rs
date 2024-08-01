@@ -9,16 +9,19 @@ use lapce_rpc::{
     proxy::{ProxyRpcHandler, ProxyStatus},
     terminal::TermId,
 };
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
-use self::{remote::start_remote, ssh::SshRemote};
+use self::remote::start_remote;
 use crate::{
     terminal::event::TermEvent,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
+mod custom;
+mod gh;
 mod remote;
 mod ssh;
+mod ts;
 #[cfg(windows)]
 mod wsl;
 
@@ -77,27 +80,61 @@ pub fn new_proxy(
                         proxy_rpc.mainloop(&mut dispatcher);
                     });
                 }
-                LapceWorkspaceType::RemoteSSH(remote) => {
+                LapceWorkspaceType::RemoteCustom(remote) => {
                     if let Err(e) = start_remote(
-                        SshRemote {
-                            ssh: remote.clone(),
+                        custom::CustomRemote {
+                            host: remote.clone(),
+                            output: None,
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteGH(remote) => {
+                    if let Err(e) = start_remote(
+                        gh::GhRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteSSH(remote) => {
+                    if let Err(e) = start_remote(
+                        ssh::SshRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        trace!(TraceLevel::ERROR, "Failed to start SSH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteTS(remote) => {
+                    if let Err(e) = start_remote(
+                        ts::TsRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
                     }
                 }
                 #[cfg(windows)]
                 LapceWorkspaceType::RemoteWSL(remote) => {
                     if let Err(e) = start_remote(
                         wsl::WslRemote {
-                            wsl: remote.clone(),
+                            host: remote.clone(),
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start WSL remote: {e}");
                     }
                 }
             }

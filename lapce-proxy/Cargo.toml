@@ -5,6 +5,7 @@ version      = { workspace = true }
 authors      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
+publish      = { workspace = true }
 
 [dependencies]
 alacritty_terminal = { workspace = true }
@@ -25,14 +26,15 @@ serde              = { workspace = true }
 serde_json         = { workspace = true }
 tar                = { workspace = true }
 toml               = { workspace = true }
-tracing            = { workspace = true }
-tracing-log        = { workspace = true }
 url                = { workspace = true }
 zstd               = { workspace = true }
 
 lsp-types = { workspace = true }
 psp-types = { workspace = true }
 
+directory         = { workspace = true }
+meta              = { workspace = true }
+tracing           = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-core        = { workspace = true }
 lapce-rpc         = { workspace = true }
@@ -47,8 +49,15 @@ jsonrpc-lite  = "0.6.0"
 polling       = "3.5.0"
 libc          = "0.2"
 
+# Encoding
+encoding_rs    = { version = "0.8.34" }
+encoding_rs_io = { version = "0.1.7" }
+# charset-normalizer-rs = { version = "1.0.6" }
+# charset-normalizer-rs = { path = "../../charset-normalizer-rs/crates/charset-normalizer" }
+charset-normalizer-rs = { rev = "807868b19ef693e86fb17d0b4d93463753c3b59b", git = "https://github.com/lapce/charset-normalizer-rs" }
+
 # deleting files
-trash = "3.0.6"
+trash = "4.1.0"
 
 # search
 ignore        = "0.4"

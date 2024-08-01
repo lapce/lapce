@@ -37,6 +37,7 @@ use lsp_types::{
     MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
 };
 use parking_lot::Mutex;
+use tracing::{trace, TraceLevel};
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -118,11 +119,11 @@ impl ProxyHandler for Dispatcher {
                         return;
                     }
                     match load_file(&buffer.path) {
-                        Ok(content) => {
+                        Ok((content, _)) => {
                             self.core_rpc.open_file_changed(path, content);
                         }
                         Err(err) => {
-                            tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                            trace!(TraceLevel::ERROR, "Failed to re-read file after change notification: {err}");
                         }
                     }
                 }
@@ -347,6 +348,7 @@ impl ProxyHandler for Dispatcher {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
+                let encoding = buffer.encoding.clone();
                 let read_only = buffer.read_only;
                 self.catalog_rpc.did_open_document(
                     &path,
@@ -358,7 +360,11 @@ impl ProxyHandler for Dispatcher {
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
-                    Ok(ProxyResponse::NewBufferResponse { content, read_only }),
+                    Ok(ProxyResponse::NewBufferResponse {
+                        content,
+                        read_only,
+                        encoding,
+                    }),
                 );
             }
             BufferHead { path } => {
