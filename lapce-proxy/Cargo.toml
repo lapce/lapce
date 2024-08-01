@@ -64,9 +64,6 @@ wasi-common   = "14.0.0"
 git = "https://github.com/lapce/wasi-experimental-http"
 # path = "../../wasi-experimental-http/crates/wasi-experimental-http-wasmtime"
 
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2"
-
 [target.'cfg(target_os = "macos")'.dependencies.locale_config]
 git    = "https://github.com/lapce/locale_config.git"
 branch = "lapce"
