@@ -67,9 +67,8 @@ dependencies = [
 
 [[package]]
 name = "alacritty_terminal"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db5ad9e2d4c1f7e17fccec9493eeb4e9c1f00e1167519d3940272b708ed8a069"
+version = "0.24.1-dev"
+source = "git+https://github.com/alacritty/alacritty?rev=cacdb5bb3b72bad2c729227537979d95af75978f#cacdb5bb3b72bad2c729227537979d95af75978f"
 dependencies = [
  "base64 0.22.0",
  "bitflags 2.6.0",
@@ -86,7 +85,7 @@ dependencies = [
  "signal-hook",
  "unicode-width",
  "vte",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

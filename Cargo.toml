@@ -108,7 +108,8 @@ rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
-version = "0.24.0"
+git = "https://github.com/alacritty/alacritty"
+rev = "cacdb5bb3b72bad2c729227537979d95af75978f"
 
 [workspace.dependencies.windows-sys]
 version  = "0"
