@@ -20,21 +20,23 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    dap_types::RunDebugConfig,
     plugin::{PluginId, VoltID},
     proxy::ProxyResponse,
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
 use lsp_types::{
-    CodeAction, CodeActionOrCommand, Command, DiagnosticSeverity,
-    DocumentChangeOperation, DocumentChanges, OneOf, Position, Range, TextEdit, Url,
-    WorkspaceEdit,
+    CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
+    DocumentChanges, OneOf, Position, Range, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, event, Level};
+use serde_json::Value;
+use tracing::{debug, error, event, Level};
 
 use crate::{
     alert::AlertButton,
     command::InternalCommand,
+    debug::RunDebugMode,
     doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
         diff::DiffEditorData,
@@ -2162,8 +2164,24 @@ impl MainSplitData {
         }
     }
 
-    pub fn run_code_lens(&self, _action: Command) {
-        debug!("todo");
+    pub fn run_code_lens(&self, args: &Vec<Value>, command: &str) {
+        match command {
+            "rust-analyzer.runSingle" | "rust-analyzer.debugSingle" => {
+                if let Some(config) = get_rust_command_config(args) {
+                    let mode = if command == "rust-analyzer.runSingle" {
+                        RunDebugMode::Run
+                    } else {
+                        RunDebugMode::Debug
+                    };
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::RunAndDebug { mode, config });
+                }
+            }
+            _ => {
+                debug!("todo {:}", command);
+            }
+        }
     }
 
     /// Resolve a code action and apply its held workspace edit
@@ -3018,6 +3036,63 @@ pub enum TabCloseKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScoredCodeLensItem {
-    pub item: Command,
     pub range: Range,
+    pub title: String,
+    pub command: String,
+    pub args: Vec<Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CargoArgs {
+    #[serde(rename = "cargoArgs")]
+    pub cargo_args: Vec<String>,
+
+    #[serde(rename = "cargoExtraArgs")]
+    pub cargo_extra_args: Vec<String>,
+
+    #[serde(rename = "executableArgs")]
+    pub executable_args: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct RustArgs {
+    pub args: CargoArgs,
+    pub kind: String,
+    pub label: String,
+    pub location: lsp_types::LocationLink,
+}
+
+fn get_rust_command_config(args: &Vec<Value>) -> Option<RunDebugConfig> {
+    if let Some(args) = args.get(0) {
+        let Ok(mut cargo_args) = serde_json::from_value::<RustArgs>(args.clone())
+        else {
+            error!("serde error");
+            return None;
+        };
+        cargo_args
+            .args
+            .cargo_args
+            .extend(cargo_args.args.cargo_extra_args);
+        if !cargo_args.args.executable_args.is_empty() {
+            cargo_args.args.cargo_args.push("--".to_string());
+            cargo_args
+                .args
+                .cargo_args
+                .extend(cargo_args.args.executable_args);
+        }
+        Some(RunDebugConfig {
+            ty: None,
+            name: cargo_args.label,
+            program: cargo_args.kind,
+            args: Some(cargo_args.args.cargo_args),
+            cwd: None,
+            env: None,
+            prelaunch: None,
+            debug_command: None,
+            dap_id: Default::default(),
+        })
+    } else {
+        error!("no args");
+        return None;
+    }
 }

@@ -873,11 +873,18 @@ impl Doc {
                         let codelens = codelens
                             .into_iter()
                             .filter_map(|x| {
+                                tracing::debug!("{:?}", x);
                                 if let Some(command) = x.command {
-                                    Some(Arc::new(ScoredCodeLensItem {
-                                        item: command,
-                                        range: x.range,
-                                    }))
+                                    if let Some(args) = command.arguments {
+                                        Some(Arc::new(ScoredCodeLensItem {
+                                            range: x.range,
+                                            title: command.title,
+                                            command: command.command,
+                                            args,
+                                        }))
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }

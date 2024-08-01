@@ -2490,6 +2490,7 @@ impl WindowTabData {
         mode: &RunDebugMode,
         config: &RunDebugConfig,
     ) {
+        debug!("{:?}", config);
         match mode {
             RunDebugMode::Run => {
                 self.run_in_terminal(cx, mode, config, false);

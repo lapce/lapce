@@ -2447,14 +2447,14 @@ fn code_lens(
                 move |(_, item): (usize, Arc<ScoredCodeLensItem>)| {
                     let value = main_split.clone();
                     container(
-                        text(item.item.title.replace('\n', " "))
+                        text(item.title.replace('\n', " "))
                             .style(|s| s.text_ellipsis().min_width(0.0)),
                     )
                     .on_click_stop({
                         let window_tab_data = window_tab_data.clone();
                         move |_| {
                             window_tab_data.update_code_lens_id(None);
-                            value.run_code_lens(item.item.clone());
+                            value.run_code_lens(&item.args, &item.command);
                         }
                     })
                     .on_event_stop(EventListener::PointerDown, |_| {})
