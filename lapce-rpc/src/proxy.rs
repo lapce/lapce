@@ -11,11 +11,12 @@ use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
-    CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
-    Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
-    Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
-    TextDocumentItem, TextEdit, WorkspaceEdit,
+    request::GotoTypeDefinitionResponse, CallHierarchyIncomingCall,
+    CallHierarchyItem, CodeAction, CodeActionResponse, CodeLens, CompletionItem,
+    Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint,
+    InlineCompletionResponse, InlineCompletionTriggerKind, Location, Position,
+    PrepareRenameResponse, SelectionRange, SymbolInformation, TextDocumentItem,
+    TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -104,6 +105,14 @@ pub enum ProxyRequest {
         path: PathBuf,
         position: Position,
     },
+    ShowCallHierarchy {
+        path: PathBuf,
+        position: Position,
+    },
+    CallHierarchyIncoming {
+        path: PathBuf,
+        call_hierarchy_item: CallHierarchyItem,
+    },
     GetTypeDefinition {
         request_id: usize,
         path: PathBuf,
@@ -133,6 +142,9 @@ pub enum ProxyRequest {
         path: PathBuf,
         position: Position,
         diagnostics: Vec<Diagnostic>,
+    },
+    GetCodeLens {
+        path: PathBuf,
     },
     GetDocumentSymbols {
         path: PathBuf,
@@ -355,6 +367,12 @@ pub enum ProxyResponse {
         request_id: usize,
         definition: GotoDefinitionResponse,
     },
+    ShowCallHierarchyResponse {
+        items: Option<Vec<CallHierarchyItem>>,
+    },
+    CallHierarchyIncomingResponse {
+        items: Option<Vec<CallHierarchyIncomingCall>>,
+    },
     GetTypeDefinition {
         request_id: usize,
         definition: GotoTypeDefinitionResponse,
@@ -365,6 +383,10 @@ pub enum ProxyResponse {
     GetCodeActionsResponse {
         plugin_id: PluginId,
         resp: CodeActionResponse,
+    },
+    GetCodeLensResponse {
+        plugin_id: PluginId,
+        resp: Option<Vec<CodeLens>>,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -831,6 +853,30 @@ impl ProxyRpcHandler {
         );
     }
 
+    pub fn show_call_hierarchy(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::ShowCallHierarchy { path, position }, f);
+    }
+
+    pub fn call_hierarchy_incoming(
+        &self,
+        path: PathBuf,
+        call_hierarchy_item: CallHierarchyItem,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::CallHierarchyIncoming {
+                path,
+                call_hierarchy_item,
+            },
+            f,
+        );
+    }
+
     pub fn get_type_definition(
         &self,
         request_id: usize,
@@ -872,6 +918,10 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn get_code_lens(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(ProxyRequest::GetCodeLens { path }, f);
     }
 
     pub fn get_document_formatting(

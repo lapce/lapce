@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use lapce_core::{directory::Directory, meta};
 use serde::Deserialize;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct ReleaseInfo {
     pub tag_name: String,
     pub target_commitish: String,
@@ -13,7 +13,7 @@ pub struct ReleaseInfo {
     pub version: String,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct ReleaseAsset {
     pub name: String,
     pub browser_download_url: String,
@@ -41,8 +41,16 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
     let mut release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
 
     release.version = match release.tag_name.as_str() {
-        "nightly" => format!("nightly-{}", &release.target_commitish[..7]),
-        _ => release.tag_name.clone(),
+        "nightly" => format!(
+            "{}+Nightly.{}",
+            env!("CARGO_PKG_VERSION"),
+            &release.target_commitish[..7]
+        ),
+        _ => release
+            .tag_name
+            .strip_prefix('v')
+            .unwrap_or(&release.tag_name)
+            .to_owned(),
     };
 
     Ok(release)
@@ -53,7 +61,11 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
         Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
-        "linux" => "Lapce-linux.tar.gz",
+        "linux" => match std::env::consts::ARCH {
+            "aarch64" => "lapce-linux-arm64.tar.gz",
+            "x86_64" => "lapce-linux-amd64.tar.gz",
+            _ => return Err(anyhow!("arch not supported")),
+        },
         #[cfg(feature = "portable")]
         "windows" => "Lapce-windows-portable.zip",
         #[cfg(not(feature = "portable"))]

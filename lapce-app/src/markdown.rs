@@ -184,6 +184,8 @@ pub fn parse_markdown(
             Event::FootnoteReference(_text) => {}
             Event::TaskListMarker(_text) => {}
             Event::InlineHtml(_) => {} // TODO(panekj): Implement
+            Event::InlineMath(_) => {} // TODO(panekj): Implement
+            Event::DisplayMath(_) => {} // TODO(panekj): Implement
         }
     }
 
@@ -227,7 +229,7 @@ fn attribute_for_tag<'a>(
                     .weight(Weight::BOLD),
             )
         }
-        Tag::BlockQuote => Some(
+        Tag::BlockQuote(_block_quote) => Some(
             default_attrs
                 .style(Style::Italic)
                 .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),

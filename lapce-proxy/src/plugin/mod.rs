@@ -33,22 +33,26 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
-        CodeActionRequest, CodeActionResolveRequest, Completion,
+        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
+        CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
         Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
         SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
+    CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
+    CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
     CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
-    CodeActionResponse, CompletionClientCapabilities, CompletionItem,
-    CompletionItemCapability, CompletionItemCapabilityResolveSupport,
-    CompletionParams, CompletionResponse, Diagnostic, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
-    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
+    CodeActionResponse, CodeLens, CodeLensParams, CompletionClientCapabilities,
+    CompletionItem, CompletionItemCapability,
+    CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
+    Diagnostic, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FormattingOptions, GotoCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverClientCapabilities, HoverParams, InlayHint,
+    InlayHintClientCapabilities, InlayHintParams,
     InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
@@ -67,7 +71,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tar::Archive;
 use tracing::error;
 
@@ -577,6 +581,65 @@ impl PluginCatalogRpcHandler {
         );
     }
 
+    pub fn call_hierarchy_incoming(
+        &self,
+        path: &Path,
+        item: CallHierarchyItem,
+        cb: impl FnOnce(
+                PluginId,
+                Result<Option<Vec<CallHierarchyIncomingCall>>, RpcError>,
+            ) + Clone
+            + Send
+            + 'static,
+    ) {
+        let method = CallHierarchyIncomingCalls::METHOD;
+        let params = CallHierarchyIncomingCallsParams {
+            item,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn show_call_hierarchy(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<Option<Vec<CallHierarchyItem>>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = CallHierarchyPrepare::METHOD;
+        let params = CallHierarchyPrepareParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
     pub fn get_references(
         &self,
         path: &Path,
@@ -639,6 +702,34 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_code_lens(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(PluginId, Result<Option<Vec<CodeLens>>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = CodeLensRequest::METHOD;
+        let params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+
         self.send_request_to_all_plugins(
             method,
             params,
@@ -1443,6 +1534,9 @@ pub fn remove_volt(
 }
 
 fn client_capabilities() -> ClientCapabilities {
+    // https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/lsp-extensions.md#server-status
+    let mut experimental = Map::new();
+    experimental.insert("serverStatusNotification".into(), true.into());
     ClientCapabilities {
         text_document: Some(TextDocumentClientCapabilities {
             synchronization: Some(TextDocumentSyncClientCapabilities {
@@ -1526,7 +1620,9 @@ fn client_capabilities() -> ClientCapabilities {
             inline_completion: Some(InlineCompletionClientCapabilities {
                 ..Default::default()
             }),
-
+            call_hierarchy: Some(CallHierarchyClientCapabilities {
+                dynamic_registration: Some(true),
+            }),
             ..Default::default()
         }),
         window: Some(WindowClientCapabilities {
@@ -1546,6 +1642,7 @@ fn client_capabilities() -> ClientCapabilities {
             workspace_folders: Some(true),
             ..Default::default()
         }),
+        experimental: Some(experimental.into()),
         ..Default::default()
     }
 }

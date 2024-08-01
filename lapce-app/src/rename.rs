@@ -19,7 +19,7 @@ use crate::{
     window_tab::{CommonData, Focus},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RenameData {
     pub active: RwSignal<bool>,
     pub editor: EditorData,

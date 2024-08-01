@@ -1,7 +1,7 @@
 use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
-    action::{set_ime_allowed, set_ime_cursor_area},
+    action::{add_overlay, set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
@@ -12,7 +12,7 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{CursorColor, CursorStyle, Style, TextColor},
+    style::{AlignItems, CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     views::{
         clip, container, dyn_stack,
@@ -31,10 +31,11 @@ use floem::{
         },
         empty, label,
         scroll::{scroll, HideBar, PropagatePointerWheel},
-        stack, svg, Decorators,
+        stack, svg, text, Decorators,
     },
     Renderer, View, ViewId,
 };
+use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
@@ -50,6 +51,7 @@ use crate::{
     config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
+    main_split::ScoredCodeLensItem,
     text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -395,7 +397,7 @@ impl EditorView {
         }
     }
 
-    fn paint_cursor(
+    fn paint_current_line(
         &self,
         cx: &mut PaintCx,
         is_local: bool,
@@ -404,14 +406,11 @@ impl EditorView {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
         let cursor = self.editor.cursor();
-        let find_focus = self.editor.find_focus;
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
-        let is_active =
-            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
 
@@ -472,10 +471,6 @@ impl EditorView {
                     }
                 }
             }
-
-            FloemEditorView::paint_selection(cx, &ed, screen_lines);
-
-            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
         });
     }
 
@@ -992,7 +987,7 @@ impl View for EditorView {
         self.id
     }
 
-    fn style(&mut self, cx: &mut StyleCx<'_>) {
+    fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
         if editor.es.try_update(|s| s.read(cx)).unwrap() {
             editor.floem_style_id.update(|val| *val += 1);
@@ -1097,6 +1092,9 @@ impl View for EditorView {
         let config = e_data.common.config.get_untracked();
         let doc = e_data.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
+        let find_focus = self.editor.find_focus;
+        let is_active =
+            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -1107,7 +1105,8 @@ impl View for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines);
+        self.paint_current_line(cx, is_local, &screen_lines);
+        FloemEditorView::paint_selection(cx, ed, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
@@ -1115,7 +1114,7 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
+        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1263,40 +1262,36 @@ pub fn editor_container_view(
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        container(
-            stack((
-                editor_gutter(window_tab_data.clone(), editor, is_active),
-                container(editor_content(editor, debug_breakline, is_active))
-                    .style(move |s| s.size_pct(100.0, 100.0)),
-                empty().style(move |s| {
-                    let config = config.get();
-                    s.absolute()
-                        .width_pct(100.0)
-                        .height(sticky_header_height.get() as f32)
-                        // .box_shadow_blur(5.0)
-                        // .border_bottom(1.0)
-                        // .border_color(
-                        //     config.get_color(LapceColor::LAPCE_BORDER),
-                        // )
-                        .apply_if(
-                            !config.editor.sticky_header
-                                || sticky_header_height.get() == 0.0
-                                || !editor_view.get().is_normal(),
-                            |s| s.hide(),
-                        )
-                }),
-                find_view(
-                    editor,
-                    find_editor,
-                    find_focus,
-                    replace_editor,
-                    replace_active,
-                    replace_focus,
-                    is_active,
-                ),
-            ))
-            .style(|s| s.absolute().size_full()),
-        )
+        stack((
+            editor_gutter(window_tab_data.clone(), editor, is_active),
+            editor_content(editor, debug_breakline, is_active),
+            empty().style(move |s| {
+                let config = config.get();
+                s.absolute()
+                    .width_pct(100.0)
+                    .height(sticky_header_height.get() as f32)
+                    // .box_shadow_blur(5.0)
+                    // .border_bottom(1.0)
+                    // .border_color(
+                    //     config.get_color(LapceColor::LAPCE_BORDER),
+                    // )
+                    .apply_if(
+                        !config.editor.sticky_header
+                            || sticky_header_height.get() == 0.0
+                            || !editor_view.get().is_normal(),
+                        |s| s.hide(),
+                    )
+            }),
+            find_view(
+                editor,
+                find_editor,
+                find_focus,
+                replace_editor,
+                replace_active,
+                replace_focus,
+                is_active,
+            ),
+        ))
         .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
@@ -1325,6 +1320,7 @@ pub fn editor_container_view(
         }
     })
     .style(|s| s.flex_col().absolute().size_pct(100.0, 100.0))
+    .debug_name("Editor Container")
 }
 
 fn editor_gutter(
@@ -1472,6 +1468,54 @@ fn editor_gutter(
         })
     };
 
+    let code_lens_view = {
+        let window_tab_data = window_tab_data.clone();
+        move |(line, lens): (usize, Vector<Arc<ScoredCodeLensItem>>)| {
+            let window_tab_data = window_tab_data.clone();
+            let view = container(
+                svg(move || config.get().ui_svg(LapceIcons::START)).style(
+                    move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32 + 2.0;
+                        s.size(size, size)
+                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                    },
+                ),
+            );
+            let id = view.id();
+            view.on_click_stop({
+                let window_tab_data = window_tab_data.clone();
+                let lens = lens.clone();
+                move |event| {
+                    if let Event::PointerUp(_) = event {
+                        let window_tab = window_tab_data.clone();
+                        let rec = id.layout_rect();
+                        let line_height =
+                            config.get_untracked().editor.line_height() as f64;
+                        let pos = Point::new(rec.x1, rec.y0 + line_height);
+                        let lens = lens.clone();
+                        let view_id = add_overlay(pos, move |_| {
+                            code_lens(window_tab.clone(), lens)
+                        });
+                        window_tab_data.update_code_lens_id(Some(view_id));
+                    }
+                }
+            })
+            .style(move |s| {
+                let line_info = screen_lines.with(|s| s.info_for_line(line));
+                let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
+                let rect = viewport.get();
+                let config = config.get();
+                s.absolute()
+                    .width(padding_right)
+                    .height(config.editor.line_height() as f32)
+                    .justify_center()
+                    .items_center()
+                    .margin_top(line_y as f32 - rect.y0 as f32)
+            })
+        }
+    };
+
     stack((
         stack((
             empty().style(move |s| s.width(padding_left)),
@@ -1481,6 +1525,7 @@ fn editor_gutter(
             }),
             empty().style(move |s| s.width(padding_right)),
         ))
+        .debug_name("Centered Last Line Count")
         .style(|s| s.height_pct(100.0)),
         clip(
             stack((
@@ -1498,7 +1543,8 @@ fn editor_gutter(
                             % config.get().editor.line_height() as f64)
                             as f32,
                     )
-                }),
+                })
+                .debug_name("Breakpoint Stack"),
                 dyn_stack(
                     move || {
                         let e_data = e_data.get();
@@ -1568,6 +1614,35 @@ fn editor_gutter(
                         }
                     })
                     .style(|s| s.size_pct(100.0, 100.0)),
+                dyn_stack(
+                    move || {
+                        let doc = doc.get();
+                        doc.code_lens.with(|x| {
+                            let mut lines = im::HashMap::<
+                                usize,
+                                Vector<Arc<ScoredCodeLensItem>>,
+                            >::new();
+                            for (_, lens) in x.iter() {
+                                for item in lens {
+                                    lines
+                                        .entry(item.range.start.line as usize)
+                                        .or_default()
+                                        .push_back(item.clone());
+                                }
+                            }
+                            lines
+                        })
+                    },
+                    move |i| i.0,
+                    code_lens_view,
+                )
+                .style(move |s| {
+                    let gutter_width = gutter_width.get();
+                    s.absolute()
+                        .size_pct(100.0, 100.0)
+                        .margin_left(gutter_width)
+                })
+                .debug_name("CodeLens Stack"),
                 container(
                     svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
                         move |s| {
@@ -1615,7 +1690,8 @@ fn editor_gutter(
                                 ),
                             )
                         })
-                }),
+                })
+                .debug_name("Code Action LightBulb"),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),
         )
@@ -1627,6 +1703,7 @@ fn editor_gutter(
         }),
     ))
     .style(|s| s.height_pct(100.0))
+    .debug_name("Editor Gutter")
 }
 
 fn editor_breadcrumbs(
@@ -1693,7 +1770,8 @@ fn editor_breadcrumbs(
                                             ),
                                         )
                                 }),
-                                label(move || section.clone()),
+                                label(move || section.clone())
+                                    .style(move |s| s.selectable(false)),
                             ))
                             .style(|s| s.items_center())
                         },
@@ -1739,7 +1817,9 @@ fn editor_breadcrumbs(
             .width_pct(100.0)
             .height(line_height as f32)
             .apply_if(doc_path.get().is_none(), |s| s.hide())
+            .apply_if(!config.editor.show_bread_crumbs, |s| s.hide())
     })
+    .debug_name("Editor BreadCrumbs")
 }
 
 fn editor_content(
@@ -1781,7 +1861,12 @@ fn editor_content(
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| s.absolute().min_size_full().cursor(CursorStyle::Text),
+                move |s| {
+                    s.absolute()
+                        .margin_left(1.0)
+                        .min_size_full()
+                        .cursor(CursorStyle::Text)
+                },
             );
 
         let id = editor_content_view.id();
@@ -1877,11 +1962,8 @@ fn editor_content(
             rect
         }
     })
-    .style(|s| {
-        s.absolute()
-            .size_pct(100.0, 100.0)
-            .set(PropagatePointerWheel, false)
-    })
+    .style(|s| s.size_full().set(PropagatePointerWheel, false))
+    .debug_name("Editor Content")
 }
 
 fn search_editor_view(
@@ -2347,4 +2429,65 @@ pub fn changes_colors_all(
     }
 
     colors
+}
+
+fn code_lens(
+    window_tab_data: Rc<WindowTabData>,
+    code_lens: im::Vector<Arc<ScoredCodeLensItem>>,
+) -> floem::views::Container {
+    let config = window_tab_data.common.config;
+    let main_split = window_tab_data.main_split.clone();
+    container(
+        dyn_stack(
+            move || code_lens.clone().into_iter().enumerate(),
+            move |(i, _item)| *i,
+            {
+                let main_split = main_split.clone();
+                let window_tab_data = window_tab_data.clone();
+                move |(_, item): (usize, Arc<ScoredCodeLensItem>)| {
+                    let value = main_split.clone();
+                    container(
+                        text(item.title.replace('\n', " "))
+                            .style(|s| s.text_ellipsis().min_width(0.0)),
+                    )
+                    .on_click_stop({
+                        let window_tab_data = window_tab_data.clone();
+                        move |_| {
+                            window_tab_data.update_code_lens_id(None);
+                            value.run_code_lens(&item.args, &item.command);
+                        }
+                    })
+                    .on_event_stop(EventListener::PointerDown, |_| {})
+                    .style(move |s| {
+                        let config = config.get();
+                        s.padding_horiz(10.0)
+                            .align_items(Some(AlignItems::Center))
+                            .min_width(0.0)
+                            .width_full()
+                            .line_height(1.6)
+                            .border_radius(6.0)
+                            .cursor(CursorStyle::Pointer)
+                            .hover(move |s| {
+                                s.background(
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                            })
+                    })
+                }
+            },
+        )
+        .style(|s| s.width_full().flex_col()),
+    )
+    .style(move |s| {
+        let config = config.get();
+        let color = config.color(LapceColor::COMPLETION_BACKGROUND);
+        s.width(400.0)
+            .max_height(400.0)
+            .padding_vert(4.0)
+            .background(color)
+            .border_radius(6.0)
+    })
+    .on_event_stop(EventListener::PointerMove, |_| {})
+    .debug_name("Code Lens Layer 11")
 }

@@ -170,4 +170,5 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                     .with_alpha_factor(0.5),
             )
     })
+    .debug_name("Alert Box")
 }

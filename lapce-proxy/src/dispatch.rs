@@ -13,8 +13,9 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::ErrorCode::NotFound;
-use git2::{build::CheckoutBuilder, DiffOptions, Oid, Repository};
+use git2::{
+    build::CheckoutBuilder, DiffOptions, ErrorCode::NotFound, Oid, Repository,
+};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -116,8 +117,13 @@ impl ProxyHandler for Dispatcher {
                     if get_mod_time(&buffer.path) == buffer.mod_time {
                         return;
                     }
-                    if let Ok(content) = load_file(&buffer.path) {
-                        self.core_rpc.open_file_changed(path, content);
+                    match load_file(&buffer.path) {
+                        Ok(content) => {
+                            self.core_rpc.open_file_changed(path, content);
+                        }
+                        Err(err) => {
+                            tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                        }
                     }
                 }
             }
@@ -511,6 +517,35 @@ impl ProxyHandler for Dispatcher {
                                 request_id,
                                 definition,
                             }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            ShowCallHierarchy { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.show_call_hierarchy(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result = result.map(|items| {
+                            ProxyResponse::ShowCallHierarchyResponse { items }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CallHierarchyIncoming {
+                path,
+                call_hierarchy_item,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.call_hierarchy_incoming(
+                    &path,
+                    call_hierarchy_item,
+                    move |_, result| {
+                        let result = result.map(|items| {
+                            ProxyResponse::CallHierarchyIncomingResponse { items }
                         });
                         proxy_rpc.handle_response(id, result);
                     },
@@ -1026,6 +1061,16 @@ impl ProxyHandler for Dispatcher {
                                 scopes: resp,
                             }),
                         );
+                    });
+            }
+            GetCodeLens { path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .get_code_lens(&path, move |plugin_id, result| {
+                        let result = result.map(|resp| {
+                            ProxyResponse::GetCodeLensResponse { plugin_id, resp }
+                        });
+                        proxy_rpc.handle_response(id, result);
                     });
             }
         }

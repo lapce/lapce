@@ -13,7 +13,6 @@ backtrace          = { workspace = true }
 chrono             = { workspace = true }
 clap               = { workspace = true }
 crossbeam-channel  = { workspace = true }
-directories        = { workspace = true }
 flate2             = { workspace = true }
 globset            = { workspace = true }
 im                 = { workspace = true }
@@ -34,10 +33,12 @@ reqwest            = { workspace = true }
 smallvec           = { workspace = true }
 strum              = { workspace = true }
 strum_macros       = { workspace = true }
+semver             = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 regex              = { workspace = true }
 tar                = { workspace = true }
+tempfile           = { workspace = true }
 thiserror          = { workspace = true }
 toml               = { workspace = true }
 toml_edit          = { workspace = true }
@@ -46,25 +47,21 @@ tracing-log        = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender   = { workspace = true }
 url                = { workspace = true }
+zstd               = { workspace = true }
+floem              = { workspace = true }
 
-pulldown-cmark = "0.10.3"
-Inflector      = "0.11.4"
-open           = "5.1.2"
-unicode-width  = "0.1.12"
-nucleo         = "0.5.0"
-bytemuck       = "1.15.0"
-config         = { version = "=0.13.4", default-features = false, features = ["toml"] }
-structdesc     = { git = "https://github.com/lapce/structdesc" }
-base64         = "0.21.7"
-sha2           = "0.10.8"
-zip            = { version = "0.6.6", default-features = false, features = ["deflate"] }
-
-[dependencies.floem]
-# path = "../../workspaces/floem"
-git              = "https://github.com/lapce/floem"
-rev              = "9a4c0fa6e1f8412b4a5eb73c8d7f3e0e7dcd9cbc"
-default-features = true
-features         = ["editor", "serde", "default-image-formats", "rfd-async-std"]
+pulldown-cmark   = { version = "0.11.0" }
+Inflector        = { version = "0.11.4" }
+open             = { version = "5.1.4" }
+unicode-width    = { version = "0.1.13" }
+nucleo           = { version = "0.5.0" }
+bytemuck         = { version = "1.15.0" }
+config           = { version = "=0.13.4", default-features = false, features = ["toml"] }
+structdesc       = { git = "https://github.com/lapce/structdesc", rev = "bb56969f22fdb2c2d6c03f158fd4a2bdc983b659" }
+base64           = { version = "0.21.7" }
+sha2             = { version = "0.10.8" }
+zip              = { version = "0.6.6", default-features = false, features = ["deflate"] }
+percent-encoding = { version = "2.3.1" }
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
@@ -75,26 +72,10 @@ workspace = true
 features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
 
 [features]
-default  = ["all-languages", "updater"]
-portable = ["lapce-core/portable"]
-updater  = []
-
-# To build lapce with only some of the supported languages, for example:
-#
-#   cargo build --no-default-features -p lapce-ui \
-#     --features lang-rust,lang-toml,lang-markdown,lang-json
-#
-all-languages = [
-  "lapce-core/lang-bash",
-  "lapce-core/lang-c",
-  "lapce-core/lang-cpp",
-  "lapce-core/lang-javascript",
-  "lapce-core/lang-json",
-  "lapce-core/lang-markdown",
-  "lapce-core/lang-python",
-  "lapce-core/lang-rust",
-  "lapce-core/lang-toml",
-]
+default        = ["updater", "vendored-fonts"]
+portable       = ["lapce-core/portable"]
+updater        = []
+vendored-fonts = []
 
 [dev-dependencies]
 criterion = "0.5"

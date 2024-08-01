@@ -38,7 +38,7 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TerminalData {
     pub scope: Scope,
     pub term_id: TermId,
@@ -430,6 +430,18 @@ impl TerminalData {
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
         if let Some(command) = Self::resolve_key_event(key) {
             self.receive_char(command);
+            true
+        } else if key.modifiers == Modifiers::ALT
+            && matches!(&key.key.logical_key, Key::Character(_))
+        {
+            if let Key::Character(c) = &key.key.logical_key {
+                // In terminal emulators, when the Alt key is combined with another character
+                // (such as Alt+a), a leading ESC (Escape, ASCII code 0x1B) character is usually
+                // sent followed by a sequence of that character. For example,
+                // Alt+a sends \x1Ba.
+                self.receive_char("\x1b");
+                self.receive_char(c.as_str());
+            }
             true
         } else {
             false

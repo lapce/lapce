@@ -20,20 +20,23 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    dap_types::RunDebugConfig,
     plugin::{PluginId, VoltID},
     proxy::ProxyResponse,
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
-    DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
+    DocumentChanges, OneOf, Position, Range, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use serde_json::Value;
+use tracing::{debug, error, event, Level};
 
 use crate::{
     alert::AlertButton,
     command::InternalCommand,
+    debug::RunDebugMode,
     doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
         diff::DiffEditorData,
@@ -47,7 +50,7 @@ use crate::{
         DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
-    keypress::{EventRef, KeyPressData},
+    keypress::{EventRef, KeyPressData, KeyPressHandle},
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -239,7 +242,7 @@ impl Editors {
         let id = editor.id();
         self.0.update(|editors| {
             if editors.insert(id, editor).is_some() {
-                warn!("Inserted EditorId that already exists");
+                event!(Level::WARN, "Inserted EditorId that already exists");
             }
         });
 
@@ -388,6 +391,14 @@ pub struct MainSplitData {
     pub common: Rc<CommonData>,
 }
 
+impl std::fmt::Debug for MainSplitData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MainSplitData")
+            .field("root_split", &self.root_split)
+            .finish()
+    }
+}
+
 impl MainSplitData {
     pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let splits = cx.create_rw_signal(im::HashMap::new());
@@ -467,7 +478,7 @@ impl MainSplitData {
         &self,
         event: impl Into<EventRef<'a>>,
         keypress: &KeyPressData,
-    ) -> Option<bool> {
+    ) -> Option<KeyPressHandle> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
@@ -478,9 +489,9 @@ impl MainSplitData {
         match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor = self.editors.editor_untracked(editor_id)?;
-                let proccesed = keypress.key_down(event, &editor);
+                let handle = keypress.key_down(event, &editor);
                 editor.get_code_actions();
-                Some(proccesed)
+                Some(handle)
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let diff_editor =
@@ -492,9 +503,9 @@ impl MainSplitData {
                 } else {
                     &diff_editor.left
                 };
-                let processed = keypress.key_down(event, editor);
+                let handle = keypress.key_down(event, editor);
                 editor.get_code_actions();
-                Some(processed)
+                Some(handle)
             }
             EditorTabChild::Settings(_) => None,
             EditorTabChild::ThemeColorSettings(_) => None,
@@ -627,7 +638,7 @@ impl MainSplitData {
                         send(result);
                     });
             }
-
+            doc.get_code_lens();
             (doc, true)
         }
     }
@@ -1909,6 +1920,60 @@ impl MainSplitData {
         Some(())
     }
 
+    pub fn editor_tab_child_close_by_kind(
+        &self,
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+        kind: TabCloseKind,
+    ) -> Option<()> {
+        let tabs_to_close: Vec<EditorTabChild> = {
+            let editor_tabs = self.editor_tabs.get_untracked();
+
+            let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
+            let editor_tab = editor_tab.get_untracked();
+            match kind {
+                TabCloseKind::CloseOther => editor_tab
+                    .children
+                    .iter()
+                    .filter_map(|x| {
+                        if x.2 != child {
+                            Some(x.2.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                TabCloseKind::CloseToLeft => {
+                    let mut tabs_to_close = Vec::new();
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            break;
+                        }
+                    }
+                    tabs_to_close
+                }
+                TabCloseKind::CloseToRight => {
+                    let mut tabs_to_close = Vec::new();
+                    let mut add_to_tabs = false;
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child && add_to_tabs {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            add_to_tabs = true;
+                        }
+                    }
+                    tabs_to_close
+                }
+            }
+        };
+        for child_tab in tabs_to_close {
+            self.editor_tab_child_close(editor_tab_id, child_tab, false);
+        }
+        Some(())
+    }
+
     pub fn editor_tab_child_close(
         &self,
         editor_tab_id: EditorTabId,
@@ -2095,6 +2160,26 @@ impl MainSplitData {
                 } else {
                     self.resolve_code_action(plugin_id, action);
                 }
+            }
+        }
+    }
+
+    pub fn run_code_lens(&self, args: &Vec<Value>, command: &str) {
+        match command {
+            "rust-analyzer.runSingle" | "rust-analyzer.debugSingle" => {
+                if let Some(config) = get_rust_command_config(args) {
+                    let mode = if command == "rust-analyzer.runSingle" {
+                        RunDebugMode::Run
+                    } else {
+                        RunDebugMode::Debug
+                    };
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::RunAndDebug { mode, config });
+                }
+            }
+            _ => {
+                debug!("todo {:}", command);
             }
         }
     }
@@ -2311,7 +2396,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2362,7 +2451,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2816,6 +2909,21 @@ impl MainSplitData {
             }
         }
     }
+
+    pub fn show_env(&self) {
+        let child = self.new_file();
+        if let EditorTabChild::Editor(id) = child {
+            if let Some(editor) = self.editors.editor_untracked(id) {
+                let doc = editor.doc();
+                doc.reload(
+                    Rope::from(
+                        std::env::vars().map(|(k, v)| format!("{k}={v}")).join("\n"),
+                    ),
+                    true,
+                );
+            }
+        }
+    }
 }
 
 fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
@@ -2917,4 +3025,74 @@ fn next_in_file_errors_offset(
             EditorPosition::Position(file_diagnostics[0].1[0].diagnostic.range.start)
         },
     )
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum TabCloseKind {
+    CloseOther,
+    CloseToLeft,
+    CloseToRight,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScoredCodeLensItem {
+    pub range: Range,
+    pub title: String,
+    pub command: String,
+    pub args: Vec<Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CargoArgs {
+    #[serde(rename = "cargoArgs")]
+    pub cargo_args: Vec<String>,
+
+    #[serde(rename = "cargoExtraArgs")]
+    pub cargo_extra_args: Vec<String>,
+
+    #[serde(rename = "executableArgs")]
+    pub executable_args: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct RustArgs {
+    pub args: CargoArgs,
+    pub kind: String,
+    pub label: String,
+    pub location: lsp_types::LocationLink,
+}
+
+fn get_rust_command_config(args: &Vec<Value>) -> Option<RunDebugConfig> {
+    if let Some(args) = args.get(0) {
+        let Ok(mut cargo_args) = serde_json::from_value::<RustArgs>(args.clone())
+        else {
+            error!("serde error");
+            return None;
+        };
+        cargo_args
+            .args
+            .cargo_args
+            .extend(cargo_args.args.cargo_extra_args);
+        if !cargo_args.args.executable_args.is_empty() {
+            cargo_args.args.cargo_args.push("--".to_string());
+            cargo_args
+                .args
+                .cargo_args
+                .extend(cargo_args.args.executable_args);
+        }
+        Some(RunDebugConfig {
+            ty: None,
+            name: cargo_args.label,
+            program: cargo_args.kind,
+            args: Some(cargo_args.args.cargo_args),
+            cwd: None,
+            env: None,
+            prelaunch: None,
+            debug_command: None,
+            dap_id: Default::default(),
+        })
+    } else {
+        error!("no args");
+        return None;
+    }
 }

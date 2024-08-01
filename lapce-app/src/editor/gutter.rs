@@ -6,9 +6,8 @@ use floem::{
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
-use crate::config::{color::LapceColor, LapceConfig};
-
 use super::{view::changes_colors_screen, EditorData};
+use crate::config::{color::LapceColor, LapceConfig};
 
 pub struct EditorGutterView {
     id: ViewId,
@@ -186,5 +185,9 @@ impl View for EditorGutterView {
 
         self.paint_head_changes(cx, &self.editor, viewport, kind_is_normal, &config);
         self.paint_sticky_headers(cx, kind_is_normal, &config);
+    }
+
+    fn debug_name(&self) -> std::borrow::Cow<'static, str> {
+        "Editor Gutter".into()
     }
 }

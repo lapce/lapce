@@ -64,8 +64,8 @@ pub struct EditorConfig {
     pub font_family: String,
     #[field_names(desc = "Set the editor font size")]
     font_size: usize,
-    #[field_names(desc = "Set the font size in the code lens")]
-    pub code_lens_font_size: usize,
+    #[field_names(desc = "Set the font size in the code glance")]
+    pub code_glance_font_size: usize,
     #[field_names(
         desc = "Set the editor line height. If less than 5.0, line height will be a multiple of the font size."
     )]
@@ -237,7 +237,7 @@ pub struct EditorConfig {
 
 impl EditorConfig {
     pub fn font_size(&self) -> usize {
-        self.font_size.max(6).min(32)
+        self.font_size.clamp(6, 32)
     }
 
     pub fn line_height(&self) -> usize {

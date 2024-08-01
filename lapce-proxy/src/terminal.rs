@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -114,9 +115,10 @@ impl Terminal {
         let mut events =
             polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
 
+        let timeout = Some(Duration::from_secs(6));
         'event_loop: loop {
             events.clear();
-            if let Err(err) = self.poller.wait(&mut events, None) {
+            if let Err(err) = self.poller.wait(&mut events, timeout) {
                 match err.kind() {
                     ErrorKind::Interrupted => continue,
                     _ => panic!("EventLoop polling error: {err:?}"),
@@ -134,6 +136,7 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited(_)) =
                             self.pty.next_child_event()
                         {
+                            let _ = self.pty_read(&core_rpc, &mut buf);
                             break 'event_loop;
                         }
                     }

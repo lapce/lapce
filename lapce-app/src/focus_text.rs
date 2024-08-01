@@ -187,7 +187,7 @@ impl View for FocusText {
         }
     }
 
-    fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
+    fn style_pass(&mut self, cx: &mut floem::context::StyleCx<'_>) {
         if self.style.read(cx) {
             self.set_text_layout();
             self.id.request_layout();

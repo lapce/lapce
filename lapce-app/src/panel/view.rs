@@ -95,25 +95,30 @@ impl PanelBuilder {
         style: impl Fn(Style) -> Style + 'static,
     ) -> Self {
         let position = self.position;
-        let view = foldable_panel_section(text(name), view, open, self.config)
-            .style(move |s| {
-                let s = s.width_full().flex_col();
-                // Use the manual height if given, otherwise if we're open behave flex,
-                // otherwise, do nothing so that there's no height
-                let s = if open.get() {
-                    if let Some(height) = height {
-                        s.height(height)
-                    } else {
-                        s.flex_grow(1.0).flex_basis(0.0)
-                    }
-                } else if position.is_bottom() {
-                    s.flex_grow(0.3).flex_basis(0.0)
+        let view = foldable_panel_section(
+            text(name).style(move |s| s.selectable(false)),
+            view,
+            open,
+            self.config,
+        )
+        .style(move |s| {
+            let s = s.width_full().flex_col();
+            // Use the manual height if given, otherwise if we're open behave flex,
+            // otherwise, do nothing so that there's no height
+            let s = if open.get() {
+                if let Some(height) = height {
+                    s.height(height)
                 } else {
-                    s
-                };
+                    s.flex_grow(1.0).flex_basis(0.0)
+                }
+            } else if position.is_bottom() {
+                s.flex_grow(0.3).flex_basis(0.0)
+            } else {
+                s
+            };
 
-                style(s)
-            });
+            style(s)
+        });
         self.views.push(view.into_any());
         self
     }
@@ -433,6 +438,7 @@ pub fn panel_container_view(
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .color(config.color(LapceColor::PANEL_FOREGROUND))
     })
+    .debug_name(format!("{:?} Pannel Container View", position))
 }
 
 fn panel_view(
@@ -457,26 +463,26 @@ fn panel_view(
         move |kind| {
             let view = match kind {
                 PanelKind::Terminal => {
-                    container(terminal_panel(window_tab_data.clone()))
+                    terminal_panel(window_tab_data.clone()).into_any()
                 }
                 PanelKind::FileExplorer => {
-                    container(file_explorer_panel(window_tab_data.clone(), position))
+                    file_explorer_panel(window_tab_data.clone(), position).into_any()
                 }
-                PanelKind::SourceControl => container(source_control_panel(
-                    window_tab_data.clone(),
-                    position,
-                )),
+                PanelKind::SourceControl => {
+                    source_control_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
                 PanelKind::Plugin => {
-                    container(plugin_panel(window_tab_data.clone(), position))
+                    plugin_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Search => {
-                    container(global_search_panel(window_tab_data.clone(), position))
+                    global_search_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Problem => {
-                    container(problem_panel(window_tab_data.clone(), position))
+                    problem_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Debug => {
-                    container(debug_panel(window_tab_data.clone(), position))
+                    debug_panel(window_tab_data.clone(), position).into_any()
                 }
             };
             view.style(|s| s.size_pct(100.0, 100.0))
@@ -578,7 +584,8 @@ fn panel_picker(
                 })
                 .style(|s| s.padding(1.0)),
                 label(|| "".to_string()).style(move |s| {
-                    s.absolute()
+                    s.selectable(false)
+                        .absolute()
                         .size_pct(100.0, 100.0)
                         .apply_if(!is_bottom && is_first, |s| s.margin_top(2.0))
                         .apply_if(!is_bottom && !is_first, |s| s.margin_top(-2.0))

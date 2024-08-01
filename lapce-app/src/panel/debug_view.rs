@@ -62,6 +62,7 @@ pub fn debug_panel(
             window_tab_data.panel.section_open(PanelSection::Breakpoint),
         )
         .build()
+        .debug_name("Debug Panel")
 }
 
 fn debug_process_icons(

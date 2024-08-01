@@ -4,8 +4,7 @@ use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    event::EventPropagation,
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
@@ -259,7 +258,7 @@ fn text_input_full<T: KeyPressFocus + 'static>(
                 .as_ref()
                 .map(|k| k as &dyn KeyPressFocus)
                 .unwrap_or(&e_data);
-            if keypress.key_down(key_event, key_focus) {
+            if keypress.key_down(key_event, key_focus).handled {
                 EventPropagation::Stop
             } else {
                 EventPropagation::Continue
@@ -545,7 +544,7 @@ impl View for TextInput {
         }
     }
 
-    fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
+    fn style_pass(&mut self, cx: &mut floem::context::StyleCx<'_>) {
         if self.style.read(cx) {
             self.set_text_layout();
             self.id.request_layout();

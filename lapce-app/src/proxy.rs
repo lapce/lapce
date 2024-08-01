@@ -9,7 +9,6 @@ use lapce_rpc::{
     proxy::{ProxyRpcHandler, ProxyStatus},
     terminal::TermId,
 };
-use lsp_types::Url;
 use tracing::error;
 
 use self::{remote::start_remote, ssh::SshRemote};
@@ -143,29 +142,6 @@ impl CoreHandler for Proxy {
         _rpc: lapce_rpc::core::CoreRequest,
     ) {
     }
-}
-
-// Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
-// as "/<drive>://" which is then interpreted by PathBuf::new() as a UNIX-like path from root.
-// This function strips the additional / from the beginning, if the first segment is a drive letter.
-#[cfg(windows)]
-pub fn path_from_url(url: &Url) -> PathBuf {
-    let path = url.path();
-    if let Some(path) = path.strip_prefix('/') {
-        if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
-            let b = maybe_drive_letter.as_bytes();
-            if b.len() == 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
-                return PathBuf::from(path);
-            }
-        }
-    }
-    PathBuf::from(path)
-}
-
-#[cfg(not(windows))]
-pub fn path_from_url(url: &Url) -> PathBuf {
-    url.to_file_path()
-        .unwrap_or_else(|_| PathBuf::from(url.path()))
 }
 
 pub fn new_command(program: &str) -> Command {

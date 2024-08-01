@@ -14,10 +14,10 @@ use floem::{
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},
-        stack, svg, text, virtual_stack, Container, Decorators, VirtualDirection,
+        stack, svg, text, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
-    View,
+    IntoView, View,
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
@@ -66,7 +66,7 @@ impl From<serde_json::Value> for SettingsValue {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SettingsItem {
     kind: String,
     name: String,
@@ -80,7 +80,7 @@ struct SettingsItem {
     header: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SettingsData {
     items: im::Vector<SettingsItem>,
     kinds: im::Vector<(String, RwSignal<Point>)>,
@@ -185,7 +185,7 @@ impl SettingsData {
                 size: cx.create_rw_signal(Size::ZERO),
                 header: true,
             });
-            kinds.push_back((format!("{kind} Settings"), pos));
+            kinds.push_back((kind.to_string(), pos));
             for (name, desc) in fields.iter().zip(descs.iter()) {
                 let field = name.replace('_', "-");
 
@@ -518,6 +518,7 @@ pub fn settings_view(
         .style(|s| s.flex_col().size_pct(100.0, 100.0)),
     ))
     .style(|s| s.absolute().size_pct(100.0, 100.0))
+    .debug_name("Settings")
 }
 
 fn settings_item_view(
@@ -614,12 +615,14 @@ fn settings_item_view(
                     rev
                 });
 
-                container(text_input_view.keyboard_navigatable().style(move |s| {
-                    s.width(300.0)
-                        .border(1.0)
-                        .border_radius(6.0)
-                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                }))
+                text_input_view
+                    .keyboard_navigatable()
+                    .style(move |s| {
+                        s.width(300.0).border(1.0).border_radius(6.0).border_color(
+                            config.get().color(LapceColor::LAPCE_BORDER),
+                        )
+                    })
+                    .into_any()
             } else if let SettingsValue::Dropdown(dropdown) = &item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
@@ -638,18 +641,21 @@ fn settings_item_view(
                     settings_data.common.window_common.size,
                     config,
                 )
+                .into_any()
             } else if item.header {
-                container(label(move || item.kind.clone()).style(move |s| {
-                    let config = config.get();
-                    s.line_height(2.0)
-                        .font_bold()
-                        .width_pct(100.0)
-                        .padding_horiz(10.0)
-                        .font_size(config.ui.font_size() as f32 + 2.0)
-                        .background(config.color(LapceColor::PANEL_BACKGROUND))
-                }))
+                label(move || item.kind.clone())
+                    .style(move |s| {
+                        let config = config.get();
+                        s.line_height(2.0)
+                            .font_bold()
+                            .width_pct(100.0)
+                            .padding_horiz(10.0)
+                            .font_size(config.ui.font_size() as f32 + 2.0)
+                            .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    })
+                    .into_any()
             } else {
-                container(empty())
+                empty().into_any()
             }
         }
     };
@@ -1081,6 +1087,7 @@ pub fn theme_color_settings_view(
         .style(|s| s.flex_col()),
     )
     .style(|s| s.absolute().size_full())
+    .debug_name("Theme Color Settings")
 }
 
 fn dropdown_view(
@@ -1090,7 +1097,7 @@ fn dropdown_view(
     expanded: RwSignal<bool>,
     window_size: RwSignal<Size>,
     config: ReadSignal<Arc<LapceConfig>>,
-) -> Container {
+) -> impl View {
     let window_origin = create_rw_signal(Point::ZERO);
     let size = create_rw_signal(Size::ZERO);
     let overlay_id = create_rw_signal(None);
@@ -1126,51 +1133,53 @@ fn dropdown_view(
         });
     }
 
-    container(
-        stack((
-            label(move || current_value.get()).style(move |s| {
-                s.text_ellipsis().width_pct(100.0).padding_horiz(10.0)
-            }),
-            container(
-                svg(move || {
-                    if expanded.get() {
-                        config.get().ui_svg(LapceIcons::CLOSE)
-                    } else {
-                        config.get().ui_svg(LapceIcons::DROPDOWN_ARROW)
-                    }
-                })
-                .style(move |s| {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    s.size(size, size)
-                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-                }),
-            )
-            .style(|s| s.padding_right(4.0)),
-        ))
-        .on_click_stop(move |_| {
-            expanded.update(|expanded| {
-                *expanded = !*expanded;
-            });
-        })
-        .on_move(move |point| {
-            window_origin.set(point);
-            if expanded.get_untracked() {
-                expanded.set(false);
-            }
-        })
-        .on_resize(move |rect| {
-            size.set(rect.size());
-        })
-        .style(move |s| {
-            s.items_center()
+    stack((
+        label(move || current_value.get()).style(move |s| {
+            s.text_ellipsis()
                 .width_pct(100.0)
-                .cursor(CursorStyle::Pointer)
-                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                .border(1.0)
-                .border_radius(6.0)
+                .padding_horiz(10.0)
+                .selectable(false)
         }),
-    )
+        container(
+            svg(move || {
+                if expanded.get() {
+                    config.get().ui_svg(LapceIcons::CLOSE)
+                } else {
+                    config.get().ui_svg(LapceIcons::DROPDOWN_ARROW)
+                }
+            })
+            .style(move |s| {
+                let config = config.get();
+                let size = config.ui.icon_size() as f32;
+                s.size(size, size)
+                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+            }),
+        )
+        .style(|s| s.padding_right(4.0)),
+    ))
+    .on_click_stop(move |_| {
+        expanded.update(|expanded| {
+            *expanded = !*expanded;
+        });
+    })
+    .on_move(move |point| {
+        window_origin.set(point);
+        if expanded.get_untracked() {
+            expanded.set(false);
+        }
+    })
+    .on_resize(move |rect| {
+        size.set(rect.size());
+    })
+    .style(move |s| {
+        s.items_center()
+            .cursor(CursorStyle::Pointer)
+            .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+            .border(1.0)
+            .border_radius(6.0)
+            .width(250.0)
+            .line_height(1.8)
+    })
     .keyboard_navigatable()
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_input_focus.set(true);
@@ -1181,7 +1190,6 @@ fn dropdown_view(
             expanded.set(false);
         }
     })
-    .style(move |s| s.width(250.0).line_height(1.8))
     .on_cleanup(move || {
         if let Some(id) = overlay_id.get_untracked() {
             remove_overlay(id);

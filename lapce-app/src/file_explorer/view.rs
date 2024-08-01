@@ -82,7 +82,7 @@ pub fn file_explorer_panel(
             container(open_editors_view(window_tab_data.clone()))
                 .style(|s| s.size_full()),
             window_tab_data.panel.section_open(PanelSection::OpenEditor),
-            move |s| s.apply_if(!config.get().ui.open_editors_visible, Style::hide),
+            move |s| s.apply_if(!config.get().ui.open_editors_visible, |s| s.hide()),
         )
         .add(
             "File Explorer",
@@ -95,6 +95,7 @@ pub fn file_explorer_panel(
                 .section_open(PanelSection::FileExplorer),
         )
         .build()
+        .debug_name("File Explorer Panel")
 }
 
 /// Initialize the file explorer's naming (renaming, creating, etc.) editor with the given path.
@@ -180,13 +181,14 @@ fn file_node_text_view(
                     .unwrap_or_default()
             })
             .style(move |s| {
-                s.flex_grow(1.0).height(ui_line_height.get()).color(
-                    file_node_text_color(
+                s.flex_grow(1.0)
+                    .height(ui_line_height.get())
+                    .color(file_node_text_color(
                         config,
                         node.clone(),
                         source_control.clone(),
-                    ),
-                )
+                    ))
+                    .selectable(false)
             }),
         ),
         FileNodeViewKind::Renaming { path, err } => {
@@ -288,7 +290,7 @@ fn new_file_node_view(
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
     let naming = data.naming;
-
+    let scroll_to_line = data.scroll_to_line;
     let secondary_click_data = data.clone();
 
     scroll(
@@ -427,6 +429,14 @@ fn new_file_node_view(
             }
         }
     })
+    .scroll_to(move || {
+        if let Some(line) = scroll_to_line.get() {
+            let line_height = ui_line_height.get();
+            Some((0.0, line * line_height).into())
+        } else {
+            None
+        }
+    })
 }
 
 fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -486,7 +496,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 },
             ))
             .style(|s| s.padding_horiz(6.0)),
-            label(move || info.with(|info| info.path.clone())).style(move |s| {
+            label(move || info.with(|info| info.name.clone())).style(move |s| {
                 s.apply_if(
                     !info
                         .with(|info| info.confirmed)
@@ -550,5 +560,6 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.flex_col().width_pct(100.0)),
     )
-    .style(|s| s.absolute().size_pct(100.0, 100.0).line_height(1.6))
+    .style(|s| s.absolute().size_full().line_height(1.6))
+    .debug_name("Open Editors")
 }

@@ -16,7 +16,7 @@ use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
 use lapce_rpc::{
-    core::CoreRpcHandler,
+    core::{CoreRpcHandler, ServerStatusParams},
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
@@ -29,7 +29,8 @@ use lsp_types::{
         ShowMessage,
     },
     request::{
-        CodeActionRequest, CodeActionResolveRequest, Completion,
+        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
+        CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
         PrepareRenameRequest, References, RegisterCapability, Rename,
@@ -780,6 +781,15 @@ impl PluginHostHandler {
             CodeActionResolveRequest::METHOD => {
                 self.server_capabilities.code_action_provider.is_some()
             }
+            CodeLensRequest::METHOD => {
+                self.server_capabilities.code_lens_provider.is_some()
+            }
+            CallHierarchyPrepare::METHOD => {
+                self.server_capabilities.call_hierarchy_provider.is_some()
+            }
+            CallHierarchyIncomingCalls::METHOD => {
+                self.server_capabilities.call_hierarchy_provider.is_some()
+            }
             _ => false,
         }
     }
@@ -1071,6 +1081,11 @@ impl PluginHostHandler {
                         self.volt_id.author, self.volt_id.name
                     ),
                 );
+            }
+            "experimental/serverStatus" => {
+                let param: ServerStatusParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.server_status(param);
             }
             _ => {
                 self.core_rpc.log(

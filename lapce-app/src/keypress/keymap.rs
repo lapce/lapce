@@ -6,8 +6,8 @@ use floem::{
 };
 use lapce_core::mode::Modes;
 
-#[derive(PartialEq, Debug)]
-pub(super) enum KeymapMatch {
+#[derive(PartialEq, Debug, Clone)]
+pub enum KeymapMatch {
     Full(String),
     Multiple(Vec<String>),
     Prefix,

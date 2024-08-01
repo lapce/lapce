@@ -8,8 +8,9 @@ use include_dir::{include_dir, Dir};
 
 use crate::config::LOGO;
 
-const CODICONS_ICONS_DIR: Dir = include_dir!("../icons/codicons");
-const LAPCE_ICONS_DIR: Dir = include_dir!("../icons/lapce");
+const CODICONS_ICONS_DIR: Dir =
+    include_dir!("$CARGO_MANIFEST_DIR/../icons/codicons");
+const LAPCE_ICONS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../icons/lapce");
 
 #[derive(Debug, Clone)]
 pub struct SvgStore {

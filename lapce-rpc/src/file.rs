@@ -480,6 +480,31 @@ impl FileNodeItem {
         self.append_children_view_slice(view_items, naming, min, max, current, level)
     }
 
+    /// Calculate the row where the file resides
+    pub fn find_file_at_line(&self, file_path: &Path) -> (bool, f64) {
+        let mut line = 0.0;
+        if !self.open {
+            return (false, line);
+        }
+        for item in self.sorted_children() {
+            line += 1.0;
+            match (item.is_dir, item.open, item.path == file_path) {
+                (_, _, true) => {
+                    return (true, line);
+                }
+                (true, true, _) => {
+                    let (found, item_position) = item.find_file_at_line(file_path);
+                    line += item_position;
+                    if found {
+                        return (true, line);
+                    }
+                }
+                _ => {}
+            }
+        }
+        (false, line)
+    }
+
     /// Append the children of this item with the given level
     pub fn append_children_view_slice(
         &self,

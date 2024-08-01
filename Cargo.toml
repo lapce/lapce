@@ -25,7 +25,7 @@ members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 [workspace.package]
 version      = "0.4.0"
 edition      = "2021"
-rust-version = "1.75"
+rust-version = "1.77"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
@@ -38,18 +38,21 @@ clap              = { version = "4.5.0", default-features = false, features = ["
 crossbeam-channel = { version = "0.5.12" }
 directories       = { version = "4.0.1" }
 flate2            = { version = "1.0" }
+git2              = { version = "0.19.0", features = ["vendored-openssl"] }
 globset           = { version = "0.4.14" }
 hashbrown         = { version = "0.14.5", features = ["serde"] }
 im                = { version = "15.0.0", features = ["serde"] }
-include_dir       = { version = "0.6.2" }
+include_dir       = { version = "0.7" }
 indexmap          = { version = "2.0", features = ["serde"] }
 interprocess      = { version = "1.2.1" }
 itertools         = { version = "0.12.1" }
 notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
-parking_lot       = { version = "0.12.0" }
+parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
-regex             = { version = "1.10.4" }
+regex             = { version = "1.10.5" }
+remain            = { version = "0.2" }
+semver            = { version = "1.0" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
@@ -57,10 +60,12 @@ smallvec          = { version = "1.13.2" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
+tempfile          = { version = "3.10.1" }
 thiserror         = { version = "1.0" }
 toml              = { version = "*" }
 toml_edit         = { version = "0.20.2", features = ["serde"] }
 url               = { version = "2.5.0" }
+zstd              = { version = "0.11.2" }                                                                         # follow same version wasmtime-cache in lockfile
 
 lsp-types = { version = "0.95.1", features = ["proposed"] }                                                  # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
@@ -71,11 +76,13 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "9a4c0fa6e1f8412b4a5eb73c8d7f3e0e7dcd9cbc", features = ["serde"] }
-# floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
+floem = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+# floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["serde"] }
+# floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
-# Temporarily patch lsp-types with a version that supports inline-completion
+# Temporarily patch lsp-types with a version that adds message-type debug
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
 
@@ -101,7 +108,8 @@ rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
-version = "0.23.0"
+git = "https://github.com/alacritty/alacritty"
+rev = "cacdb5bb3b72bad2c729227537979d95af75978f"
 
 [workspace.dependencies.windows-sys]
 version  = "0"
@@ -125,4 +133,3 @@ opt-level = 3
 
 [profile.fastdev]
 inherits = "dev"
-

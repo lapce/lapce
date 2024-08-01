@@ -45,8 +45,8 @@ use crate::{
         EditorData,
     },
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
+    lsp::path_from_url,
     main_split::MainSplitData,
-    proxy::path_from_url,
     source_control::SourceControlData,
     window_tab::{CommonData, Focus},
     workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
@@ -103,6 +103,12 @@ pub struct PaletteData {
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+}
+
+impl std::fmt::Debug for PaletteData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PaletteData").finish()
+    }
 }
 
 impl PaletteData {
@@ -324,14 +330,18 @@ impl PaletteData {
 
     /// Get the placeholder text to use in the palette input field.
     pub fn placeholder_text(&self) -> &'static str {
-        if self.kind.get() == PaletteKind::DiffFiles {
-            if self.left_diff_path.with(Option::is_some) {
-                "Select right file"
-            } else {
-                "Seleft left file"
+        match self.kind.get() {
+            PaletteKind::SshHost => {
+                "Type [user@]host or select a previously connected workspace below"
             }
-        } else {
-            ""
+            PaletteKind::DiffFiles => {
+                if self.left_diff_path.with(Option::is_some) {
+                    "Select right file"
+                } else {
+                    "Seleft left file"
+                }
+            }
+            _ => "",
         }
     }
 
@@ -755,8 +765,7 @@ impl PaletteData {
 
     #[cfg(windows)]
     fn get_wsl_hosts(&self) {
-        use std::os::windows::process::CommandExt;
-        use std::process;
+        use std::{os::windows::process::CommandExt, process};
         let cmd = process::Command::new("wsl")
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .arg("-l")

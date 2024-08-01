@@ -144,7 +144,8 @@ pub enum EditorTabChild {
 pub struct EditorTabChildViewInfo {
     pub icon: String,
     pub color: Option<Color>,
-    pub path: String,
+    pub name: String,
+    pub path: Option<PathBuf>,
     pub confirmed: Option<RwSignal<bool>>,
     pub is_pristine: bool,
 }
@@ -225,9 +226,9 @@ impl EditorTabChild {
                 } else {
                     None
                 };
-                let (icon, color, path, confirmed, is_pristine) = match path {
-                    Some((path, confirmed, is_pritine)) => {
-                        let (svg, color) = config.file_svg(&path);
+                let (icon, color, name, confirmed, is_pristine) = match path {
+                    Some((ref path, confirmed, is_pritine)) => {
+                        let (svg, color) = config.file_svg(path);
                         (
                             svg,
                             color,
@@ -250,7 +251,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon,
                     color,
-                    path,
+                    name,
+                    path: path.map(|opt| opt.0),
                     confirmed: Some(confirmed),
                     is_pristine,
                 }
@@ -328,7 +330,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon,
                     color,
-                    path,
+                    name: path,
+                    path: None,
                     confirmed,
                     is_pristine,
                 }
@@ -338,7 +341,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SETTINGS),
                     color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
-                    path: "Settings".to_string(),
+                    name: "Settings".to_string(),
+                    path: None,
                     confirmed: None,
                     is_pristine: true,
                 }
@@ -348,7 +352,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SYMBOL_COLOR),
                     color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
-                    path: "Theme Colors".to_string(),
+                    name: "Theme Colors".to_string(),
+                    path: None,
                     confirmed: None,
                     is_pristine: true,
                 }
@@ -358,7 +363,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::KEYBOARD),
                     color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
-                    path: "Keyboard Shortcuts".to_string(),
+                    name: "Keyboard Shortcuts".to_string(),
+                    path: None,
                     confirmed: None,
                     is_pristine: true,
                 }
@@ -381,7 +387,8 @@ impl EditorTabChild {
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::EXTENSIONS),
                     color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
-                    path: display_name,
+                    name: display_name,
+                    path: None,
                     confirmed: None,
                     is_pristine: true,
                 }

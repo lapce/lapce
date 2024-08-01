@@ -74,6 +74,7 @@ pub fn source_control_panel(
                                 .height(config.editor.line_height() as f32)
                                 .color(config.color(LapceColor::EDITOR_DIM))
                                 .apply_if(!is_empty.get(), |s| s.hide())
+                                .selectable(false)
                         }),
                     ))
                     .style(|s| {
@@ -173,6 +174,7 @@ pub fn source_control_panel(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
+                            .selectable(false)
                     })
             },
         ))
@@ -191,6 +193,7 @@ pub fn source_control_panel(
         }
     })
     .style(|s| s.flex_col().size_pct(100.0, 100.0))
+    .debug_name("Source Control Panel")
 }
 
 fn file_diffs_view(source_control: SourceControlData) -> impl View {
@@ -257,7 +260,10 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     - 10.0
                     - size
                     - 6.0;
-                s.text_ellipsis().margin_right(6.0).max_width(max_width)
+                s.text_ellipsis()
+                    .margin_right(6.0)
+                    .max_width(max_width)
+                    .selectable(false)
             }),
             label(move || folder.clone()).style(move |s| {
                 s.text_ellipsis()
@@ -265,6 +271,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     .flex_basis(0.0)
                     .color(config.get().color(LapceColor::EDITOR_DIM))
                     .min_width(0.0)
+                    .selectable(false)
             }),
             container({
                 svg(move || {

@@ -1,10 +1,10 @@
-use ::core::slice;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
+use ::core::slice;
 use floem::peniko::Color;
 use itertools::Itertools;
 use lapce_core::directory::Directory;
@@ -877,6 +877,14 @@ impl LapceConfig {
             ("ui", "tab-close-button") => Some(DropdownInfo {
                 active_index: self.ui.tab_close_button as usize,
                 items: ui::TabCloseButton::VARIANTS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .sorted()
+                    .collect(),
+            }),
+            ("ui", "tab-separator-height") => Some(DropdownInfo {
+                active_index: self.ui.tab_separator_height as usize,
+                items: ui::TabSeparatorHeight::VARIANTS
                     .iter()
                     .map(|s| s.to_string())
                     .sorted()

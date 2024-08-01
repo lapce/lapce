@@ -153,6 +153,7 @@ fn left(
             .flex_grow(1.0)
             .items_center()
     })
+    .debug_name("Left Side of Top Bar")
 }
 
 fn middle(
@@ -244,7 +245,7 @@ fn middle(
                         "Open Folder".to_string()
                     }
                 })
-                .style(|s| s.padding_left(10).padding_right(5)),
+                .style(|s| s.padding_left(10).padding_right(5).selectable(false)),
                 open_folder(),
             ))
             .style(|s| s.align_items(Some(AlignItems::Center))),
@@ -298,6 +299,7 @@ fn middle(
             .align_items(Some(AlignItems::Center))
             .justify_content(Some(JustifyContent::Center))
     })
+    .debug_name("Middle of Top Bar")
 }
 
 fn right(
@@ -409,6 +411,7 @@ fn right(
             .flex_grow(1.0)
             .justify_content(Some(JustifyContent::FlexEnd))
     })
+    .debug_name("Right of top bar")
 }
 
 pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -463,6 +466,7 @@ pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
     })
+    .debug_name("Title / Top Bar")
 }
 
 pub fn window_controls_view(

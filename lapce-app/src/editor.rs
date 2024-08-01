@@ -26,6 +26,7 @@ use floem::{
         Editor,
     },
 };
+use itertools::Itertools;
 use lapce_core::{
     buffer::{
         diff::DiffLines,
@@ -46,10 +47,15 @@ use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
-    InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
+    InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location, MarkedString,
+    MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
+use self::{
+    diff::DiffInfo,
+    location::{EditorLocation, EditorPosition},
+};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     completion::CompletionStatus,
@@ -60,18 +66,14 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
+    lsp::path_from_url,
     main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
-    proxy::path_from_url,
     snippet::Snippet,
+    tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
-};
-
-use self::{
-    diff::DiffInfo,
-    location::{EditorLocation, EditorPosition},
 };
 
 pub mod diff;
@@ -186,7 +188,7 @@ impl EditorViewKind {
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 /// Shares data between cloned instances as long as the signals aren't swapped out.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EditorData {
     pub scope: Scope,
     pub editor_tab_id: RwSignal<Option<EditorTabId>>,
@@ -1265,6 +1267,49 @@ impl EditorData {
         );
     }
 
+    pub fn show_call_hierarchy(&self) {
+        let doc = self.doc();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor().with_untracked(|c| c.offset());
+        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
+            (start_position, position)
+        });
+
+        let send = create_ext_action(self.scope, move |_rs| {
+            tracing::debug!("{:?}", _rs);
+        });
+        let proxy = self.common.proxy.clone();
+        self.common.proxy.show_call_hierarchy(
+            path.clone(),
+            position,
+            move |result| {
+                if let Ok(ProxyResponse::ShowCallHierarchyResponse {
+                    items, ..
+                }) = result
+                {
+                    if let Some(item) = items.and_then(|x| x.into_iter().next()) {
+                        proxy.call_hierarchy_incoming(
+                            path.clone(),
+                            item.clone(),
+                            send,
+                        );
+                    }
+                }
+            },
+        );
+    }
+
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
@@ -2308,6 +2353,7 @@ impl EditorData {
             });
     }
 
+    #[instrument]
     pub fn word_at_cursor(&self) -> String {
         let doc = self.doc();
         let region = self.cursor().with_untracked(|c| match &c.mode {
@@ -2342,11 +2388,13 @@ impl EditorData {
         }
     }
 
+    #[instrument]
     pub fn clear_search(&self) {
         self.common.find.visual.set(false);
         self.find_focus.set(false);
     }
 
+    #[instrument]
     fn search(&self) {
         let pattern = self.word_at_cursor();
 
@@ -2364,6 +2412,7 @@ impl EditorData {
         self.common.find.replace_focus.set(false);
     }
 
+    #[instrument]
     pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
         self.cancel_completion();
         self.cancel_inline_completion();
@@ -2384,6 +2433,43 @@ impl EditorData {
             PointerButton::Primary => {
                 self.active().set(true);
                 self.left_click(pointer_event);
+
+                if (cfg!(target_os = "macos") && pointer_event.modifiers.meta())
+                    || (cfg!(not(target_os = "macos"))
+                        && pointer_event.modifiers.control())
+                {
+                    let rs = self.find_hint(pointer_event.pos);
+                    match rs {
+                        FindHintRs::NoMatchBreak
+                        | FindHintRs::NoMatchContinue { .. } => {
+                            self.common.lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(
+                                    FocusCommand::GotoDefinition,
+                                ),
+                                data: None,
+                            })
+                        }
+                        FindHintRs::MatchWithoutLocation => {}
+                        FindHintRs::Match(location) => {
+                            let Ok(path) = location.uri.to_file_path() else {
+                                return;
+                            };
+                            self.common.internal_command.send(
+                                InternalCommand::GoToLocation {
+                                    location: EditorLocation {
+                                        path,
+                                        position: Some(EditorPosition::Position(
+                                            location.range.start,
+                                        )),
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: true,
+                                        same_editor_tab: false,
+                                    },
+                                },
+                            );
+                        }
+                    }
+                }
             }
             PointerButton::Secondary => {
                 self.right_click(pointer_event);
@@ -2392,6 +2478,41 @@ impl EditorData {
         }
     }
 
+    fn find_hint(&self, pos: Point) -> FindHintRs {
+        let rs = self.editor.line_col_of_point_with_phantom(pos);
+        let line = rs.0 as u32;
+        let index = rs.1 as u32;
+        self.doc().inlay_hints.with_untracked(|x| {
+            if let Some(hints) = x {
+                let mut pre_len = 0;
+                for hint in hints
+                    .iter()
+                    .filter_map(|(_, hint)| {
+                        if hint.position.line == line {
+                            Some(hint)
+                        } else {
+                            None
+                        }
+                    })
+                    .sorted_by(|pre, next| {
+                        pre.position.character.cmp(&next.position.character)
+                    })
+                {
+                    match find_hint(pre_len, index, hint) {
+                        FindHintRs::NoMatchContinue { pre_hint_len } => {
+                            pre_len = pre_hint_len;
+                        }
+                        rs => return rs,
+                    }
+                }
+                FindHintRs::NoMatchBreak
+            } else {
+                FindHintRs::NoMatchBreak
+            }
+        })
+    }
+
+    #[instrument]
     fn left_click(&self, pointer_event: &PointerInputEvent) {
         match pointer_event.count {
             1 => {
@@ -2407,18 +2528,22 @@ impl EditorData {
         }
     }
 
+    #[instrument]
     fn single_click(&self, pointer_event: &PointerInputEvent) {
         self.editor.single_click(pointer_event);
     }
 
+    #[instrument]
     fn double_click(&self, pointer_event: &PointerInputEvent) {
         self.editor.double_click(pointer_event);
     }
 
+    #[instrument]
     fn triple_click(&self, pointer_event: &PointerInputEvent) {
         self.editor.triple_click(pointer_event);
     }
 
+    #[instrument]
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
         let (offset, is_inside) =
@@ -2470,14 +2595,17 @@ impl EditorData {
         }
     }
 
+    #[instrument]
     pub fn pointer_up(&self, pointer_event: &PointerInputEvent) {
         self.editor.pointer_up(pointer_event);
     }
 
+    #[instrument]
     pub fn pointer_leave(&self) {
         self.common.mouse_hover_timer.set(TimerToken::INVALID);
     }
 
+    #[instrument]
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
         let (offset, _) = self.editor.offset_of_point(mode, pointer_event.pos);
@@ -2497,6 +2625,9 @@ impl EditorData {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+                // Some(CommandKind::Workbench(
+                //     LapceWorkbenchCommand::ShowCallHierarchy,
+                // )),
                 None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 None,
@@ -2504,6 +2635,9 @@ impl EditorData {
                 Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
                 Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
                 None,
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::RevealInFileTree,
+                )),
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteCommand,
                 )),
@@ -2539,6 +2673,7 @@ impl EditorData {
         show_context_menu(menu, None);
     }
 
+    #[instrument]
     fn update_hover(&self, offset: usize) {
         let doc = self.doc();
         let path = doc
@@ -2782,6 +2917,7 @@ impl KeyPressFocus for EditorData {
         }
     }
 
+    #[instrument]
     fn check_condition(&self, condition: Condition) -> bool {
         match condition {
             Condition::InputFocus => {
@@ -2819,6 +2955,7 @@ impl KeyPressFocus for EditorData {
         }
     }
 
+    #[instrument]
     fn run_command(
         &self,
         command: &crate::command::LapceCommand,
@@ -3366,5 +3503,49 @@ fn parse_hover_resp(
             MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
             MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
+    }
+}
+
+#[derive(Debug)]
+enum FindHintRs {
+    NoMatchBreak,
+    NoMatchContinue { pre_hint_len: u32 },
+    MatchWithoutLocation,
+    Match(Location),
+}
+
+fn find_hint(mut pre_hint_len: u32, index: u32, hint: &InlayHint) -> FindHintRs {
+    use FindHintRs::*;
+    match &hint.label {
+        InlayHintLabel::String(text) => {
+            let actual_col = pre_hint_len + hint.position.character;
+            let actual_col_end = actual_col + (text.len() as u32);
+            if actual_col > index {
+                NoMatchBreak
+            } else if actual_col <= index && index < actual_col_end {
+                MatchWithoutLocation
+            } else {
+                pre_hint_len += text.len() as u32;
+                NoMatchContinue { pre_hint_len }
+            }
+        }
+        InlayHintLabel::LabelParts(parts) => {
+            for part in parts {
+                let actual_col = pre_hint_len + hint.position.character;
+                let actual_col_end = actual_col + part.value.len() as u32;
+                if index < actual_col {
+                    return NoMatchBreak;
+                } else if actual_col <= index && index < actual_col_end {
+                    if let Some(location) = &part.location {
+                        return Match(location.clone());
+                    } else {
+                        return MatchWithoutLocation;
+                    }
+                } else {
+                    pre_hint_len += part.value.len() as u32;
+                }
+            }
+            NoMatchContinue { pre_hint_len }
+        }
     }
 }

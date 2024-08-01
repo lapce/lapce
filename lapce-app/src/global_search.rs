@@ -38,7 +38,7 @@ impl SearchMatchData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GlobalSearchData {
     pub editor: EditorData,
     pub search_result: RwSignal<IndexMap<PathBuf, SearchMatchData>>,

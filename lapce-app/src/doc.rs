@@ -76,7 +76,7 @@ use crate::{
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
-    main_split::Editors,
+    main_split::{Editors, ScoredCodeLensItem},
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -152,6 +152,8 @@ pub struct DocInfo {
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 
+pub type CodeLens = im::HashMap<PluginId, im::Vector<Arc<ScoredCodeLensItem>>>;
+
 #[derive(Clone)]
 pub struct Doc {
     pub scope: Scope,
@@ -179,6 +181,8 @@ pub struct Doc {
 
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
+
+    pub code_lens: RwSignal<CodeLens>,
 
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
@@ -242,6 +246,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 
@@ -290,6 +295,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 
@@ -338,6 +344,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 
@@ -630,6 +637,7 @@ impl Doc {
             self.do_bracket_colorization();
             self.clear_code_actions();
             self.clear_style_cache();
+            self.get_code_lens();
         });
     }
 
@@ -792,7 +800,7 @@ impl Doc {
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(&self) {
+    pub fn get_semantic_styles(&self) {
         if !self.loaded() {
             return;
         }
@@ -804,24 +812,33 @@ impl Doc {
                 return;
             };
 
-        let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
-
-        let syntactic_styles =
-            self.syntax.with_untracked(|syntax| syntax.styles.clone());
+        let (atomic_rev, rev, len) = self
+            .buffer
+            .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |styles| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.semantic_styles.set(Some(styles));
-                doc.clear_style_cache();
+            if let Some(styles) = styles {
+                if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                    doc.semantic_styles.set(Some(styles));
+                    doc.clear_style_cache();
+                }
             }
         });
 
         self.common.proxy.get_semantic_tokens(path, move |result| {
             if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
-                rayon::spawn(move || {
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    send(None);
+                    return;
+                }
+                std::thread::spawn(move || {
                     let mut styles_span = SpansBuilder::new(len);
                     for style in styles.styles {
+                        if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                            send(None);
+                            return;
+                        }
                         styles_span.add_span(
                             Interval::new(style.start, style.end),
                             style.style,
@@ -829,22 +846,60 @@ impl Doc {
                     }
 
                     let styles = styles_span.build();
-
-                    let styles = if let Some(syntactic_styles) = syntactic_styles {
-                        syntactic_styles.merge(&styles, |a, b| {
-                            if let Some(b) = b {
-                                return b.clone();
-                            }
-                            a.clone()
-                        })
-                    } else {
-                        styles
-                    };
-
-                    send(styles);
+                    send(Some(styles));
                 });
+            } else {
+                send(None);
             }
         });
+    }
+
+    pub fn get_code_lens(&self) {
+        let cx = self.scope;
+        let doc = self.clone();
+        if let DocContent::File { path, .. } = doc.content.get_untracked() {
+            let send = create_ext_action(cx, move |result| {
+                if let Ok(ProxyResponse::GetCodeLensResponse { plugin_id, resp }) =
+                    result
+                {
+                    let Some(codelens) = resp else {
+                        return;
+                    };
+                    if codelens.is_empty() {
+                        doc.code_lens.update(|x| {
+                            x.remove(&plugin_id);
+                        });
+                    } else {
+                        let codelens = codelens
+                            .into_iter()
+                            .filter_map(|x| {
+                                tracing::debug!("{:?}", x);
+                                if let Some(command) = x.command {
+                                    if let Some(args) = command.arguments {
+                                        Some(Arc::new(ScoredCodeLensItem {
+                                            range: x.range,
+                                            title: command.title,
+                                            command: command.command,
+                                            args,
+                                        }))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        doc.code_lens.update(|x| {
+                            x.insert(plugin_id, codelens);
+                        });
+                    }
+                }
+            });
+            self.common.proxy.get_code_lens(path, move |result| {
+                send(result);
+            });
+        }
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.

@@ -28,7 +28,7 @@ impl AboutUri {
     const CODICONS: &'static str = "https://github.com/microsoft/vscode-codicons";
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AboutData {
     pub visible: RwSignal<bool>,
     pub focus: RwSignal<Focus>,
@@ -157,6 +157,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
         ))
         .style(|s| s.flex_col().items_center())
     })
+    .debug_name("About Popup")
 }
 
 fn exclusive_popup<V: View + 'static>(

@@ -1,7 +1,9 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
+pub use floem::views::editor::command::CommandExecuted;
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
+    ViewId,
 };
 use indexmap::IndexMap;
 use lapce_core::command::{
@@ -26,11 +28,9 @@ use crate::{
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
-    main_split::{SplitDirection, SplitMoveDirection},
+    main_split::{SplitDirection, SplitMoveDirection, TabCloseKind},
     workspace::LapceWorkspace,
 };
-
-pub use floem::views::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
@@ -183,6 +183,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open File")]
     OpenFile,
 
+    #[strum(serialize = "show_call_hierarchy")]
+    #[strum(message = "Show Call Hierarchy")]
+    ShowCallHierarchy,
+
+    #[strum(serialize = "reveal_in_file_tree")]
+    #[strum(message = "Reveal in File Tree")]
+    RevealInFileTree,
+
     #[strum(serialize = "reveal_active_file_in_file_explorer")]
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
@@ -190,6 +198,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_ui_inspector")]
     #[strum(message = "Open Internal UI Inspector")]
     OpenUIInspector,
+
+    #[strum(serialize = "show_env")]
+    #[strum(message = "Show Environment")]
+    ShowEnvironment,
 
     #[strum(serialize = "change_color_theme")]
     #[strum(message = "Change Color Theme")]
@@ -242,6 +254,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_plugins_directory")]
     #[strum(message = "Open Plugins Directory")]
     OpenPluginsDirectory,
+
+    #[strum(serialize = "open_grammars_directory")]
+    #[strum(message = "Open Grammars Directory")]
+    OpenGrammarsDirectory,
+
+    #[strum(serialize = "open_queries_directory")]
+    #[strum(message = "Open Queries Directory")]
+    OpenQueriesDirectory,
 
     #[strum(serialize = "zoom_in")]
     #[strum(message = "Zoom In")]
@@ -621,6 +641,11 @@ pub enum InternalCommand {
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
     },
+    EditorTabCloseByKind {
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+        kind: TabCloseKind,
+    },
     ShowCodeActions {
         offset: usize,
         mouse_click: bool,
@@ -715,6 +740,11 @@ pub enum InternalCommand {
     ExecuteProcess {
         program: String,
         arguments: Vec<String>,
+    },
+    ClearTerminalBuffer {
+        view_id: ViewId,
+        tab_index: usize,
+        terminal_index: usize,
     },
 }
 

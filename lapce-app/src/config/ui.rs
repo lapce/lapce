@@ -5,6 +5,9 @@ use structdesc::FieldNames;
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct UIConfig {
+    #[field_names(desc = "Set the UI scale. Defaults to 1.0")]
+    scale: f64,
+
     #[field_names(
         desc = "Set the UI font family. If empty, it uses system default."
     )]
@@ -26,6 +29,11 @@ pub struct UIConfig {
 
     #[field_names(desc = "Set the minimum width for editor tab")]
     tab_min_width: usize,
+
+    #[field_names(
+        desc = "Set whether the editor tab separator should be full height or the height of the content"
+    )]
+    pub tab_separator_height: TabSeparatorHeight,
 
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
@@ -76,9 +84,32 @@ pub enum TabCloseButton {
     Off,
 }
 
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Deserialize,
+    Serialize,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    strum_macros::VariantNames,
+)]
+pub enum TabSeparatorHeight {
+    #[default]
+    Content,
+    Full,
+}
+
 impl UIConfig {
+    pub fn scale(&self) -> f64 {
+        self.scale.clamp(0.1, 4.0)
+    }
+
     pub fn font_size(&self) -> usize {
-        self.font_size.max(6).min(32)
+        self.font_size.clamp(6, 32)
     }
 
     pub fn font_family(&self) -> Vec<FamilyOwned> {
@@ -94,7 +125,7 @@ impl UIConfig {
         if self.icon_size == 0 {
             self.font_size()
         } else {
-            self.icon_size.max(6).min(32)
+            self.icon_size.clamp(6, 32)
         }
     }
 

@@ -20,7 +20,7 @@ use crate::{
         ScopeOrVar,
     },
     id::TerminalTabId,
-    keypress::{EventRef, KeyPressData, KeyPressFocus},
+    keypress::{EventRef, KeyPressData, KeyPressFocus, KeyPressHandle},
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -135,7 +135,7 @@ impl TerminalPanelData {
         &self,
         event: impl Into<EventRef<'a>> + Copy,
         keypress: &KeyPressData,
-    ) -> bool {
+    ) -> Option<KeyPressHandle> {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
             self.new_tab(None);
         }
@@ -143,19 +143,23 @@ impl TerminalPanelData {
         let tab = self.active_tab(false);
         let terminal = tab.and_then(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
-            let executed = keypress.key_down(event, &terminal);
+            let handle = keypress.key_down(event, &terminal);
             let mode = terminal.get_mode();
 
-            if !executed && mode == Mode::Terminal {
+            if !handle.handled && mode == Mode::Terminal {
                 if let EventRef::Keyboard(key_event) = event.into() {
                     if terminal.send_keypress(key_event) {
-                        return true;
+                        return Some(KeyPressHandle {
+                            handled: true,
+                            keymatch: handle.keymatch,
+                            keypress: handle.keypress,
+                        });
                     }
                 }
             }
-            executed
+            Some(handle)
         } else {
-            false
+            None
         }
     }
 

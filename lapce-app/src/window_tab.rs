@@ -1,3 +1,4 @@
+use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -9,7 +10,7 @@ use std::{
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::{open_file, TimerToken},
+    action::{open_file, remove_overlay, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
@@ -61,6 +62,7 @@ use crate::{
     inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
+    lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
@@ -69,13 +71,14 @@ use crate::{
         position::PanelContainerPosition,
     },
     plugin::PluginData,
-    proxy::{new_proxy, path_from_url, ProxyData},
+    proxy::{new_proxy, ProxyData},
     rename::RenameData,
     source_control::SourceControlData,
     terminal::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
+    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -141,6 +144,14 @@ pub struct CommonData {
     pub window_common: Rc<WindowCommonData>,
 }
 
+impl std::fmt::Debug for CommonData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommonData")
+            .field("workspace", &self.workspace)
+            .finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct WindowTabData {
     pub scope: Scope,
@@ -153,6 +164,7 @@ pub struct WindowTabData {
     pub terminal: TerminalPanelData,
     pub plugin: PluginData,
     pub code_action: RwSignal<CodeActionData>,
+    pub code_lens: RwSignal<Option<ViewId>>,
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
@@ -167,6 +179,14 @@ pub struct WindowTabData {
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
+}
+
+impl std::fmt::Debug for WindowTabData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WindowTabData")
+            .field("window_tab_id", &self.window_tab_id)
+            .finish()
+    }
 }
 
 impl KeyPressFocus for WindowTabData {
@@ -515,6 +535,7 @@ impl WindowTabData {
             panel,
             file_explorer,
             code_action,
+            code_lens: cx.create_rw_signal(None),
             source_control,
             plugin,
             rename,
@@ -822,6 +843,16 @@ impl WindowTabData {
                     open_uri(&dir);
                 }
             }
+            OpenGrammarsDirectory => {
+                if let Some(dir) = Directory::grammars_directory() {
+                    open_uri(&dir);
+                }
+            }
+            OpenQueriesDirectory => {
+                if let Some(dir) = Directory::queries_directory() {
+                    open_uri(&dir);
+                }
+            }
 
             InstallTheme => {}
             ExportCurrentThemeSettings => {
@@ -1068,6 +1099,12 @@ impl WindowTabData {
                     scale = 4.0
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomOut => {
                 let mut scale =
@@ -1077,9 +1114,21 @@ impl WindowTabData {
                     scale = 0.1
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomReset => {
                 self.common.window_common.window_scale.set(1.0);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(1.0),
+                );
             }
 
             ToggleMaximizedPanel => {
@@ -1175,6 +1224,9 @@ impl WindowTabData {
             }
             OpenUIInspector => {
                 self.common.view_id.get_untracked().inspect();
+            }
+            ShowEnvironment => {
+                self.main_split.show_env();
             }
 
             // ==== Source Control ====
@@ -1308,6 +1360,22 @@ impl WindowTabData {
             PreviousError => {}
             Quit => {
                 floem::quit_app();
+            }
+            RevealInFileTree => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
+                        self.file_explorer.reveal_in_file_tree(path);
+                    }
+                }
+            }
+            ShowCallHierarchy => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.show_call_hierarchy();
+                }
             }
         }
     }
@@ -1545,6 +1613,17 @@ impl WindowTabData {
                 self.main_split
                     .editor_tab_child_close(editor_tab_id, child, false);
             }
+            InternalCommand::EditorTabCloseByKind {
+                editor_tab_id,
+                child,
+                kind,
+            } => {
+                self.main_split.editor_tab_child_close_by_kind(
+                    editor_tab_id,
+                    child,
+                    kind,
+                );
+            }
             InternalCommand::ShowCodeActions {
                 offset,
                 mouse_click,
@@ -1665,10 +1744,13 @@ impl WindowTabData {
                 if !uri.is_empty() {
                     match open::that(&uri) {
                         Ok(_) => {
-                            debug!("opened web uri: {uri:?}");
+                            trace!(TraceLevel::TRACE, "opened web uri: {uri:?}");
                         }
                         Err(e) => {
-                            error!("failed to open web uri: {uri:?}, error: {e}");
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to open web uri: {uri:?}, error: {e}"
+                            );
                         }
                     }
                 }
@@ -1726,6 +1808,38 @@ impl WindowTabData {
                         event!(Level::ERROR, "Proces exited with an error: {e}")
                     }
                 };
+            }
+            InternalCommand::ClearTerminalBuffer {
+                view_id,
+                tab_index,
+                terminal_index,
+            } => {
+                let Some(tab) = self.terminal.tab_info.with_untracked(|x| {
+                    x.tabs.iter().find_map(|(index, data)| {
+                        if index.get_untracked() == tab_index {
+                            Some(data.clone())
+                        } else {
+                            None
+                        }
+                    })
+                }) else {
+                    error!("cound not find terminal tab data: index={tab_index}");
+                    return;
+                };
+                let Some(raw) = tab.terminals.with_untracked(|x| {
+                    x.iter().find_map(|(index, data)| {
+                        if index.get_untracked() == terminal_index {
+                            Some(data.raw.get_untracked())
+                        } else {
+                            None
+                        }
+                    })
+                }) else {
+                    error!("cound not find terminal data: index={terminal_index}");
+                    return;
+                };
+                raw.write().term.reset_state();
+                view_id.request_paint();
             }
         }
     }
@@ -1805,6 +1919,17 @@ impl WindowTabData {
                     .with_untracked(|docs| docs.get(&path).cloned())
                 {
                     doc.init_diagnostics();
+                }
+            }
+            CoreNotification::ServerStatus { params } => {
+                if params.is_ok() {
+                    // todo filter by language
+                    self.main_split.docs.with_untracked(|x| {
+                        for doc in x.values() {
+                            doc.get_code_lens();
+                            doc.get_semantic_styles();
+                        }
+                    });
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id } => {
@@ -1967,37 +2092,45 @@ impl WindowTabData {
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
-        let executed = match focus {
-            Focus::Workbench => {
-                self.main_split.key_down(event, &keypress) == Some(true)
-            }
-            Focus::Palette => keypress.key_down(event, &self.palette),
+        let handle = match focus {
+            Focus::Workbench => self.main_split.key_down(event, &keypress),
+            Focus::Palette => Some(keypress.key_down(event, &self.palette)),
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(event, &code_action)
+                Some(keypress.key_down(event, &code_action))
             }
-            Focus::Rename => keypress.key_down(event, &self.rename),
-            Focus::AboutPopup => keypress.key_down(event, &self.about_data),
+            Focus::Rename => Some(keypress.key_down(event, &self.rename)),
+            Focus::AboutPopup => Some(keypress.key_down(event, &self.about_data)),
             Focus::Panel(PanelKind::Terminal) => {
                 self.terminal.key_down(event, &keypress)
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(event, &self.global_search)
+                Some(keypress.key_down(event, &self.global_search))
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(event, &self.plugin)
+                Some(keypress.key_down(event, &self.plugin))
             }
             Focus::Panel(PanelKind::SourceControl) => {
-                keypress.key_down(event, &self.source_control)
+                Some(keypress.key_down(event, &self.source_control))
             }
-            _ => false,
+            _ => None,
         };
 
-        if executed {
-            return true;
+        if let Some(handle) = &handle {
+            if handle.handled {
+                true
+            } else {
+                keypress
+                    .handle_keymatch(
+                        self,
+                        handle.keymatch.clone(),
+                        handle.keypress.clone(),
+                    )
+                    .handled
+            }
+        } else {
+            keypress.key_down(event, self).handled
         }
-
-        keypress.key_down(event, self)
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {
@@ -2329,7 +2462,13 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(None);
+            self.terminal.new_tab(
+                self.common
+                    .config
+                    .get_untracked()
+                    .terminal
+                    .get_default_profile(),
+            );
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
@@ -2352,6 +2491,7 @@ impl WindowTabData {
         mode: &RunDebugMode,
         config: &RunDebugConfig,
     ) {
+        debug!("{:?}", config);
         match mode {
             RunDebugMode::Run => {
                 self.run_in_terminal(cx, mode, config, false);
@@ -2503,6 +2643,18 @@ impl WindowTabData {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
         });
+    }
+
+    pub fn update_code_lens_id(&self, view_id: Option<ViewId>) {
+        if let Some(Some(old_id)) = self.code_lens.try_update(|x| {
+            let old = x.take();
+            if let Some(id) = view_id {
+                let _ = x.insert(id);
+            }
+            old
+        }) {
+            remove_overlay(old_id);
+        }
     }
 }
 
