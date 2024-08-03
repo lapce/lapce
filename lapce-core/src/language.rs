@@ -119,6 +119,8 @@ pub struct SyntaxProperties {
 struct TreeSitterProperties {
     /// the grammar name that's in the grammars folder
     grammar: Option<&'static str>,
+    /// the grammar fn name
+    grammar_fn: Option<&'static str>,
     /// the query folder name
     query: Option<&'static str>,
     /// Preface: Originally this feature was called "Code Lens", which is not
@@ -144,6 +146,7 @@ struct TreeSitterProperties {
 impl TreeSitterProperties {
     const DEFAULT: Self = Self {
         grammar: None,
+        grammar_fn: None,
         query: None,
         code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
         sticky_headers: &[],
@@ -544,6 +547,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["function_definition", "struct_specifier"],
@@ -574,6 +578,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["function_definition"],
@@ -595,6 +600,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[
@@ -612,6 +618,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[
@@ -673,6 +680,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         },
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (
                 &["program", "class_definition"],
@@ -726,6 +734,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["do_block"],
@@ -864,6 +873,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (
                 &[
@@ -990,6 +1000,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
@@ -1034,8 +1045,9 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["jsx"],
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
-            grammar: None,
-            query: None,
+            grammar: Some("javascript"),
+            grammar_fn: Some("javascript"),
+            query: Some("jsx"),
             code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
@@ -1158,6 +1170,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties {
             grammar: Some("markdown"),
+            grammar_fn: None,
             query: Some("markdown.inline"),
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[],
@@ -1273,6 +1286,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (
                 &[
@@ -1345,6 +1359,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (
                 &[
@@ -1425,6 +1440,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &["module", "class", "method", "do_block"],
@@ -1438,6 +1454,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: None,
+            grammar_fn: None,
             query: None,
             code_glance: (
                 &["source_file", "impl_item", "trait_item", "declaration_list"],
@@ -1563,6 +1580,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: Some("tsx"),
+            grammar_fn: Some("tsx"),
             query: Some("tsx"),
             code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
@@ -1576,6 +1594,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
             grammar: Some("typescript"),
+            grammar_fn: Some("typescript"),
             query: Some("typescript"),
             code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
@@ -1753,25 +1772,12 @@ impl LapceLanguage {
 
     fn get_grammar(&self) -> Option<tree_sitter::Language> {
         let grammar_name = self.grammar_name();
-
-        #[cfg(unix)]
-        {
-            let props = self.properties();
-            let grammars_dir = Path::new(Self::SYSTEM_GRAMMARS_DIRECTORY);
-            if grammars_dir.exists() {
-                let grammars_dir = grammars_dir.join(props.id.as_ref());
-                if grammars_dir.exists() {
-                    if let Ok(grammar) =
-                        self::load_grammar(&grammar_name, &grammars_dir)
-                    {
-                        return Some(grammar);
-                    }
-                }
-            }
-        };
+        let grammar_fn_name = self.grammar_fn_name();
 
         if let Some(grammars_dir) = Directory::grammars_directory() {
-            if let Ok(grammar) = self::load_grammar(&grammar_name, &grammars_dir) {
+            if let Ok(grammar) =
+                self::load_grammar(&grammar_name, &grammar_fn_name, &grammars_dir)
+            {
                 return Some(grammar);
             }
         };
@@ -1795,6 +1801,14 @@ impl LapceLanguage {
             .to_lowercase()
     }
 
+    fn grammar_fn_name(&self) -> String {
+        self.properties()
+            .tree_sitter
+            .grammar_fn
+            .unwrap_or(self.properties().id.as_ref())
+            .to_lowercase()
+    }
+
     fn get_grammar_query(&self) -> (String, String) {
         let query_name = self.query_name();
 
@@ -1812,27 +1826,6 @@ impl LapceLanguage {
                     Self::HIGHLIGHTS_INJECTIONS_FILE_NAME,
                 ),
             );
-        }
-
-        #[cfg(unix)]
-        {
-            let queries_dir = Path::new(Self::SYSTEM_QUERIES_DIRECTORY);
-            if queries_dir.join(&query_name).exists() {
-                let highlights_file =
-                    queries_dir.join(Self::HIGHLIGHTS_QUERIES_FILE_NAME);
-                if highlights_file.exists() {
-                    if let Ok(s) = std::fs::read_to_string(highlights_file) {
-                        return (
-                            s,
-                            std::fs::read_to_string(
-                                queries_dir
-                                    .join(Self::HIGHLIGHTS_INJECTIONS_FILE_NAME),
-                            )
-                            .unwrap_or_else(|_| "".to_string()),
-                        );
-                    }
-                }
-            }
         }
 
         ("".to_string(), "".to_string())
@@ -1866,6 +1859,7 @@ impl LapceLanguage {
 
 fn load_grammar(
     grammar_name: &str,
+    grammar_fn_name: &str,
     path: &Path,
 ) -> Result<tree_sitter::Language, HighlightIssue> {
     let mut library_path = path.join(format!("libtree-sitter-{grammar_name}"));
@@ -1894,7 +1888,8 @@ fn load_grammar(
         }
     };
 
-    let language_fn_name = format!("tree_sitter_{}", grammar_name.replace('-', "_"));
+    let language_fn_name =
+        format!("tree_sitter_{}", grammar_fn_name.replace('-', "_"));
     event!(
         Level::DEBUG,
         "Loading grammar with address: '{language_fn_name}'"

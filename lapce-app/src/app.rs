@@ -3687,7 +3687,7 @@ pub fn launch() {
         });
         std::thread::spawn(move || {
             use self::grammars::*;
-            match find_release() {
+            match find_grammar_release() {
                 Ok(release) => {
                     if let Err(e) = fetch_grammars(&release) {
                         trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");

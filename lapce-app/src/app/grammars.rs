@@ -22,7 +22,7 @@ fn get_github_api(url: &str) -> Result<String> {
     Ok(resp.text()?)
 }
 
-pub fn find_release() -> Result<ReleaseInfo> {
+pub fn find_grammar_release() -> Result<ReleaseInfo> {
     let releases: Vec<ReleaseInfo> = serde_json::from_str(&get_github_api(
         "https://api.github.com/repos/lapce/tree-sitter-grammars/releases?per_page=100",
     ).context("Failed to retrieve releases for tree-sitter-grammars")?)?;
@@ -32,6 +32,10 @@ pub fn find_release() -> Result<ReleaseInfo> {
     let releases = releases
         .into_iter()
         .filter_map(|f| {
+            if matches!(RELEASE, ReleaseType::Debug | ReleaseType::Nightly) {
+                return Some(f);
+            }
+
             let tag_name = if f.tag_name.starts_with('v') {
                 f.tag_name.trim_start_matches('v')
             } else {
@@ -45,9 +49,7 @@ pub fn find_release() -> Result<ReleaseInfo> {
             let sv = Version::parse(tag_name).ok()?;
             let version = Version::parse(VERSION).ok()?;
 
-            if matches!(sv.cmp_precedence(&version), Ordering::Equal)
-                || matches!(RELEASE, ReleaseType::Debug | ReleaseType::Nightly)
-            {
+            if matches!(sv.cmp_precedence(&version), Ordering::Equal) {
                 Some(f)
             } else {
                 None
@@ -99,8 +101,13 @@ fn download_release(
 
     let current_version =
         fs::read_to_string(dir.join("version")).unwrap_or_default();
+    let release_version = if release.tag_name == "nightly" {
+        format!("nightly-{}", &release.target_commitish[..7])
+    } else {
+        release.tag_name.clone()
+    };
 
-    if release.tag_name == current_version {
+    if release_version == current_version {
         return Ok(());
     }
 
@@ -130,7 +137,7 @@ fn download_release(
                 archive.unpack(&dir)?;
             }
 
-            fs::write(dir.join("version"), release.tag_name.clone())?;
+            fs::write(dir.join("version"), &release_version)?;
         }
     }
     Ok(())

@@ -828,6 +828,10 @@ impl Doc {
 
         self.common.proxy.get_semantic_tokens(path, move |result| {
             if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                if styles.styles.is_empty() {
+                    send(None);
+                    return;
+                }
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     send(None);
                     return;
