@@ -14,7 +14,10 @@ use floem::{
     IntoView, View,
 };
 use indexmap::IndexMap;
-use lapce_rpc::plugin::{VoltID, VoltInfo};
+use lapce_rpc::{
+    core::CoreRpcHandler,
+    plugin::{VoltID, VoltInfo},
+};
 
 use super::{
     data::PanelSection, kind::PanelKind, position::PanelPosition, view::PanelBuilder,
@@ -68,6 +71,7 @@ pub fn plugin_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let plugin = window_tab_data.plugin.clone();
+    let core_rpc = window_tab_data.proxy.core_rpc.clone();
 
     PanelBuilder::new(config, position)
         .add(
@@ -77,7 +81,7 @@ pub fn plugin_panel(
         )
         .add(
             "Available",
-            available_view(plugin.clone()),
+            available_view(plugin.clone(), core_rpc),
             window_tab_data.panel.section_open(PanelSection::Available),
         )
         .build()
@@ -210,7 +214,7 @@ fn installed_view(plugin: PluginData) -> impl View {
     })
 }
 
-fn available_view(plugin: PluginData) -> impl View {
+fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
     let ui_line_height = plugin.common.ui_line_height;
     let volts = plugin.available.volts;
     let installed = plugin.installed;
@@ -390,7 +394,7 @@ fn available_view(plugin: PluginData) -> impl View {
             })
             .on_scroll(move |rect| {
                 if rect.y1 + 30.0 > content_rect.get_untracked().y1 {
-                    plugin.load_more_available();
+                    plugin.load_more_available(core_rpc.clone());
                 }
             })
             .style(|s| s.absolute().size_pct(100.0, 100.0))

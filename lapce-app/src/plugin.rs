@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -24,7 +25,11 @@ use floem::{
 use indexmap::IndexMap;
 use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
-use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
+use lapce_rpc::{
+    core::{CoreNotification, CoreRpcHandler},
+    plugin::{VoltID, VoltInfo, VoltMetadata},
+};
+use lsp_types::MessageType;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -156,6 +161,7 @@ impl PluginData {
         workspace_disabled: HashSet<VoltID>,
         editors: Editors,
         common: Rc<CommonData>,
+        core_rpc: CoreRpcHandler,
     ) -> Self {
         let installed = cx.create_rw_signal(IndexMap::new());
         let available = AvailableVoltList {
@@ -177,7 +183,7 @@ impl PluginData {
             common,
         };
 
-        plugin.load_available_volts("", 0);
+        plugin.load_available_volts("", 0, core_rpc.clone());
 
         {
             let plugin = plugin.clone();
@@ -224,7 +230,7 @@ impl PluginData {
                 plugin.available.query_id.update(|id| *id += 1);
                 plugin.available.loading.set(false);
                 plugin.available.volts.update(|v| v.clear());
-                plugin.load_available_volts(&query, 0);
+                plugin.load_available_volts(&query, 0, core_rpc.clone());
                 query
             });
         }
@@ -324,7 +330,12 @@ impl PluginData {
         }
     }
 
-    fn load_available_volts(&self, query: &str, offset: usize) {
+    fn load_available_volts(
+        &self,
+        query: &str,
+        offset: usize,
+        core_rpc: CoreRpcHandler,
+    ) {
         if self.available.loading.get_untracked() {
             return;
         }
@@ -344,43 +355,66 @@ impl PluginData {
                     return;
                 }
 
-                if let Ok(new) = new {
-                    volts.update(|volts| {
-                        volts.extend(new.plugins.into_iter().map(|volt| {
-                            let icon = cx.create_rw_signal(None);
-                            let send = create_ext_action(cx, move |result| {
-                                if let Ok(i) = result {
-                                    icon.set(Some(i));
-                                }
-                            });
-                            {
-                                let volt = volt.clone();
-                                std::thread::spawn(move || {
-                                    let result = Self::load_icon(&volt);
-                                    send(result);
+                match new {
+                    Ok(new) => {
+                        volts.update(|volts| {
+                            volts.extend(new.plugins.into_iter().map(|volt| {
+                                let icon = cx.create_rw_signal(None);
+                                let send = create_ext_action(cx, move |result| {
+                                    if let Ok(i) = result {
+                                        icon.set(Some(i));
+                                    }
                                 });
-                            }
+                                {
+                                    let volt = volt.clone();
+                                    std::thread::spawn(move || {
+                                        let result = Self::load_icon(&volt);
+                                        send(result);
+                                    });
+                                }
 
-                            let data = AvailableVoltData {
-                                info: cx.create_rw_signal(volt.clone()),
-                                icon,
-                                installing: cx.create_rw_signal(false),
-                            };
-                            all.update(|all| {
-                                all.insert(volt.id(), data.clone());
-                            });
+                                let data = AvailableVoltData {
+                                    info: cx.create_rw_signal(volt.clone()),
+                                    icon,
+                                    installing: cx.create_rw_signal(false),
+                                };
+                                all.update(|all| {
+                                    all.insert(volt.id(), data.clone());
+                                });
 
-                            (volt.id(), data)
-                        }));
-                    });
-                    volts_total.set(new.total);
+                                (volt.id(), data)
+                            }));
+                        });
+                        volts_total.set(new.total);
+                    }
+                    Err(err) => {
+                        tracing::error!("{:?}", err);
+                        core_rpc.notification(CoreNotification::ShowMessage {
+                            title: "Request Available Plugins".to_string(),
+                            message: lsp_types::ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: err.to_string(),
+                            },
+                        });
+                    }
                 }
             });
 
         let query = query.to_string();
         std::thread::spawn(move || {
-            let volts = Self::query_volts(&query, offset);
-            send(volts);
+            let mut try_time = 0;
+            loop {
+                let volts = Self::query_volts(&query, offset);
+                if volts.is_ok() {
+                    send(volts);
+                    break;
+                } else if try_time > 5 {
+                    send(volts);
+                    break;
+                } else {
+                    try_time += 1;
+                }
+            }
         });
     }
 
@@ -439,10 +473,21 @@ impl PluginData {
     }
 
     fn query_volts(query: &str, offset: usize) -> Result<VoltsInfo> {
+        let client = if let Ok(proxy) = std::env::var("https_proxy") {
+            let proxy = reqwest::Proxy::all(proxy)?;
+            reqwest::blocking::Client::builder()
+                .proxy(proxy)
+                .timeout(Duration::from_secs(10))
+                .build()?
+        } else {
+            reqwest::blocking::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()?
+        };
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
         );
-        let plugins: VoltsInfo = reqwest::blocking::get(url)?.json()?;
+        let plugins: VoltsInfo = client.get(url).send()?.json()?;
         Ok(plugins)
     }
 
@@ -451,7 +496,7 @@ impl PluginData {
             >= self.available.total.get_untracked()
     }
 
-    pub fn load_more_available(&self) {
+    pub fn load_more_available(&self, core_rpc: CoreRpcHandler) {
         if self.all_loaded() {
             return;
         }
@@ -463,7 +508,7 @@ impl PluginData {
             .buffer
             .with_untracked(|buffer| buffer.to_string());
         let offset = self.available.volts.with_untracked(|v| v.len());
-        self.load_available_volts(&query, offset);
+        self.load_available_volts(&query, offset, core_rpc);
     }
 
     pub fn install_volt(&self, info: VoltInfo) {
