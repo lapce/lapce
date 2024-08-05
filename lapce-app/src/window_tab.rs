@@ -66,7 +66,7 @@ use crate::{
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
-        data::{default_panel_order, PanelData},
+        data::{default_panel_order, PanelData, PanelSection},
         kind::PanelKind,
         position::PanelContainerPosition,
     },
@@ -1365,6 +1365,11 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
+                    self.show_panel(PanelKind::FileExplorer);
+                    self.panel
+                        .section_open(PanelSection::FileExplorer).update(|x| {
+                        *x = true;
+                    });
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
                         self.file_explorer.reveal_in_file_tree(path);
                     }
