@@ -69,7 +69,7 @@ use crate::{
         call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
         data::{default_panel_order, PanelData},
         kind::PanelKind,
-        position::{PanelContainerPosition, PanelPosition},
+        position::PanelContainerPosition,
     },
     plugin::PluginData,
     proxy::{new_proxy, ProxyData},
@@ -439,18 +439,9 @@ impl WindowTabData {
         let panel = workspace_info
             .as_ref()
             .map(|i| {
-                let mut panel_order = db
+                let panel_order = db
                     .get_panel_orders()
                     .unwrap_or_else(|_| i.panel.panels.clone());
-                if !panel_order
-                    .iter()
-                    .any(|x| x.1.iter().any(|x| *x == PanelKind::CallHierarchy))
-                {
-                    panel_order
-                        .entry(PanelPosition::BottomLeft)
-                        .or_default()
-                        .push_back(PanelKind::CallHierarchy);
-                }
                 PanelData {
                     panels: cx.create_rw_signal(panel_order),
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
