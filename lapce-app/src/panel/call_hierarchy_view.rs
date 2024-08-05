@@ -48,6 +48,21 @@ impl CallHierarchyItemData {
         }
         count
     }
+
+    pub fn find_by_id(
+        root: RwSignal<CallHierarchyItemData>,
+        view_id: ViewId,
+    ) -> Option<RwSignal<CallHierarchyItemData>> {
+        if root.get_untracked().view_id == view_id {
+            Some(root)
+        } else {
+            root.get_untracked()
+                .children
+                .get_untracked()
+                .into_iter()
+                .find_map(|x| Self::find_by_id(x, view_id))
+        }
+    }
 }
 
 fn get_children(
@@ -152,7 +167,7 @@ pub fn show_hierarchy_panel(
                             if !rw_data.get_untracked().init {
                                 window_tab_data.common.internal_command.send(
                                     InternalCommand::CallHierarchyIncoming {
-                                        item: rw_data,
+                                        item_id: rw_data.get_untracked().view_id,
                                     },
                                 );
                             }
@@ -193,7 +208,7 @@ pub fn show_hierarchy_panel(
                     let data = rw_data;
                     move |_| {
                         window_tab_data.common.internal_command.send(
-                            InternalCommand::CallHierarchyIncoming { item: rw_data },
+                            InternalCommand::CallHierarchyIncoming { item_id: rw_data.get_untracked().view_id },
                         );
                         let data = data.get_untracked();
                         if let Ok(path) = data.item.uri.to_file_path() {

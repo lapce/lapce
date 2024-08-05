@@ -1314,10 +1314,11 @@ impl EditorData {
                             *x = Some(root);
                         });
                         window_tab_data.show_panel(PanelKind::CallHierarchy);
-                        window_tab_data
-                            .common
-                            .internal_command
-                            .send(InternalCommand::CallHierarchyIncoming { item });
+                        window_tab_data.common.internal_command.send(
+                            InternalCommand::CallHierarchyIncoming {
+                                item_id: item.get_untracked().view_id,
+                            },
+                        );
                     }
                 }
             }),

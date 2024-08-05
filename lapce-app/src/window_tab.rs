@@ -1854,8 +1854,8 @@ impl WindowTabData {
                 raw.write().term.reset_state();
                 view_id.request_paint();
             }
-            InternalCommand::CallHierarchyIncoming { item } => {
-                self.call_hierarchy_incoming(item);
+            InternalCommand::CallHierarchyIncoming { item_id } => {
+                self.call_hierarchy_incoming(item_id);
             }
         }
     }
@@ -2674,7 +2674,13 @@ impl WindowTabData {
         }
     }
 
-    pub fn call_hierarchy_incoming(&self, item: RwSignal<CallHierarchyItemData>) {
+    pub fn call_hierarchy_incoming(&self, item_id: ViewId) {
+        let Some(root) = self.call_hierarchy_data.root.get_untracked() else {
+            return;
+        };
+        let Some(item) = CallHierarchyItemData::find_by_id(root, item_id) else {
+            return;
+        };
         let root_item = item;
         let path: PathBuf = item.get_untracked().item.uri.to_file_path().unwrap();
         let scope = self.scope;
