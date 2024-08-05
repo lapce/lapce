@@ -503,6 +503,7 @@ impl WindowTabData {
             HashSet::from_iter(workspace_disabled_volts),
             main_split.editors,
             common.clone(),
+            proxy.core_rpc.clone(),
         );
 
         {
