@@ -1,5 +1,6 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
+use floem::reactive::RwSignal;
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
@@ -21,6 +22,7 @@ use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
+use crate::panel::call_hierarchy_view::CallHierarchyItemData;
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
@@ -745,6 +747,9 @@ pub enum InternalCommand {
         view_id: ViewId,
         tab_index: usize,
         terminal_index: usize,
+    },
+    CallHierarchyIncoming {
+        item: RwSignal<CallHierarchyItemData>,
     },
 }
 

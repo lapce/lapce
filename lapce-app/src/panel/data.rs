@@ -31,7 +31,12 @@ pub fn default_panel_order() -> PanelOrder {
     );
     order.insert(
         PanelPosition::BottomLeft,
-        im::vector![PanelKind::Terminal, PanelKind::Search, PanelKind::Problem,],
+        im::vector![
+            PanelKind::Terminal,
+            PanelKind::Search,
+            PanelKind::Problem,
+            PanelKind::CallHierarchy
+        ],
     );
 
     order

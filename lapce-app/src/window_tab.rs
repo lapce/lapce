@@ -66,9 +66,10 @@ use crate::{
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
+        call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
         data::{default_panel_order, PanelData},
         kind::PanelKind,
-        position::PanelContainerPosition,
+        position::{PanelContainerPosition, PanelPosition},
     },
     plugin::PluginData,
     proxy::{new_proxy, ProxyData},
@@ -168,6 +169,7 @@ pub struct WindowTabData {
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
+    pub call_hierarchy_data: CallHierarchyData,
     pub about_data: AboutData,
     pub alert_data: AlertBoxData,
     pub layout_rect: RwSignal<Rect>,
@@ -437,9 +439,18 @@ impl WindowTabData {
         let panel = workspace_info
             .as_ref()
             .map(|i| {
-                let panel_order = db
+                let mut panel_order = db
                     .get_panel_orders()
                     .unwrap_or_else(|_| i.panel.panels.clone());
+                if !panel_order
+                    .iter()
+                    .any(|x| x.1.iter().any(|x| *x == PanelKind::CallHierarchy))
+                {
+                    panel_order
+                        .entry(PanelPosition::BottomLeft)
+                        .or_default()
+                        .push_back(PanelKind::CallHierarchy);
+                }
                 PanelData {
                     panels: cx.create_rw_signal(panel_order),
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
@@ -540,6 +551,11 @@ impl WindowTabData {
             plugin,
             rename,
             global_search,
+            call_hierarchy_data: CallHierarchyData {
+                root: cx.create_rw_signal(None),
+                common: common.clone(),
+                scroll_to_line: cx.create_rw_signal(None),
+            },
             about_data,
             alert_data,
             layout_rect: cx.create_rw_signal(Rect::ZERO),
@@ -1374,7 +1390,7 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.show_call_hierarchy();
+                    editor_data.call_hierarchy(self.clone());
                 }
             }
         }
@@ -1840,6 +1856,9 @@ impl WindowTabData {
                 };
                 raw.write().term.reset_state();
                 view_id.request_paint();
+            }
+            InternalCommand::CallHierarchyIncoming { item } => {
+                self.call_hierarchy_incoming(item);
             }
         }
     }
@@ -2390,7 +2409,8 @@ impl WindowTabData {
             PanelKind::FileExplorer
             | PanelKind::Plugin
             | PanelKind::Problem
-            | PanelKind::Debug => {
+            | PanelKind::Debug
+            | PanelKind::CallHierarchy => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
@@ -2655,6 +2675,53 @@ impl WindowTabData {
         }) {
             remove_overlay(old_id);
         }
+    }
+
+    pub fn call_hierarchy_incoming(&self, item: RwSignal<CallHierarchyItemData>) {
+        let root_item = item;
+        let path: PathBuf = item.get_untracked().item.uri.to_file_path().unwrap();
+        let scope = self.scope;
+        let send =
+            create_ext_action(scope, move |_rs: Result<ProxyResponse, RpcError>| {
+                match _rs {
+                    Ok(ProxyResponse::CallHierarchyIncomingResponse { items }) => {
+                        if let Some(items) = items {
+                            let mut item_children = Vec::new();
+                            for x in items {
+                                let item = Rc::new(x.from);
+                                for range in x.from_ranges {
+                                    item_children.push(scope.create_rw_signal(
+                                        CallHierarchyItemData {
+                                            view_id: floem::ViewId::new(),
+                                            item: item.clone(),
+                                            from_range: range,
+                                            init: false,
+                                            open: scope.create_rw_signal(false),
+                                            children:
+                                                scope.create_rw_signal(Vec::new()),
+                                        },
+                                    ))
+                                }
+                            }
+                            root_item.update(|x| {
+                                x.init = true;
+                                x.children.update(|children| {
+                                    *children = item_children;
+                                })
+                            });
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("{:?}", err);
+                    }
+                    Ok(_) => {}
+                }
+            });
+        self.common.proxy.call_hierarchy_incoming(
+            path,
+            item.get_untracked().item.as_ref().clone(),
+            send,
+        );
     }
 }
 
