@@ -25,6 +25,7 @@ use floem::{
         visual_line::{ConfigId, Lines, TextLayoutProvider, VLine, VLineInfo},
         Editor,
     },
+    ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -48,7 +49,7 @@ use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
     InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location, MarkedString,
-    MarkupKind, TextEdit,
+    MarkupKind, Range, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +72,7 @@ use crate::{
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
+    panel::{call_hierarchy_view::CallHierarchyItemData, kind::PanelKind},
     snippet::Snippet,
     tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
@@ -1267,7 +1269,7 @@ impl EditorData {
         );
     }
 
-    pub fn show_call_hierarchy(&self) {
+    pub fn call_hierarchy(&self, window_tab_data: WindowTabData) {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -1285,28 +1287,41 @@ impl EditorData {
             let position = buffer.offset_to_position(offset);
             (start_position, position)
         });
-
-        let send = create_ext_action(self.scope, move |_rs| {
-            tracing::debug!("{:?}", _rs);
-        });
-        let proxy = self.common.proxy.clone();
+        let scope = window_tab_data.scope;
+        let range = Range {
+            start: _start_position,
+            end: position,
+        };
         self.common.proxy.show_call_hierarchy(
-            path.clone(),
+            path,
             position,
-            move |result| {
+            create_ext_action(self.scope, move |result| {
                 if let Ok(ProxyResponse::ShowCallHierarchyResponse {
                     items, ..
                 }) = result
                 {
                     if let Some(item) = items.and_then(|x| x.into_iter().next()) {
-                        proxy.call_hierarchy_incoming(
-                            path.clone(),
-                            item.clone(),
-                            send,
+                        let root = scope.create_rw_signal(CallHierarchyItemData {
+                            view_id: ViewId::new(),
+                            item: Rc::new(item),
+                            from_range: range,
+                            init: false,
+                            open: scope.create_rw_signal(true),
+                            children: scope.create_rw_signal(Vec::with_capacity(0)),
+                        });
+                        let item = root;
+                        window_tab_data.call_hierarchy_data.root.update(|x| {
+                            *x = Some(root);
+                        });
+                        window_tab_data.show_panel(PanelKind::CallHierarchy);
+                        window_tab_data.common.internal_command.send(
+                            InternalCommand::CallHierarchyIncoming {
+                                item_id: item.get_untracked().view_id,
+                            },
                         );
                     }
                 }
-            },
+            }),
         );
     }
 
@@ -2625,9 +2640,9 @@ impl EditorData {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
-                // Some(CommandKind::Workbench(
-                //     LapceWorkbenchCommand::ShowCallHierarchy,
-                // )),
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::ShowCallHierarchy,
+                )),
                 None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 None,

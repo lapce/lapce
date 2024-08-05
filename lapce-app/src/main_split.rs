@@ -2164,7 +2164,7 @@ impl MainSplitData {
         }
     }
 
-    pub fn run_code_lens(&self, args: &Vec<Value>, command: &str) {
+    pub fn run_code_lens(&self, args: &[Value], command: &str) {
         match command {
             "rust-analyzer.runSingle" | "rust-analyzer.debugSingle" => {
                 if let Some(config) = get_rust_command_config(args) {

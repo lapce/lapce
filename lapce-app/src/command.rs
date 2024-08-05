@@ -746,6 +746,9 @@ pub enum InternalCommand {
         tab_index: usize,
         terminal_index: usize,
     },
+    CallHierarchyIncoming {
+        item_id: ViewId,
+    },
 }
 
 #[derive(Clone)]

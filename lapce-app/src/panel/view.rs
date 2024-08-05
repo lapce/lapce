@@ -28,6 +28,7 @@ use crate::{
     app::{clickable_icon, clickable_icon_base},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     file_explorer::view::file_explorer_panel,
+    panel::call_hierarchy_view::show_hierarchy_panel,
     window_tab::{DragContent, WindowTabData},
 };
 
@@ -484,6 +485,10 @@ fn panel_view(
                 PanelKind::Debug => {
                     debug_panel(window_tab_data.clone(), position).into_any()
                 }
+                PanelKind::CallHierarchy => {
+                    show_hierarchy_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
             };
             view.style(|s| s.size_pct(100.0, 100.0))
         },
@@ -538,6 +543,7 @@ fn panel_picker(
                 PanelKind::Search => (LapceIcons::SEARCH, "Search"),
                 PanelKind::Problem => (LapceIcons::PROBLEM, "Problems"),
                 PanelKind::Debug => (LapceIcons::DEBUG_ALT, "Debug"),
+                PanelKind::CallHierarchy => (LapceIcons::LINK, "Call Hierarchy"),
             };
             let is_active = {
                 let window_tab_data = window_tab_data.clone();
