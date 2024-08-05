@@ -39,7 +39,9 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
     })
     .on_double_click(move |_| {
-        window_tab_data.panel.toggle_bottom_maximize();
+        window_tab_data
+            .panel
+            .toggle_maximize(&crate::panel::kind::PanelKind::Terminal);
         EventPropagation::Stop
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
