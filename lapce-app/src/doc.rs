@@ -14,11 +14,11 @@ use std::{
 
 use floem::{
     action::exec_after,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
     keyboard::Modifiers,
     peniko::Color,
     reactive::{batch, ReadSignal, RwSignal, Scope},
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::editor::{
         actions::CommonAction,
         command::{Command, CommandExecuted},
@@ -1813,23 +1813,23 @@ impl Styling for DocStyling {
         &self,
         _: EditorId,
         _line: usize,
-    ) -> std::borrow::Cow<[floem::cosmic_text::FamilyOwned]> {
+    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
         // TODO: cache this
         Cow::Owned(self.config.with_untracked(|config| {
             FamilyOwned::parse_list(&config.editor.font_family).collect()
         }))
     }
 
-    fn weight(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Weight {
-        floem::cosmic_text::Weight::NORMAL
+    fn weight(&self, _: EditorId, _line: usize) -> floem::text::Weight {
+        floem::text::Weight::NORMAL
     }
 
-    fn italic_style(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Style {
-        floem::cosmic_text::Style::Normal
+    fn italic_style(&self, _: EditorId, _line: usize) -> floem::text::Style {
+        floem::text::Style::Normal
     }
 
-    fn stretch(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Stretch {
-        floem::cosmic_text::Stretch::Normal
+    fn stretch(&self, _: EditorId, _line: usize) -> floem::text::Stretch {
+        floem::text::Stretch::Normal
     }
 
     fn indent_line(&self, _: EditorId, line: usize, line_content: &str) -> usize {
@@ -2093,8 +2093,8 @@ fn extra_styles_for_range(
                 return None;
             }
 
-            let height = (run.glyph_ascent + run.glyph_descent) as f64;
-            let y = run.line_y as f64 - run.glyph_ascent as f64;
+            let height = (run.max_ascent + run.max_descent) as f64;
+            let y = run.line_y as f64 - run.max_ascent as f64;
 
             Some(LineExtraStyle {
                 x,

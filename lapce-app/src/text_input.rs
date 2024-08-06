@@ -3,7 +3,6 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener, EventPropagation},
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
@@ -19,6 +18,7 @@ use floem::{
         PaddingLeft, Style, TextColor,
     },
     taffy::prelude::NodeId,
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     unit::PxPct,
     views::Decorators,
     Renderer, View, ViewId,

@@ -11,13 +11,13 @@ use std::{
 use crossbeam_channel::Sender;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
     keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
+    text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ViewId,
 };
 use indexmap::IndexMap;

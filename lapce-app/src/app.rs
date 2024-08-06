@@ -14,7 +14,6 @@ use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
     action::show_context_menu,
-    cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
     menu::{Menu, MenuItem},
@@ -34,6 +33,7 @@ use floem::{
         style_helpers::{self, auto, fr},
         Line,
     },
+    text::{Style as FontStyle, Weight},
     unit::PxPctAuto,
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
@@ -3594,7 +3594,7 @@ pub fn launch() {
 
     #[cfg(feature = "vendored-fonts")]
     {
-        use floem::cosmic_text::{fontdb::Source, FONT_SYSTEM};
+        use floem::text::{fontdb::Source, FONT_SYSTEM};
 
         const FONT_DEJAVU_SANS_REGULAR: &[u8] = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -3606,12 +3606,12 @@ pub fn launch() {
         ));
 
         FONT_SYSTEM
-            .db()
-            .write()
+            .lock()
+            .db_mut()
             .load_font_source(Source::Binary(Arc::new(FONT_DEJAVU_SANS_REGULAR)));
         FONT_SYSTEM
-            .db()
-            .write()
+            .lock()
+            .db_mut()
             .load_font_source(Source::Binary(Arc::new(
                 FONT_DEJAVU_SANS_MONO_REGULAR,
             )));

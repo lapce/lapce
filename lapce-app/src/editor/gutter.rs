@@ -1,7 +1,7 @@
 use floem::{
     context::PaintCx,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     peniko::kurbo::{Point, Rect, Size},
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     Renderer, View, ViewId,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};

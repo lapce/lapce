@@ -76,9 +76,9 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+floem = { git = "https://github.com/lapce/floem", rev = "48d2b6eb22a02a100d67868052ecc35fa3c42e10", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
 # floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "48d2b6eb22a02a100d67868052ecc35fa3c42e10", features = ["serde"] }
 # floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]

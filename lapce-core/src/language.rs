@@ -867,7 +867,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Go,
-        indent: Indent::space(4),
+        indent: Indent::tab(),
         files: &[],
         extensions: &["go"],
         comment: comment_properties!("//"),
@@ -1677,10 +1677,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
 impl LapceLanguage {
     const HIGHLIGHTS_INJECTIONS_FILE_NAME: &'static str = "injections.scm";
     const HIGHLIGHTS_QUERIES_FILE_NAME: &'static str = "highlights.scm";
-    #[cfg(unix)]
-    const SYSTEM_GRAMMARS_DIRECTORY: &'static str = "/usr/lib";
-    #[cfg(unix)]
-    const SYSTEM_QUERIES_DIRECTORY: &'static str = "/usr/share/tree-sitter/grammars";
 
     pub fn from_path(path: &Path) -> LapceLanguage {
         Self::from_path_raw(path).unwrap_or(LapceLanguage::PlainText)

@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
     action::{add_overlay, exec_after, remove_overlay, TimerToken},
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::EventListener,
     keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Size},
@@ -11,6 +10,7 @@ use floem::{
         Scope,
     },
     style::CursorStyle,
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},

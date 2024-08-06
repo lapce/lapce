@@ -1,11 +1,11 @@
 use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
-    cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Position, Style},
+    text::Style as FontStyle,
     views::{
         container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
         Decorators, VirtualDirection, VirtualItemSize,

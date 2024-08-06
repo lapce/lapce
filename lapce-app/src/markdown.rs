@@ -1,4 +1,4 @@
-use floem::cosmic_text::{
+use floem::text::{
     Attrs, AttrsList, FamilyOwned, LineHeightValue, Style, TextLayout, Weight,
 };
 use lapce_core::{language::LapceLanguage, syntax::Syntax};

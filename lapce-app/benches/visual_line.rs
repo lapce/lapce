@@ -2,8 +2,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use floem::{
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
     reactive::Scope,
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
     views::editor::{
         layout::TextLayoutLine,
         phantom_text::PhantomTextLine,

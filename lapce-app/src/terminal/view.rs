@@ -8,7 +8,6 @@ use alacritty_terminal::{
 };
 use floem::{
     context::{EventCx, PaintCx},
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     event::{Event, EventPropagation},
     peniko::{
         kurbo::{Point, Rect, Size},
@@ -16,6 +15,7 @@ use floem::{
     },
     pointer::PointerInputEvent,
     reactive::{create_effect, ReadSignal, RwSignal},
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
     Renderer, View, ViewId,
 };
