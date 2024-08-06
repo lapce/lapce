@@ -325,7 +325,7 @@ fn download_remote(
             };
             let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
             debug!("proxy download URI: {url}");
-            let mut resp = reqwest::blocking::get(url).expect("request failed");
+            let mut resp = lapce_proxy::get_url(url, None).expect("request failed");
             if resp.status().is_success() {
                 let mut out = std::fs::File::create(&local_proxy_file)
                     .expect("failed to create file");
