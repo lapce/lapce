@@ -396,7 +396,7 @@ pub enum LogLevel {
 pub struct ServerStatusParams {
     health: String,
     quiescent: bool,
-    message: Option<String>,
+    pub message: Option<String>,
 }
 
 impl ServerStatusParams {
