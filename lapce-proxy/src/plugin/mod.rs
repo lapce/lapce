@@ -1434,7 +1434,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         volt.author, volt.name, volt.version
     );
 
-    let resp = reqwest::blocking::get(url)?;
+    let resp = crate::get_url(url, None)?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }
@@ -1442,7 +1442,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     // this is the s3 url
     let url = resp.text()?;
 
-    let mut resp = reqwest::blocking::get(url)?;
+    let mut resp = crate::get_url(url, None)?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }

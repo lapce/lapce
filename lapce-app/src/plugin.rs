@@ -2,7 +2,6 @@ use std::{
     collections::HashSet,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -292,8 +291,9 @@ impl PluginData {
                 }
             });
             std::thread::spawn(move || {
-                let info: Option<VoltInfo> =
-                    reqwest::blocking::get(url).ok().and_then(|r| r.json().ok());
+                let info: Option<VoltInfo> = lapce_proxy::get_url(url, None)
+                    .ok()
+                    .and_then(|r| r.json().ok());
                 send(info);
             });
         }
@@ -402,19 +402,8 @@ impl PluginData {
 
         let query = query.to_string();
         std::thread::spawn(move || {
-            let mut try_time = 0;
-            loop {
-                let volts = Self::query_volts(&query, offset);
-                if volts.is_ok() {
-                    send(volts);
-                    break;
-                } else if try_time > 5 {
-                    send(volts);
-                    break;
-                } else {
-                    try_time += 1;
-                }
-            }
+            let volts = Self::query_volts(&query, offset);
+            send(volts);
         });
     }
 
@@ -437,7 +426,7 @@ impl PluginData {
         let content = match cache_content {
             Some(content) => content,
             None => {
-                let resp = reqwest::blocking::get(&url)?;
+                let resp = lapce_proxy::get_url(&url, None)?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }
@@ -462,7 +451,7 @@ impl PluginData {
             "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/readme",
             volt.author, volt.name, volt.version
         );
-        let resp = reqwest::blocking::get(url)?;
+        let resp = lapce_proxy::get_url(&url, None)?;
         if resp.status() != 200 {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
             return Ok(text);
@@ -473,21 +462,10 @@ impl PluginData {
     }
 
     fn query_volts(query: &str, offset: usize) -> Result<VoltsInfo> {
-        let client = if let Ok(proxy) = std::env::var("https_proxy") {
-            let proxy = reqwest::Proxy::all(proxy)?;
-            reqwest::blocking::Client::builder()
-                .proxy(proxy)
-                .timeout(Duration::from_secs(10))
-                .build()?
-        } else {
-            reqwest::blocking::Client::builder()
-                .timeout(Duration::from_secs(10))
-                .build()?
-        };
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
         );
-        let plugins: VoltsInfo = client.get(url).send()?.json()?;
+        let plugins: VoltsInfo = lapce_proxy::get_url(url, None)?.json()?;
         Ok(plugins)
     }
 
