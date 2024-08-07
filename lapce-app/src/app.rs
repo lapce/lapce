@@ -51,7 +51,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    syntax::highlight::reset_highlight_configs,
+    syntax::{highlight::reset_highlight_configs, Syntax},
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
@@ -3710,30 +3710,6 @@ pub fn launch() {
         }
     }
 
-    {
-        let cx = Scope::new();
-        let send = create_ext_action(cx, |_| {
-            reset_highlight_configs();
-        });
-        std::thread::spawn(move || {
-            use self::grammars::*;
-            match find_grammar_release() {
-                Ok(release) => {
-                    if let Err(e) = fetch_grammars(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                    if let Err(e) = fetch_queries(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                }
-                Err(e) => {
-                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
-                }
-            }
-            send(());
-        });
-    }
-
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
@@ -3801,6 +3777,62 @@ pub fn launch() {
             if notification.get().is_some() {
                 app_data.reload_config();
             }
+        });
+    }
+
+    {
+        let cx = Scope::new();
+        let app_data = app_data.clone();
+        let send = create_ext_action(cx, move |updated| {
+            if updated {
+                trace!(
+                    TraceLevel::INFO,
+                    "grammar or query got updated, reset highlight configs"
+                );
+                reset_highlight_configs();
+                for (_, window) in app_data.windows.get_untracked() {
+                    for (_, tab) in window.window_tabs.get_untracked() {
+                        for (_, doc) in tab.main_split.docs.get_untracked() {
+                            doc.syntax.update(|syntaxt| {
+                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            });
+                            doc.trigger_syntax_change(None);
+                        }
+                    }
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            use self::grammars::*;
+            let updated = match find_grammar_release() {
+                Ok(release) => {
+                    let mut updated = false;
+                    match fetch_grammars(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    match fetch_queries(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    updated
+                }
+                Err(e) => {
+                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
+                    false
+                }
+            };
+            send(updated);
         });
     }
 

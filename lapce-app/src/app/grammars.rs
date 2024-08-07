@@ -61,37 +61,37 @@ pub fn find_grammar_release() -> Result<ReleaseInfo> {
     Ok(release.to_owned())
 }
 
-pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
+pub fn fetch_grammars(release: &ReleaseInfo) -> Result<bool> {
     let dir = Directory::grammars_directory()
         .ok_or_else(|| anyhow!("can't get grammars directory"))?;
 
     let file_name = format!("grammars-{}-{}", env::consts::OS, env::consts::ARCH);
 
-    download_release(dir, release, &file_name)?;
+    let updated = download_release(dir, release, &file_name)?;
 
     trace!(TraceLevel::INFO, "Successfully downloaded grammars");
 
-    Ok(())
+    Ok(updated)
 }
 
-pub fn fetch_queries(release: &ReleaseInfo) -> Result<()> {
+pub fn fetch_queries(release: &ReleaseInfo) -> Result<bool> {
     let dir = Directory::queries_directory()
         .ok_or_else(|| anyhow!("can't get queries directory"))?;
 
     let file_name = "queries";
 
-    download_release(dir, release, file_name)?;
+    let updated = download_release(dir, release, file_name)?;
 
     trace!(TraceLevel::INFO, "Successfully downloaded queries");
 
-    Ok(())
+    Ok(updated)
 }
 
 fn download_release(
     dir: PathBuf,
     release: &ReleaseInfo,
     file_name: &str,
-) -> Result<()> {
+) -> Result<bool> {
     if !dir.exists() {
         fs::create_dir(&dir)?;
     }
@@ -105,7 +105,7 @@ fn download_release(
     };
 
     if release_version == current_version {
-        return Ok(());
+        return Ok(false);
     }
 
     for asset in &release.assets {
@@ -137,5 +137,5 @@ fn download_release(
             fs::write(dir.join("version"), &release_version)?;
         }
     }
-    Ok(())
+    Ok(true)
 }
