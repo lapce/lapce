@@ -3,9 +3,29 @@
 ## Unreleased
 
 ### Features/Changes
+- Add fedora builds
+- Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
+- Saves scale configuration in settings to restore at startup
+- text in ui can be selected and copied
+- add right click context menu for editor tab
+- terminal: added support for Alt+ some character input
+- Terminal: right-click to add "clear all" function
+- terminal: double-click to maximize bottom
+- initial lsp code lens support for rust-analyzer
+- Context menu for "reveal file in explorer"
+- support rust-analyzer's notification "experimental/serverStatus"
+- jump to definition support in Inlay Hints
+- "Show Call Hierarchy" support
+- Add proxy support and retry to all HTTPS GET requests.
+- Implement the drag-and-drop to open file/folder
 
 ### Bug Fixes
 - [#3203](https://github.com/lapce/lapce/pull/3203): Fallback to default theme is theme key is not found
+- use windows subsystem to prevent console running
+- reimplement gotodefinition on cmd/ctrl+click
+- fix crash on tinyskia renderer
+- show file status for scratch documents
+- fix crash due to locale_config
 
 ## 0.4.0
 
