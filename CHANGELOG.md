@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Features/Changes
+
+### Bug Fixes
+
+## 0.4.1
+
+### Features/Changes
 - Add fedora builds
 - Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
 - Saves scale configuration in settings to restore at startup
