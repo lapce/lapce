@@ -445,7 +445,7 @@ impl WindowTabData {
             .map(|i| {
                 let panel_order = db
                     .get_panel_orders()
-                    .unwrap_or_else(|_| i.panel.panels.clone());
+                    .unwrap_or_else(|_| default_panel_order());
                 PanelData {
                     panels: cx.create_rw_signal(panel_order),
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
