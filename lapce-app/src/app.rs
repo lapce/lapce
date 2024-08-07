@@ -228,8 +228,10 @@ impl AppData {
         } else {
             config
         };
-        let mut workspace = LapceWorkspace::default();
-        workspace.path = folder;
+        let workspace = LapceWorkspace {
+            path: folder,
+            ..Default::default()
+        };
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -601,20 +603,20 @@ impl AppData {
                         app_command.send(AppCommand::NewWindow {
                             folder: Some(file.path.clone()),
                         });
-                    } else {
-                        if let Some(win_tab_data) = window_data.active_window_tab() {
-                            win_tab_data.common.internal_command.send(
-                                InternalCommand::GoToLocation {
-                                    location: EditorLocation {
-                                        path: file.path.clone(),
-                                        position: None,
-                                        scroll_offset: None,
-                                        ignore_unconfirmed: false,
-                                        same_editor_tab: false,
-                                    },
+                    } else if let Some(win_tab_data) =
+                        window_data.active_window_tab()
+                    {
+                        win_tab_data.common.internal_command.send(
+                            InternalCommand::GoToLocation {
+                                location: EditorLocation {
+                                    path: file.path.clone(),
+                                    position: None,
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
                                 },
-                            )
-                        }
+                            },
+                        )
                     }
                 }
             })
