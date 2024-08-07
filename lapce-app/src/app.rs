@@ -147,7 +147,7 @@ pub struct AppInfo {
 #[derive(Clone)]
 pub enum AppCommand {
     SaveApp,
-    NewWindow,
+    NewWindow { folder: Option<PathBuf> },
     CloseWindow(WindowId),
     WindowGotFocus(WindowId),
     WindowClosed(WindowId),
@@ -202,7 +202,7 @@ impl AppData {
             .title("Lapce")
     }
 
-    pub fn new_window(&self) {
+    pub fn new_window(&self, folder: Option<PathBuf>) {
         let config = self
             .active_window()
             .map(|window| {
@@ -228,6 +228,8 @@ impl AppData {
         } else {
             config
         };
+        let mut workspace = LapceWorkspace::default();
+        workspace.path = folder;
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -239,7 +241,7 @@ impl AppData {
                         maximised: false,
                         tabs: TabsInfo {
                             active_tab: 0,
-                            workspaces: vec![LapceWorkspace::default()],
+                            workspaces: vec![workspace],
                         },
                     },
                 )
@@ -274,8 +276,8 @@ impl AppData {
             AppCommand::CloseWindow(window_id) => {
                 floem::close_window(window_id);
             }
-            AppCommand::NewWindow => {
-                self.new_window();
+            AppCommand::NewWindow { folder } => {
+                self.new_window(folder);
             }
             AppCommand::WindowGotFocus(window_id) => {
                 self.active_window.set(window_id);
@@ -566,12 +568,15 @@ impl AppData {
                     EventPropagation::Continue
                 }
             })
-            .on_event(EventListener::PointerDown, move |event| {
-                if let Event::PointerDown(pointer_event) = event {
-                    window_data.key_down(pointer_event);
-                    EventPropagation::Stop
-                } else {
-                    EventPropagation::Continue
+            .on_event(EventListener::PointerDown, {
+                let window_data = window_data.clone();
+                move |event| {
+                    if let Event::PointerDown(pointer_event) = event {
+                        window_data.key_down(pointer_event);
+                        EventPropagation::Stop
+                    } else {
+                        EventPropagation::Continue
+                    }
                 }
             })
             .on_event_stop(EventListener::WindowResized, move |event| {
@@ -589,6 +594,29 @@ impl AppData {
             })
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
+            })
+            .on_event_stop(EventListener::DroppedFile, move |event: &Event| {
+                if let Event::DroppedFile(file) = event {
+                    if file.path.is_dir() {
+                        app_command.send(AppCommand::NewWindow {
+                            folder: Some(file.path.clone()),
+                        });
+                    } else {
+                        if let Some(win_tab_data) = window_data.active_window_tab() {
+                            win_tab_data.common.internal_command.send(
+                                InternalCommand::GoToLocation {
+                                    location: EditorLocation {
+                                        path: file.path.clone(),
+                                        position: None,
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: false,
+                                        same_editor_tab: false,
+                                    },
+                                },
+                            )
+                        }
+                    }
+                }
             })
             .debug_name("App View")
     }
@@ -3824,7 +3852,7 @@ pub fn launch() {
             has_visible_windows,
         } => {
             if !has_visible_windows {
-                app_data.new_window();
+                app_data.new_window(None);
             }
         }
     })

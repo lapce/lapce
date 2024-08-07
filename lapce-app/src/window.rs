@@ -309,7 +309,8 @@ impl WindowData {
                 }
             }
             WindowCommand::NewWindow => {
-                self.app_command.send(AppCommand::NewWindow);
+                self.app_command
+                    .send(AppCommand::NewWindow { folder: None });
             }
             WindowCommand::CloseWindow => {
                 self.app_command
