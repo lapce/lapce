@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 use floem::{
     keyboard::Modifiers,
@@ -166,7 +166,8 @@ impl CodeActionData {
 
     pub fn show(
         &mut self,
-        code_actions: Arc<(PluginId, Vec<CodeActionOrCommand>)>,
+        plugin_id: PluginId,
+        code_actions: im::Vector<CodeActionOrCommand>,
         offset: usize,
         mouse_click: bool,
     ) {
@@ -176,11 +177,10 @@ impl CodeActionData {
         self.mouse_click = mouse_click;
         self.request_id += 1;
         self.items = code_actions
-            .1
-            .iter()
+            .into_iter()
             .map(|code_action| ScoredCodeActionItem {
-                item: code_action.clone(),
-                plugin_id: code_actions.0,
+                item: code_action,
+                plugin_id,
                 score: 0,
                 indices: Vec::new(),
             })

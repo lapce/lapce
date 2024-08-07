@@ -1,4 +1,4 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
@@ -649,7 +649,8 @@ pub enum InternalCommand {
     ShowCodeActions {
         offset: usize,
         mouse_click: bool,
-        code_actions: Arc<(PluginId, Vec<CodeActionOrCommand>)>,
+        plugin_id: PluginId,
+        code_actions: im::Vector<CodeActionOrCommand>,
     },
     RunCodeAction {
         plugin_id: PluginId,

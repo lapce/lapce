@@ -3103,7 +3103,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .align_items(Some(AlignItems::Center))
                             .min_width(0.0)
                             .width_full()
-                            .line_height(1.6)
+                            .line_height(1.8)
                             .border_radius(6.0)
                             .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {

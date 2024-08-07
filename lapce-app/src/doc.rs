@@ -64,7 +64,8 @@ use lapce_xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
-    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
+    CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity, InlayHint,
+    InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -76,7 +77,7 @@ use crate::{
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
-    main_split::{Editors, ScoredCodeLensItem},
+    main_split::Editors,
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -150,9 +151,10 @@ pub struct DocInfo {
 }
 
 /// (Offset -> (Plugin the code actions are from, Code Actions))
-pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
+pub type CodeActions =
+    im::HashMap<usize, (PluginId, im::Vector<CodeActionOrCommand>)>;
 
-pub type CodeLens = im::HashMap<PluginId, im::Vector<Arc<ScoredCodeLensItem>>>;
+pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>)>;
 
 #[derive(Clone)]
 pub struct Doc {
@@ -182,7 +184,7 @@ pub struct Doc {
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
 
-    pub code_lens: RwSignal<CodeLens>,
+    pub code_lens: RwSignal<AllCodeLens>,
 
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
@@ -861,43 +863,39 @@ impl Doc {
     pub fn get_code_lens(&self) {
         let cx = self.scope;
         let doc = self.clone();
+        self.code_lens.update(|code_lens| {
+            code_lens.clear();
+        });
+        let rev = self.rev();
         if let DocContent::File { path, .. } = doc.content.get_untracked() {
             let send = create_ext_action(cx, move |result| {
+                if rev != doc.rev() {
+                    return;
+                }
                 if let Ok(ProxyResponse::GetCodeLensResponse { plugin_id, resp }) =
                     result
                 {
                     let Some(codelens) = resp else {
                         return;
                     };
-                    if codelens.is_empty() {
-                        doc.code_lens.update(|x| {
-                            x.remove(&plugin_id);
-                        });
-                    } else {
-                        let codelens = codelens
-                            .into_iter()
-                            .filter_map(|x| {
-                                tracing::debug!("{:?}", x);
-                                if let Some(command) = x.command {
-                                    if let Some(args) = command.arguments {
-                                        Some(Arc::new(ScoredCodeLensItem {
-                                            range: x.range,
-                                            title: command.title,
-                                            command: command.command,
-                                            args,
-                                        }))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
-                        doc.code_lens.update(|x| {
-                            x.insert(plugin_id, codelens);
-                        });
-                    }
+                    doc.code_lens.update(|code_lens| {
+                        for codelens in codelens {
+                            let entry = code_lens
+                                .entry(codelens.range.start.line as usize)
+                                .or_insert_with(|| {
+                                    (
+                                        plugin_id,
+                                        doc.buffer.with_untracked(|b| {
+                                            b.offset_of_line(
+                                                codelens.range.start.line as usize,
+                                            )
+                                        }),
+                                        im::Vector::new(),
+                                    )
+                                });
+                            entry.2.push_back(codelens);
+                        }
+                    });
                 }
             });
             self.common.proxy.get_code_lens(path, move |result| {

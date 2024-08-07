@@ -20,23 +20,22 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
-    dap_types::RunDebugConfig,
     plugin::{PluginId, VoltID},
     proxy::ProxyResponse,
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
-    DocumentChanges, OneOf, Position, Range, TextEdit, Url, WorkspaceEdit,
+    DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{debug, error, event, Level};
+use tracing::{event, Level};
 
 use crate::{
     alert::AlertButton,
+    code_lens::CodeLensData,
     command::InternalCommand,
-    debug::RunDebugMode,
     doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
         diff::DiffEditorData,
@@ -388,6 +387,7 @@ pub struct MainSplitData {
     pub locations: RwSignal<im::Vector<EditorLocation>>,
     pub current_location: RwSignal<usize>,
     pub width: RwSignal<f64>,
+    pub code_lens: RwSignal<CodeLensData>,
     pub common: Rc<CommonData>,
 }
 
@@ -470,6 +470,7 @@ impl MainSplitData {
             locations,
             current_location,
             width: cx.create_rw_signal(0.0),
+            code_lens: cx.create_rw_signal(CodeLensData::new(common.clone())),
             common,
         }
     }
@@ -2153,7 +2154,12 @@ impl MainSplitData {
 
     pub fn run_code_action(&self, plugin_id: PluginId, action: CodeActionOrCommand) {
         match action {
-            CodeActionOrCommand::Command(_) => {}
+            CodeActionOrCommand::Command(command) => {
+                self.run_code_lens(
+                    &command.command,
+                    command.arguments.unwrap_or_default(),
+                );
+            }
             CodeActionOrCommand::CodeAction(action) => {
                 if let Some(edit) = action.edit.as_ref() {
                     self.apply_workspace_edit(edit);
@@ -2164,24 +2170,8 @@ impl MainSplitData {
         }
     }
 
-    pub fn run_code_lens(&self, args: &[Value], command: &str) {
-        match command {
-            "rust-analyzer.runSingle" | "rust-analyzer.debugSingle" => {
-                if let Some(config) = get_rust_command_config(args) {
-                    let mode = if command == "rust-analyzer.runSingle" {
-                        RunDebugMode::Run
-                    } else {
-                        RunDebugMode::Debug
-                    };
-                    self.common
-                        .internal_command
-                        .send(InternalCommand::RunAndDebug { mode, config });
-                }
-            }
-            _ => {
-                debug!("todo {:}", command);
-            }
-        }
+    pub fn run_code_lens(&self, command: &str, args: Vec<Value>) {
+        self.code_lens.get_untracked().run(command, args);
     }
 
     /// Resolve a code action and apply its held workspace edit
@@ -3032,67 +3022,4 @@ pub enum TabCloseKind {
     CloseOther,
     CloseToLeft,
     CloseToRight,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScoredCodeLensItem {
-    pub range: Range,
-    pub title: String,
-    pub command: String,
-    pub args: Vec<Value>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct CargoArgs {
-    #[serde(rename = "cargoArgs")]
-    pub cargo_args: Vec<String>,
-
-    #[serde(rename = "cargoExtraArgs")]
-    pub cargo_extra_args: Vec<String>,
-
-    #[serde(rename = "executableArgs")]
-    pub executable_args: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct RustArgs {
-    pub args: CargoArgs,
-    pub kind: String,
-    pub label: String,
-    pub location: lsp_types::LocationLink,
-}
-
-fn get_rust_command_config(args: &[Value]) -> Option<RunDebugConfig> {
-    if let Some(args) = args.first() {
-        let Ok(mut cargo_args) = serde_json::from_value::<RustArgs>(args.clone())
-        else {
-            error!("serde error");
-            return None;
-        };
-        cargo_args
-            .args
-            .cargo_args
-            .extend(cargo_args.args.cargo_extra_args);
-        if !cargo_args.args.executable_args.is_empty() {
-            cargo_args.args.cargo_args.push("--".to_string());
-            cargo_args
-                .args
-                .cargo_args
-                .extend(cargo_args.args.executable_args);
-        }
-        Some(RunDebugConfig {
-            ty: None,
-            name: cargo_args.label,
-            program: cargo_args.kind,
-            args: Some(cargo_args.args.cargo_args),
-            cwd: None,
-            env: None,
-            prelaunch: None,
-            debug_command: None,
-            dap_id: Default::default(),
-        })
-    } else {
-        error!("no args");
-        None
-    }
 }

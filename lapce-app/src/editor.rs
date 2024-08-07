@@ -47,9 +47,9 @@ use lapce_core::{
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
-    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
-    InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location, MarkedString,
-    MarkupKind, Range, TextEdit,
+    CodeActionResponse, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
+    HoverContents, InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location,
+    MarkedString, MarkupKind, Range, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -2019,7 +2019,7 @@ impl EditorData {
 
         // insert some empty data, so that we won't make the request again
         doc.code_actions().update(|c| {
-            c.insert(offset, Arc::new((PluginId(0), Vec::new())));
+            c.insert(offset, (PluginId(0), im::Vector::new()));
         });
 
         let (position, rev, diagnostics) = doc.buffer.with_untracked(|buffer| {
@@ -2041,13 +2041,16 @@ impl EditorData {
             (position, rev, diagnostics)
         });
 
-        let send = create_ext_action(self.scope, move |resp| {
-            if doc.rev() == rev {
-                doc.code_actions().update(|c| {
-                    c.insert(offset, Arc::new(resp));
-                });
-            }
-        });
+        let send = create_ext_action(
+            self.scope,
+            move |resp: (PluginId, CodeActionResponse)| {
+                if doc.rev() == rev {
+                    doc.code_actions().update(|c| {
+                        c.insert(offset, (resp.0, resp.1.into()));
+                    });
+                }
+            },
+        );
 
         self.common.proxy.get_code_actions(
             path,
@@ -2071,12 +2074,13 @@ impl EditorData {
         let code_actions = doc
             .code_actions()
             .with_untracked(|c| c.get(&offset).cloned());
-        if let Some(code_actions) = code_actions {
-            if !code_actions.1.is_empty() {
+        if let Some((plugin_id, code_actions)) = code_actions {
+            if !code_actions.is_empty() {
                 self.common.internal_command.send(
                     InternalCommand::ShowCodeActions {
                         offset,
                         mouse_click,
+                        plugin_id,
                         code_actions,
                     },
                 );

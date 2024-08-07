@@ -30,12 +30,16 @@ use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
     file::{Naming, PathObject},
+    plugin::PluginId,
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
     RpcError,
 };
-use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
+use lsp_types::{
+    CodeActionOrCommand, CodeLens, Diagnostic, ProgressParams, ProgressToken,
+    ShowMessageParams,
+};
 use serde_json::Value;
 use tracing::{debug, error, event, Level};
 
@@ -342,7 +346,7 @@ impl WindowTabData {
             let attrs = Attrs::new()
                 .family(&family)
                 .font_size(config.ui.font_size() as f32)
-                .line_height(LineHeightValue::Normal(1.6));
+                .line_height(LineHeightValue::Normal(1.8));
             let attrs_list = AttrsList::new(attrs);
             text_layout.set_text("W", attrs_list);
             text_layout.size().height
@@ -1640,10 +1644,11 @@ impl WindowTabData {
             InternalCommand::ShowCodeActions {
                 offset,
                 mouse_click,
+                plugin_id,
                 code_actions,
             } => {
                 let mut code_action = self.code_action.get_untracked();
-                code_action.show(code_actions, offset, mouse_click);
+                code_action.show(plugin_id, code_actions, offset, mouse_click);
                 self.code_action.set(code_action);
             }
             InternalCommand::RunCodeAction { plugin_id, action } => {
@@ -2672,6 +2677,28 @@ impl WindowTabData {
         }) {
             remove_overlay(old_id);
         }
+    }
+
+    pub fn show_code_lens(
+        &self,
+        mouse_click: bool,
+        plugin_id: PluginId,
+        offset: usize,
+        lens: im::Vector<CodeLens>,
+    ) {
+        self.common
+            .internal_command
+            .send(InternalCommand::ShowCodeActions {
+                offset,
+                mouse_click,
+                plugin_id,
+                code_actions: lens
+                    .into_iter()
+                    .filter_map(|lens| {
+                        Some(CodeActionOrCommand::Command(lens.command?))
+                    })
+                    .collect(),
+            });
     }
 
     pub fn call_hierarchy_incoming(&self, item_id: ViewId) {

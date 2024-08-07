@@ -70,7 +70,7 @@ fn problem_section(
                     )
                 },
             )
-            .style(|s| s.flex_col().width_pct(100.0).line_height(1.6)),
+            .style(|s| s.flex_col().width_pct(100.0).line_height(1.8)),
         )
         .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
