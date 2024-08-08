@@ -267,7 +267,6 @@ fn terminal_tab_split(
     let internal_command = terminal_panel_data.common.internal_command;
     let workspace = terminal_panel_data.workspace.clone();
     let active = terminal_tab_data.active;
-    let terminal_tab_scope = terminal_tab_data.scope;
     dyn_stack(
         move || {
             let terminals = terminal_tab_data.terminals.get();
@@ -281,7 +280,6 @@ fn terminal_tab_split(
         |(_, terminal)| terminal.term_id,
         move |(index, terminal)| {
             let terminal_panel_data = terminal_panel_data.clone();
-            let terminal_scope = terminal.scope;
             container({
                 let terminal_view = terminal_view(
                     terminal.term_id,
@@ -314,9 +312,6 @@ fn terminal_tab_split(
                             EventPropagation::Continue
                         }
                     })
-                    .on_cleanup(move || {
-                        terminal_scope.dispose();
-                    })
                     .style(|s| s.size_pct(100.0, 100.0))
             })
             .style(move |s| {
@@ -331,10 +326,8 @@ fn terminal_tab_split(
             })
         },
     )
-    .on_cleanup(move || {
-        terminal_tab_scope.dispose();
-    })
     .style(|s| s.size_pct(100.0, 100.0))
+    .debug_name("terminal_tab_split")
 }
 
 fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -348,6 +341,7 @@ fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
         },
     )
     .style(|s| s.size_pct(100.0, 100.0))
+    .debug_name("terminal_tab_content")
 }
 
 fn tab_secondary_click(
