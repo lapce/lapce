@@ -713,7 +713,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Dockerfile,
         indent: Indent::space(2),
-        files: &["dockerfile", "containerfile"],
+        files: &["Dockerfile", "Containerfile"],
         extensions: &["containerfile", "dockerfile"],
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties::DEFAULT,
@@ -1069,8 +1069,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Just,
         indent: Indent::tab(),
-        files: &[],
-        extensions: &[],
+        files: &["justfile", "Justfile", ".justfile", ".Justfile"],
+        extensions: &["just"],
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
@@ -1567,7 +1567,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Toml,
         indent: Indent::space(2),
-        files: &[],
+        files: &["Cargo.lock"],
         extensions: &["toml"],
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties::DEFAULT,
@@ -1683,20 +1683,14 @@ impl LapceLanguage {
     }
 
     pub fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
-        let filename = path
-            .file_stem()
-            .and_then(|s| s.to_str().map(|s| s.to_lowercase()));
+        let filename = path.file_name().and_then(|s| s.to_str());
         let extension = path
             .extension()
             .and_then(|s| s.to_str().map(|s| s.to_lowercase()));
         // NOTE: This is a linear search.  It is assumed that this function
         // isn't called in any tight loop.
         for properties in LANGUAGES {
-            if properties
-                .files
-                .iter()
-                .any(|f| Some(*f) == filename.as_deref())
-            {
+            if properties.files.iter().any(|f| Some(*f) == filename) {
                 return Some(properties.id);
             }
             if properties
