@@ -1169,8 +1169,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &[],
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties {
-            grammar: Some("markdown"),
-            grammar_fn: None,
+            grammar: Some("markdown_inline"),
+            grammar_fn: Some("markdown_inline"),
             query: Some("markdown.inline"),
             code_glance: (DEFAULT_CODE_GLANCE_LIST, DEFAULT_CODE_GLANCE_IGNORE_LIST),
             sticky_headers: &[],

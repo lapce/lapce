@@ -5,6 +5,7 @@
 ### Features/Changes
 
 ### Bug Fixes
+- Fix markdown syntax highlighting
 
 ## 0.4.1
 
