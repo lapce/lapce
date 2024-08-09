@@ -3,9 +3,11 @@
 ## Unreleased
 
 ### Features/Changes
+- Implement "Run in terminal"
 
 ### Bug Fixes
 - Fix markdown syntax highlighting
+- Fix click issue on window error message
 
 ## 0.4.1
 
