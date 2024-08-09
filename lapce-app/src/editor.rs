@@ -3292,7 +3292,7 @@ pub(crate) fn compute_screen_lines(
             let is_right = diff_info.is_right;
 
             let line_y = |info: VLineInfo<()>, vline_y: usize| -> usize {
-                vline_y - info.rvline.line_index * line_height
+                vline_y.saturating_sub(info.rvline.line_index * line_height)
             };
 
             while let Some(change) = changes.next() {
