@@ -191,6 +191,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal in File Tree")]
     RevealInFileTree,
 
+    #[strum(serialize = "run_in_terminal")]
+    #[strum(message = "Run in Terminal")]
+    RunInTerminal,
+
     #[strum(serialize = "reveal_active_file_in_file_explorer")]
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
