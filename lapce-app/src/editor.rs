@@ -3502,10 +3502,10 @@ fn parse_hover_resp(
 ) -> Vec<MarkdownContent> {
     match hover.contents {
         HoverContents::Scalar(text) => match text {
-            MarkedString::String(text) => parse_markdown(&text, 1.5, config),
+            MarkedString::String(text) => parse_markdown(&text, 1.8, config),
             MarkedString::LanguageString(code) => parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
-                1.5,
+                1.8,
                 config,
             ),
         },
@@ -3520,8 +3520,8 @@ fn parse_hover_resp(
             })
             .unwrap_or_default(),
         HoverContents::Markup(content) => match content.kind {
-            MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
-            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
+            MarkupKind::PlainText => from_plaintext(&content.value, 1.8, config),
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.8, config),
         },
     }
 }

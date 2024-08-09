@@ -2795,10 +2795,10 @@ fn window_message_view(
                 }),
                 stack((
                     text(title.clone()).style(|s| {
-                        s.min_width(0.0).line_height(1.6).font_weight(Weight::BOLD)
+                        s.min_width(0.0).line_height(1.8).font_weight(Weight::BOLD)
                     }),
                     text(message.message.clone()).style(|s| {
-                        s.min_width(0.0).line_height(1.6).margin_top(5.0)
+                        s.min_width(0.0).line_height(1.8).margin_top(5.0)
                     }),
                 ))
                 .style(move |s| {
@@ -2818,6 +2818,7 @@ fn window_message_view(
                 )
                 .style(|s| s.margin_left(6.0)),
             ))
+            .on_event_stop(EventListener::PointerDown, |_| {})
             .style(move |s| {
                 let config = config.get();
                 s.width_full()
@@ -2846,7 +2847,11 @@ fn window_message_view(
                     .style(|s| s.flex_col().width_full()),
                 )
                 .style(|s| {
-                    s.absolute().width_full().min_height(0.0).max_height_full()
+                    s.absolute()
+                        .width_full()
+                        .min_height(0.0)
+                        .max_height_full()
+                        .set(PropagatePointerWheel, false)
                 }),
             )
             .style(|s| s.size_full()),
@@ -2930,6 +2935,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
         layout_rect.set(rect);
     })
     .on_event_stop(EventListener::PointerMove, |_| {})
+    .on_event_stop(EventListener::PointerDown, |_| {})
     .style(move |s| {
         let active = window_tab_data.common.hover.active.get();
         if !active {

@@ -310,14 +310,14 @@ pub fn from_marked_string(
     config: &LapceConfig,
 ) -> Vec<MarkdownContent> {
     match text {
-        MarkedString::String(text) => parse_markdown(&text, 1.5, config),
+        MarkedString::String(text) => parse_markdown(&text, 1.8, config),
         // This is a short version of a code block
         MarkedString::LanguageString(code) => {
             // TODO: We could simply construct the MarkdownText directly
             // Simply construct the string as if it was written directly
             parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
-                1.5,
+                1.8,
                 config,
             )
         }
