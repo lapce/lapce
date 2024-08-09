@@ -38,10 +38,9 @@ use lapce_core::{
         EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
         ScrollCommand,
     },
-    cursor::{ColPosition, Cursor, CursorMode},
+    cursor::{Cursor, CursorMode},
     editor::EditType,
-    mode::{Mode, MotionMode, VisualMode},
-    register::RegisterData,
+    mode::{Mode, MotionMode},
     rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, SelRegion, Selection},
 };
@@ -2925,96 +2924,6 @@ impl EditorData {
                 actual_line
             }
         })
-    }
-
-    /// A basic implementation.
-    pub fn get_select_text(&self) -> RegisterData {
-        let text = self.editor.rope_text();
-        let cursor = self.editor.cursor.get_untracked();
-        let (content, mode) = match &cursor.mode {
-            CursorMode::Insert(selection) => {
-                let mode = VisualMode::Normal;
-                let mut content = "".to_string();
-                for region in selection.regions() {
-                    let region_content = if region.is_caret() {
-                        continue;
-                    } else {
-                        text.slice_to_cow(region.min()..region.max())
-                    };
-                    if content.is_empty() {
-                        content = region_content.to_string();
-                    } else if content.ends_with('\n') {
-                        content += &region_content;
-                    } else {
-                        content += "\n";
-                        content += &region_content;
-                    }
-                }
-                (content, mode)
-            }
-            CursorMode::Normal(offset) => {
-                let new_offset = text.next_grapheme_offset(*offset, 1, text.len());
-                (
-                    text.slice_to_cow(*offset..new_offset).to_string(),
-                    VisualMode::Normal,
-                )
-            }
-            CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => (
-                    text.slice_to_cow(
-                        *start.min(end)
-                            ..text.next_grapheme_offset(
-                                *start.max(end),
-                                1,
-                                text.len(),
-                            ),
-                    )
-                    .to_string(),
-                    VisualMode::Normal,
-                ),
-                VisualMode::Linewise => {
-                    let start_offset =
-                        text.offset_of_line(text.line_of_offset(*start.min(end)));
-                    let end_offset = text
-                        .offset_of_line(text.line_of_offset(*start.max(end)) + 1);
-                    (
-                        text.slice_to_cow(start_offset..end_offset).to_string(),
-                        VisualMode::Linewise,
-                    )
-                }
-                VisualMode::Blockwise => {
-                    let mut lines = Vec::new();
-                    let (start_line, start_col) =
-                        text.offset_to_line_col(*start.min(end));
-                    let (end_line, end_col) =
-                        text.offset_to_line_col(*start.max(end));
-                    let left = start_col.min(end_col);
-                    let right = start_col.max(end_col) + 1;
-                    for line in start_line..end_line + 1 {
-                        let max_col = text.line_end_col(line, true);
-                        if left > max_col {
-                            lines.push("".to_string());
-                        } else {
-                            let right = match &cursor.horiz {
-                                Some(ColPosition::End) => max_col,
-                                _ => {
-                                    if right > max_col {
-                                        max_col
-                                    } else {
-                                        right
-                                    }
-                                }
-                            };
-                            let left = text.offset_of_line_col(line, left);
-                            let right = text.offset_of_line_col(line, right);
-                            lines.push(text.slice_to_cow(left..right).to_string());
-                        }
-                    }
-                    (lines.join("\n") + "\n", VisualMode::Blockwise)
-                }
-            },
-        };
-        RegisterData { content, mode }
     }
 }
 

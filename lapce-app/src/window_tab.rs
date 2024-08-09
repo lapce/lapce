@@ -1398,8 +1398,7 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    let name = editor_data.get_select_text().content;
-                    tracing::info!("{name}");
+                    let name = editor_data.word_at_cursor();
                     if !name.is_empty() {
                         let mut args_str = name.split(" ");
                         let program = args_str.next().map(|x| x.to_string()).unwrap();
