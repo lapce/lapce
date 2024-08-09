@@ -1394,6 +1394,38 @@ impl WindowTabData {
                     editor_data.call_hierarchy(self.clone());
                 }
             }
+            RunInTerminal => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let name = editor_data.word_at_cursor();
+                    if !name.is_empty() {
+                        let mut args_str = name.split(" ");
+                        let program = args_str.next().map(|x| x.to_string()).unwrap();
+                        let args: Vec<String> = args_str.into_iter().map(|x| x.to_string()).collect();
+                        let args = if args.is_empty() {
+                            None
+                        } else {
+                            Some(args)
+                        };
+
+                        let config = RunDebugConfig {
+                            ty: None,
+                            name,
+                            program,
+                            args,
+                            cwd: None,
+                            env: None,
+                            prelaunch: None,
+                            debug_command: None,
+                            dap_id: Default::default(),
+                        };
+                        self.common
+                            .internal_command
+                            .send(InternalCommand::RunAndDebug { mode: RunDebugMode::Run, config });
+                    }
+                }
+            }
         }
     }
 

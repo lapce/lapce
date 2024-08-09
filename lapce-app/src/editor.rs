@@ -2660,6 +2660,7 @@ impl EditorData {
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteCommand,
                 )),
+                Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),
             ]
         } else {
             vec![
