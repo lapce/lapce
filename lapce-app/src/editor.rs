@@ -51,6 +51,7 @@ use lsp_types::{
     HoverContents, InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location,
     MarkedString, MarkupKind, Range, TextEdit,
 };
+use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
 
 use self::{
@@ -187,6 +188,13 @@ impl EditorViewKind {
     }
 }
 
+#[derive(Clone)]
+pub struct OnScreenFind {
+    pub active: bool,
+    pub pattern: String,
+    pub regions: Vec<SelRegion>,
+}
+
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 /// Shares data between cloned instances as long as the signals aren't swapped out.
@@ -198,6 +206,7 @@ pub struct EditorData {
     pub confirmed: RwSignal<bool>,
     pub snippet: RwSignal<Option<SnippetIndex>>,
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
+    pub on_screen_find: RwSignal<OnScreenFind>,
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub find_focus: RwSignal<bool>,
     pub editor: Rc<Editor>,
@@ -231,6 +240,11 @@ impl EditorData {
             confirmed,
             snippet: cx.create_rw_signal(None),
             inline_find: cx.create_rw_signal(None),
+            on_screen_find: cx.create_rw_signal(OnScreenFind {
+                active: false,
+                pattern: "".to_string(),
+                regions: Vec::new(),
+            }),
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
             editor: Rc::new(editor),
@@ -435,6 +449,7 @@ impl EditorData {
             // Cancel so that there's no flickering
             self.cancel_inline_completion();
             self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+            self.quit_on_screen_find();
         } else if show_inline_completion(cmd) {
             self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
         } else {
@@ -444,6 +459,7 @@ impl EditorData {
         self.apply_deltas(&deltas);
         if let EditCommand::NormalMode = cmd {
             self.snippet.set(None);
+            self.quit_on_screen_find();
         }
 
         CommandExecuted::Yes
@@ -1028,6 +1044,13 @@ impl EditorData {
             FocusCommand::InlineFindRight => {
                 self.inline_find.set(Some(InlineFindDirection::Right));
             }
+            FocusCommand::OnScreenFind => {
+                self.on_screen_find.update(|find| {
+                    find.active = true;
+                    find.pattern.clear();
+                    find.regions.clear();
+                });
+            }
             FocusCommand::RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.last_inline_find.get_untracked() {
                     self.inline_find(direction, &c);
@@ -1128,6 +1151,72 @@ impl EditorData {
                 Modifiers::empty(),
             );
         }
+    }
+
+    fn quit_on_screen_find(&self) {
+        if self.on_screen_find.with_untracked(|s| s.active) {
+            self.on_screen_find.update(|f| {
+                f.active = false;
+                f.pattern.clear();
+                f.regions.clear();
+            })
+        }
+    }
+
+    fn on_screen_find(&self, pattern: &str) -> Vec<SelRegion> {
+        let screen_lines = self.screen_lines().get_untracked();
+        let lines: HashSet<usize> =
+            screen_lines.lines.iter().map(|l| l.line).collect();
+
+        let mut matcher = nucleo::Matcher::new(nucleo::Config::DEFAULT);
+        let pattern = nucleo::pattern::Pattern::parse(
+            pattern,
+            nucleo::pattern::CaseMatching::Ignore,
+            nucleo::pattern::Normalization::Smart,
+        );
+        let mut indices = Vec::new();
+        let mut filter_text_buf = Vec::new();
+        let mut items = Vec::new();
+
+        let buffer = self.doc().buffer;
+
+        for line in lines {
+            filter_text_buf.clear();
+            indices.clear();
+
+            buffer.with_untracked(|buffer| {
+                let start = buffer.offset_of_line(line);
+                let end = buffer.offset_of_line(line + 1);
+                let text = buffer.text().slice_to_cow(start..end);
+                let filter_text = Utf32Str::new(&text, &mut filter_text_buf);
+
+                if let Some(score) =
+                    pattern.indices(filter_text, &mut matcher, &mut indices)
+                {
+                    indices.sort();
+                    let left =
+                        start + indices.first().copied().unwrap_or(0) as usize;
+                    let right =
+                        start + indices.last().copied().unwrap_or(0) as usize + 1;
+                    let right = if right == left { left + 1 } else { right };
+                    items.push((score, left, right));
+                }
+            });
+        }
+
+        items.sort_by_key(|(score, _, _)| -(*score as i64));
+        if let Some((_, offset, _)) = items.first().copied() {
+            self.run_move_command(
+                &lapce_core::movement::Movement::Offset(offset),
+                None,
+                Modifiers::empty(),
+            );
+        }
+
+        items
+            .into_iter()
+            .map(|(_, start, end)| SelRegion::new(start, end, None))
+            .collect()
     }
 
     fn go_to_definition(&self) {
@@ -2947,6 +3036,9 @@ impl KeyPressFocus for EditorData {
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
             Condition::InlineCompletionVisible => self.has_inline_completions(),
+            Condition::OnScreenFindActive => {
+                self.on_screen_find.with_untracked(|f| f.active)
+            }
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => self
                 .doc()
@@ -3053,6 +3145,7 @@ impl KeyPressFocus for EditorData {
             false
         } else {
             self.inline_find.with_untracked(|f| f.is_some())
+                || self.on_screen_find.with_untracked(|f| f.active)
         }
     }
 
@@ -3098,6 +3191,12 @@ impl KeyPressFocus for EditorData {
                 self.inline_find(direction.clone(), c);
                 self.last_inline_find.set(Some((direction, c.to_string())));
                 self.inline_find.set(None);
+            } else if self.on_screen_find.with_untracked(|f| f.active) {
+                self.on_screen_find.update(|find| {
+                    let pattern = format!("{}{c}", find.pattern);
+                    find.regions = self.on_screen_find(&pattern);
+                    find.pattern = pattern;
+                });
             }
         }
     }

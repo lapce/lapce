@@ -1402,7 +1402,7 @@ impl WindowTabData {
                     if !name.is_empty() {
                         let mut args_str = name.split(" ");
                         let program = args_str.next().map(|x| x.to_string()).unwrap();
-                        let args: Vec<String> = args_str.into_iter().map(|x| x.to_string()).collect();
+                        let args: Vec<String> = args_str.map(|x| x.to_string()).collect();
                         let args = if args.is_empty() {
                             None
                         } else {

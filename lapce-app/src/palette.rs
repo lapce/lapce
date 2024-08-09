@@ -1506,6 +1506,8 @@ impl PaletteData {
         // NOTE: We collect into a Vec to sort as we are hitting a worst-case behavior in
         // `im::Vector` that can lead to a stack overflow!
         let mut filtered_items = Vec::new();
+        let mut indices = Vec::new();
+        let mut filter_text_buf = Vec::new();
         for i in &items {
             // If the run id has ever changed, then we'll just bail out of this filtering to avoid
             // wasting effort. This would happen, for example, on the user continuing to type.
@@ -1513,14 +1515,14 @@ impl PaletteData {
                 return None;
             }
 
-            let mut indices = Vec::new();
-            let mut filter_text_buf = Vec::new();
+            indices.clear();
+            filter_text_buf.clear();
             let filter_text = Utf32Str::new(&i.filter_text, &mut filter_text_buf);
             if let Some(score) = pattern.indices(filter_text, matcher, &mut indices)
             {
                 let mut item = i.clone();
                 item.score = score;
-                item.indices = indices.into_iter().map(|i| i as usize).collect();
+                item.indices = indices.iter().map(|i| *i as usize).collect();
                 filtered_items.push(item);
             }
         }
