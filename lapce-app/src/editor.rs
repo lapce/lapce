@@ -1958,6 +1958,7 @@ impl EditorData {
         self.cursor().set(cursor);
 
         self.apply_deltas(&[(text, delta, inval_lines)]);
+        self.auto_save();
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
@@ -3014,6 +3015,17 @@ impl EditorData {
             }
         })
     }
+
+    fn auto_save(&self) {
+        let common = self.common.clone();
+        let editor_id = self.id();
+        let doc_rev = self.doc().rev();
+        exec_after(Duration::from_secs(5), move |_| {
+            common
+                .internal_command
+                .send(InternalCommand::AutoSave { editor_id, doc_rev });
+        });
+    }
 }
 
 impl KeyPressFocus for EditorData {
@@ -3187,6 +3199,7 @@ impl KeyPressFocus for EditorData {
                 );
 
                 self.apply_deltas(&deltas);
+                self.auto_save();
             } else if let Some(direction) = self.inline_find.get_untracked() {
                 self.inline_find(direction.clone(), c);
                 self.last_inline_find.set(Some((direction, c.to_string())));

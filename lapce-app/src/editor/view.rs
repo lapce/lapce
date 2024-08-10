@@ -287,6 +287,7 @@ pub fn editor_view(
         }
         EventPropagation::Stop
     })
+    .keyboard_navigatable()
     .class(EditorViewClass)
     .style(move |s| editor_style(config, doc, s))
 }
@@ -1975,6 +1976,7 @@ fn editor_content(
             })
             .on_event_cont(EventListener::FocusLost, move |_| {
                 editor2.editor_view_focus_lost.notify();
+                e_data.get_untracked().save(true, || {});
             })
             .on_event_cont(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {

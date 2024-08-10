@@ -1894,6 +1894,13 @@ impl WindowTabData {
             InternalCommand::CallHierarchyIncoming { item_id } => {
                 self.call_hierarchy_incoming(item_id);
             }
+            InternalCommand::AutoSave { editor_id, doc_rev } => {
+                if let Some(editor) = self.main_split.editors.editor(editor_id) {
+                    if editor.doc().rev() == doc_rev {
+                        editor.save(true, || {});
+                    }
+                }
+            }
         }
     }
 

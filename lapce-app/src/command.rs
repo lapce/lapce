@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc};
 
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
-    keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
+    keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::{command::Command, id::EditorId},
     ViewId,
 };
 use indexmap::IndexMap;
@@ -753,6 +753,10 @@ pub enum InternalCommand {
     },
     CallHierarchyIncoming {
         item_id: ViewId,
+    },
+    AutoSave {
+        editor_id: EditorId,
+        doc_rev: u64,
     },
 }
 
