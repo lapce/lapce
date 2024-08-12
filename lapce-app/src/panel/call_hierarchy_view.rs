@@ -227,7 +227,7 @@ pub fn show_hierarchy_panel(
                 })
             },
         )
-        .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
+        .style(|s| s.flex_col().absolute().min_width_full()),
     )
     .style(|s| s.absolute().size_full())
     .scroll_to(move || {

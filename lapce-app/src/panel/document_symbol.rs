@@ -184,6 +184,7 @@ impl
         }
     }
 }
+
 pub fn symbol_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelPosition,
@@ -293,7 +294,7 @@ pub fn symbol_panel(
                 })
             },
         )
-        .style(|s| s.flex_col().align_items(AlignItems::Stretch).size_full()),
+        .style(|s| s.flex_col().absolute().min_width_full()),
     )
-    .style(|s| s.size_full())
+    .style(|s| s.absolute().size_full())
 }
