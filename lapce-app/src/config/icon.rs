@@ -38,6 +38,7 @@ impl LapceIcons {
     pub const KEYBOARD: &'static str = "keyboard";
     pub const BREADCRUMB_SEPARATOR: &'static str = "breadcrumb_separator";
     pub const SYMBOL_COLOR: &'static str = "symbol_color";
+    pub const TYPE_HIERARCHY: &'static str = "type_hierarchy";
 
     pub const FILE: &'static str = "file";
     pub const FILE_EXPLORER: &'static str = "file_explorer";
@@ -108,6 +109,7 @@ impl LapceIcons {
     pub const FILE_TYPE_SYMLINK_FILE: &'static str = "file-symlink-file";
     pub const FILE_TYPE_SYMLINK_DIRECTORY: &'static str = "file-symlink-directory";
 
+    pub const DOCUMENT_SYMBOL: &'static str = "document_symbol";
     pub const SYMBOL_KIND_ARRAY: &'static str = "symbol_kind.array";
     pub const SYMBOL_KIND_BOOLEAN: &'static str = "symbol_kind.boolean";
     pub const SYMBOL_KIND_CLASS: &'static str = "symbol_kind.class";

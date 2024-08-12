@@ -538,19 +538,18 @@ fn panel_picker(
         |p| *p,
         move |p| {
             let window_tab_data = window_tab_data.clone();
-            let (icon, tooltip) = match p {
-                PanelKind::Terminal => (LapceIcons::TERMINAL, "Terminal"),
-                PanelKind::FileExplorer => {
-                    (LapceIcons::FILE_EXPLORER, "File Explorer")
-                }
-                PanelKind::SourceControl => (LapceIcons::SCM, "Source Control"),
-                PanelKind::Plugin => (LapceIcons::EXTENSIONS, "Plugins"),
-                PanelKind::Search => (LapceIcons::SEARCH, "Search"),
-                PanelKind::Problem => (LapceIcons::PROBLEM, "Problems"),
-                PanelKind::Debug => (LapceIcons::DEBUG_ALT, "Debug"),
-                PanelKind::CallHierarchy => (LapceIcons::LINK, "Call Hierarchy"),
-                PanelKind::DocumentSymbol => (LapceIcons::SEARCH, "Document Symbol"),
+            let tooltip = match p {
+                PanelKind::Terminal => "Terminal",
+                PanelKind::FileExplorer => "File Explorer",
+                PanelKind::SourceControl => "Source Control",
+                PanelKind::Plugin => "Plugins",
+                PanelKind::Search => "Search",
+                PanelKind::Problem => "Problems",
+                PanelKind::Debug => "Debug",
+                PanelKind::CallHierarchy => "Call Hierarchy",
+                PanelKind::DocumentSymbol => "Document Symbol",
             };
+            let icon = p.svg_name();
             let is_active = {
                 let window_tab_data = window_tab_data.clone();
                 move || {
