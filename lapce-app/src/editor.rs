@@ -2729,7 +2729,7 @@ impl EditorData {
 
         let is_file = doc.content.with_untracked(|content| content.is_file());
         let mut menu = Menu::new("");
-        let cmds = if is_file {
+        let mut cmds = if is_file {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
@@ -2762,6 +2762,11 @@ impl EditorData {
                 )),
             ]
         };
+        if self.diff_editor_id.get_untracked().is_some() && is_file {
+            cmds.push(Some(CommandKind::Workbench(
+                LapceWorkbenchCommand::GoToLocation,
+            )));
+        }
         let lapce_command = self.common.lapce_command;
         for cmd in cmds {
             if let Some(cmd) = cmd {
