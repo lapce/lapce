@@ -17,7 +17,7 @@ impl FileNodeVirtualList {
 
 impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
     fn total_len(&self) -> usize {
-        self.file_node_item.children_open_count
+        self.file_node_item.children_open_count + 1
     }
 
     fn slice(

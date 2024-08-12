@@ -229,7 +229,7 @@ pub fn show_hierarchy_panel(
         )
         .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
     )
-    .style(|s| s.size_full())
+    .style(|s| s.absolute().size_full())
     .scroll_to(move || {
         if let Some(line) = scroll_to_line.get() {
             let line_height = ui_line_height.get();

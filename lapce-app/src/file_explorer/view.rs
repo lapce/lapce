@@ -86,10 +86,8 @@ pub fn file_explorer_panel(
         )
         .add(
             "File Explorer",
-            container(
-                new_file_node_view(data, source_control).style(|s| s.absolute()),
-            )
-            .style(|s| s.size_full().line_height(1.8)),
+            container(file_explorer_view(data, source_control))
+                .style(|s| s.size_full()),
             window_tab_data
                 .panel
                 .section_open(PanelSection::FileExplorer),
@@ -173,7 +171,7 @@ fn file_node_text_view(
     let config = data.common.config;
     let ui_line_height = data.common.ui_line_height;
 
-    let view = match node.kind.clone() {
+    match node.kind.clone() {
         FileNodeViewKind::Path(path) => container(
             label(move || {
                 path.file_name()
@@ -181,8 +179,7 @@ fn file_node_text_view(
                     .unwrap_or_default()
             })
             .style(move |s| {
-                s.flex_grow(1.0)
-                    .height(ui_line_height.get())
+                s.height(ui_line_height.get())
                     .color(file_node_text_color(
                         config,
                         node.clone(),
@@ -212,9 +209,7 @@ fn file_node_text_view(
 
             file_node_input_view(data, err.clone())
         }
-    };
-
-    view.style(|s| s.flex_grow(1.0).padding(0.0).margin(0.0))
+    }
 }
 
 /// Input used for naming a file/directory
@@ -282,7 +277,7 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
     }
 }
 
-fn new_file_node_view(
+fn file_explorer_view(
     data: FileExplorerData,
     source_control: SourceControlData,
 ) -> impl View {
@@ -376,7 +371,7 @@ fn new_file_node_view(
                     file_node_text_view(data, node, source_control.clone()),
                 ))
                 .style(move |s| {
-                    s.padding_right(5.0)
+                    s.padding_right(15.0)
                         .padding_left((level * 10) as f32)
                         .align_items(AlignItems::Center)
                         .hover(|s| {
@@ -419,9 +414,9 @@ fn new_file_node_view(
                 }
             },
         )
-        .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
+        .style(|s| s.absolute().flex_col().min_width_full()),
     )
-    .style(|s| s.size_full())
+    .style(|s| s.absolute().size_full().line_height(1.8))
     .on_secondary_click_stop(move |_| {
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
