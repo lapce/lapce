@@ -880,6 +880,9 @@ impl Doc {
                     };
                     doc.code_lens.update(|code_lens| {
                         for codelens in codelens {
+                            if codelens.command.is_none() {
+                                continue;
+                            }
                             let entry = code_lens
                                 .entry(codelens.range.start.line as usize)
                                 .or_insert_with(|| {
