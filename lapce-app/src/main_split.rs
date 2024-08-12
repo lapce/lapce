@@ -640,6 +640,7 @@ impl MainSplitData {
                     });
             }
             doc.get_code_lens();
+            doc.get_document_symbol();
             (doc, true)
         }
     }
@@ -2912,6 +2913,20 @@ impl MainSplitData {
                     true,
                 );
             }
+        }
+    }
+
+    pub fn get_active_editor(&self) -> Option<EditorData> {
+        let active_editor_tab = self.active_editor_tab.get()?;
+        let editor_tabs = self.editor_tabs;
+        let editor_tab = editor_tabs
+            .with(|editor_tabs| editor_tabs.get(&active_editor_tab).copied())?;
+        let (_, _, child) = editor_tab.with(|editor_tab| {
+            editor_tab.children.get(editor_tab.active).cloned()
+        })?;
+        match child {
+            EditorTabChild::Editor(editor_id) => self.editors.editor(editor_id),
+            _ => None,
         }
     }
 }

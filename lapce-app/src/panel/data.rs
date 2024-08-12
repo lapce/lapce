@@ -38,6 +38,10 @@ pub fn default_panel_order() -> PanelOrder {
             PanelKind::CallHierarchy
         ],
     );
+    order.insert(
+        PanelPosition::RightTop,
+        im::vector![PanelKind::DocumentSymbol,],
+    );
 
     order
 }
