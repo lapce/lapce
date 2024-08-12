@@ -17,8 +17,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     editor::location::EditorLocation,
-    window_tab::CommonData,
-    window_tab::WindowTabData,
+    window_tab::{CommonData, WindowTabData},
 };
 
 #[derive(Clone, Debug)]

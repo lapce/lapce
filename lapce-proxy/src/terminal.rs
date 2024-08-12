@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -6,6 +5,7 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 
 use alacritty_terminal::{

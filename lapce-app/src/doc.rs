@@ -64,8 +64,8 @@ use lapce_xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
-    CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity, InlayHint,
-    InlayHintLabel,
+    CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity,
+    DocumentSymbolResponse, InlayHint, InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -78,7 +78,10 @@ use crate::{
     history::DocumentHistory,
     keypress::KeyPressFocus,
     main_split::Editors,
-    panel::kind::PanelKind,
+    panel::{
+        document_symbol::{SymbolData, SymbolInformationItemData},
+        kind::PanelKind,
+    },
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
@@ -205,6 +208,8 @@ pub struct Doc {
 
     editors: Editors,
     pub common: Rc<CommonData>,
+
+    pub document_symbol_data: RwSignal<Option<SymbolData>>,
 }
 impl Doc {
     pub fn new(
@@ -249,6 +254,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -298,6 +304,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -347,6 +354,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -640,6 +648,7 @@ impl Doc {
             self.clear_code_actions();
             self.clear_style_cache();
             self.get_code_lens();
+            self.get_document_symbol();
         });
     }
 
@@ -902,6 +911,49 @@ impl Doc {
                 }
             });
             self.common.proxy.get_code_lens(path, move |result| {
+                send(result);
+            });
+        }
+    }
+
+    pub fn get_document_symbol(&self) {
+        let cx = self.scope;
+        let doc = self.clone();
+        self.document_symbol_data.update(|symbol| {
+            symbol.take();
+        });
+        let rev = self.rev();
+        if let DocContent::File { path, .. } = doc.content.get_untracked() {
+            let send = create_ext_action(cx, {
+                let path = path.clone();
+                move |result| {
+                    if rev != doc.rev() {
+                        return;
+                    }
+                    if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
+                        let items: Vec<RwSignal<SymbolInformationItemData>> =
+                            match resp {
+                                DocumentSymbolResponse::Flat(_symbols) => {
+                                    Vec::with_capacity(0)
+                                }
+                                DocumentSymbolResponse::Nested(symbols) => symbols
+                                    .into_iter()
+                                    .map(|x| {
+                                        cx.create_rw_signal(
+                                            SymbolInformationItemData::from((x, cx)),
+                                        )
+                                    })
+                                    .collect(),
+                            };
+                        let symbol_new = Some(SymbolData { items, path });
+                        doc.document_symbol_data.update(|symbol| {
+                            *symbol = symbol_new;
+                        });
+                    }
+                }
+            });
+
+            self.common.proxy.get_document_symbols(path, move |result| {
                 send(result);
             });
         }

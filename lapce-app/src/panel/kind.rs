@@ -16,6 +16,7 @@ pub enum PanelKind {
     Problem,
     Debug,
     CallHierarchy,
+    DocumentSymbol,
 }
 
 impl PanelKind {
@@ -29,6 +30,7 @@ impl PanelKind {
             PanelKind::Problem => LapceIcons::PROBLEM,
             PanelKind::Debug => LapceIcons::DEBUG,
             PanelKind::CallHierarchy => LapceIcons::LINK,
+            PanelKind::DocumentSymbol => LapceIcons::SEARCH,
         }
     }
 

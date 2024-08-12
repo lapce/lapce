@@ -49,10 +49,10 @@ use lsp_types::{
     CodeActionResponse, CodeLens, CodeLensParams, CompletionClientCapabilities,
     CompletionItem, CompletionItemCapability,
     CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
-    Diagnostic, DocumentFormattingParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FormattingOptions, GotoCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverClientCapabilities, HoverParams, InlayHint,
-    InlayHintClientCapabilities, InlayHintParams,
+    Diagnostic, DocumentFormattingParams, DocumentSymbolClientCapabilities,
+    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
+    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
     InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
@@ -1622,6 +1622,10 @@ fn client_capabilities() -> ClientCapabilities {
             }),
             call_hierarchy: Some(CallHierarchyClientCapabilities {
                 dynamic_registration: Some(true),
+            }),
+            document_symbol: Some(DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
             }),
             ..Default::default()
         }),

@@ -1,4 +1,3 @@
-use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -8,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use alacritty_terminal::vte::ansi::Handler;
 use crossbeam_channel::Sender;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
@@ -2007,6 +2007,7 @@ impl WindowTabData {
                     self.main_split.docs.with_untracked(|x| {
                         for doc in x.values() {
                             doc.get_code_lens();
+                            doc.get_document_symbol();
                             doc.get_semantic_styles();
                         }
                     });
@@ -2471,7 +2472,8 @@ impl WindowTabData {
             | PanelKind::Plugin
             | PanelKind::Problem
             | PanelKind::Debug
-            | PanelKind::CallHierarchy => {
+            | PanelKind::CallHierarchy
+            | PanelKind::DocumentSymbol => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
