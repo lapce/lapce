@@ -60,7 +60,7 @@ smallvec          = { version = "1.13.2" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
-tempfile          = { version = "3.10.1" }
+tempfile          = { version = "3.12.0" }
 thiserror         = { version = "1.0" }
 toml              = { version = "*" }
 toml_edit         = { version = "0.20.2", features = ["serde"] }
