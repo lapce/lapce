@@ -566,6 +566,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
+
+    #[strum(serialize = "go_to_location")]
+    #[strum(message = "Go to Location")]
+    GoToLocation,
 }
 
 #[derive(Clone, Debug)]

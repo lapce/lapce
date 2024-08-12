@@ -1426,6 +1426,33 @@ impl WindowTabData {
                     }
                 }
             }
+            GoToLocation => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let doc = editor_data.doc();
+                    let path = match if doc.loaded() {
+                        doc.content.with_untracked(|c| c.path().cloned())
+                    } else {
+                        None
+                    } {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    let offset = editor_data.cursor().with_untracked(|c| c.offset());
+                    let internal_command = self.common.internal_command;
+
+                    internal_command.send(InternalCommand::MakeConfirmed);
+                    internal_command.send(InternalCommand::GoToLocation { location: EditorLocation {
+                        path,
+                        position: Some(EditorPosition::Offset(offset)),
+                        scroll_offset: None,
+                        ignore_unconfirmed: false,
+                        same_editor_tab: false,
+                    } });
+                }
+            }
+
         }
     }
 
