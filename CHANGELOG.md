@@ -4,6 +4,9 @@
 
 ### Features/Changes
 - Implement "Run in terminal"
+- Implement document symbols in a panel
+- Implement 'Go To Location' functionality in the Diff editor.
+- implement on screen find which is similar to `f` in vim but for the whole screen.
 
 ### Bug Fixes
 - Fix markdown syntax highlighting
