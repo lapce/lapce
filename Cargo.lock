@@ -1684,7 +1684,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "bitflags 2.6.0",
  "copypasta",
@@ -1702,7 +1702,6 @@ dependencies = [
  "image",
  "indexmap",
  "lapce-xi-rope",
- "once_cell",
  "parking_lot",
  "peniko",
  "raw-window-handle 0.6.0",
@@ -1722,13 +1721,12 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
  "lapce-xi-rope",
  "memchr",
- "once_cell",
  "serde",
  "strum",
  "strum_macros",
@@ -1800,7 +1798,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "smallvec",
 ]
@@ -1808,7 +1806,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1821,7 +1819,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1838,7 +1836,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a207ef4bd463d41be1d06daeae3be7936b0dbb60#a207ef4bd463d41be1d06daeae3be7936b0dbb60"
+source = "git+https://github.com/lapce/floem?rev=3a974c9bbc0c1dfefc17affb976ea8e9ae31369b#3a974c9bbc0c1dfefc17affb976ea8e9ae31369b"
 dependencies = [
  "anyhow",
  "floem-vger",

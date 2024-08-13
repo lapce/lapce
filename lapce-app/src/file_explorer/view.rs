@@ -375,6 +375,7 @@ fn file_explorer_view(
                     let kind = kind.clone();
                     move |s| {
                         s.padding_right(15.0)
+                            .min_width_full()
                             .padding_left((level * 10) as f32)
                             .align_items(AlignItems::Center)
                             .hover(|s| {

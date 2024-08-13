@@ -655,6 +655,36 @@ impl LapceConfig {
         Some(self.ui_svg(kind_str))
     }
 
+    pub fn symbol_color(&self, kind: &SymbolKind) -> Option<Color> {
+        let theme_str = match *kind {
+            SymbolKind::METHOD => "method",
+            SymbolKind::FUNCTION => "method",
+            SymbolKind::ENUM => "enum",
+            SymbolKind::ENUM_MEMBER => "enum-member",
+            SymbolKind::CLASS => "class",
+            SymbolKind::VARIABLE => "field",
+            SymbolKind::STRUCT => "structure",
+            SymbolKind::CONSTANT => "constant",
+            SymbolKind::PROPERTY => "property",
+            SymbolKind::FIELD => "field",
+            SymbolKind::INTERFACE => "interface",
+            SymbolKind::ARRAY => "",
+            SymbolKind::BOOLEAN => "",
+            SymbolKind::EVENT => "",
+            SymbolKind::FILE => "",
+            SymbolKind::KEY => "",
+            SymbolKind::OBJECT => "",
+            SymbolKind::NAMESPACE => "",
+            SymbolKind::NUMBER => "number",
+            SymbolKind::OPERATOR => "",
+            SymbolKind::TYPE_PARAMETER => "",
+            SymbolKind::STRING => "string",
+            _ => return None,
+        };
+
+        self.style_color(theme_str)
+    }
+
     pub fn logo_svg(&self) -> String {
         self.svg_store.read().logo_svg()
     }

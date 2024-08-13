@@ -25,7 +25,7 @@ use lapce_core::{
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
-use lsp_types::DocumentSymbolResponse;
+use lsp_types::{DocumentSymbol, DocumentSymbolResponse};
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
 use tracing::error;
@@ -646,42 +646,7 @@ impl PaletteData {
         let set_items = self.items.write_only();
         let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
-                let items: im::Vector<PaletteItem> = match resp {
-                    DocumentSymbolResponse::Flat(symbols) => symbols
-                        .iter()
-                        .map(|s| {
-                            let mut filter_text = s.name.clone();
-                            if let Some(container_name) = s.container_name.as_ref() {
-                                filter_text += container_name;
-                            }
-                            PaletteItem {
-                                content: PaletteItemContent::DocumentSymbol {
-                                    kind: s.kind,
-                                    name: s.name.clone(),
-                                    range: s.location.range,
-                                    container_name: s.container_name.clone(),
-                                },
-                                filter_text,
-                                score: 0,
-                                indices: Vec::new(),
-                            }
-                        })
-                        .collect(),
-                    DocumentSymbolResponse::Nested(symbols) => symbols
-                        .iter()
-                        .map(|s| PaletteItem {
-                            content: PaletteItemContent::DocumentSymbol {
-                                kind: s.kind,
-                                name: s.name.clone(),
-                                range: s.range,
-                                container_name: None,
-                            },
-                            filter_text: s.name.clone(),
-                            score: 0,
-                            indices: Vec::new(),
-                        })
-                        .collect(),
-                };
+                let items = Self::format_document_symbol_resp(resp);
                 set_items.set(items);
             } else {
                 set_items.update(|items| items.clear());
@@ -691,6 +656,64 @@ impl PaletteData {
         self.common.proxy.get_document_symbols(path, move |result| {
             send(result);
         });
+    }
+
+    fn format_document_symbol_resp(
+        resp: DocumentSymbolResponse,
+    ) -> im::Vector<PaletteItem> {
+        match resp {
+            DocumentSymbolResponse::Flat(symbols) => symbols
+                .iter()
+                .map(|s| {
+                    let mut filter_text = s.name.clone();
+                    if let Some(container_name) = s.container_name.as_ref() {
+                        filter_text += container_name;
+                    }
+                    PaletteItem {
+                        content: PaletteItemContent::DocumentSymbol {
+                            kind: s.kind,
+                            name: s.name.replace('\n', "↵"),
+                            range: s.location.range,
+                            container_name: s.container_name.clone(),
+                        },
+                        filter_text,
+                        score: 0,
+                        indices: Vec::new(),
+                    }
+                })
+                .collect(),
+            DocumentSymbolResponse::Nested(symbols) => {
+                let mut items = im::Vector::new();
+                for s in symbols {
+                    Self::format_document_symbol(&mut items, None, s)
+                }
+                items
+            }
+        }
+    }
+
+    fn format_document_symbol(
+        items: &mut im::Vector<PaletteItem>,
+        parent: Option<String>,
+        s: DocumentSymbol,
+    ) {
+        items.push_back(PaletteItem {
+            content: PaletteItemContent::DocumentSymbol {
+                kind: s.kind,
+                name: s.name.replace('\n', "↵"),
+                range: s.range,
+                container_name: parent,
+            },
+            filter_text: s.name.clone(),
+            score: 0,
+            indices: Vec::new(),
+        });
+        if let Some(children) = s.children {
+            let parent = Some(s.name.replace('\n', "↵"));
+            for child in children {
+                Self::format_document_symbol(items, parent.clone(), child);
+            }
+        }
     }
 
     fn get_workspace_symbols(&self) {

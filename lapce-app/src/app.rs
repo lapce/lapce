@@ -2261,10 +2261,11 @@ fn palette_item(
                     .style(move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
-                        s.min_width(size)
-                            .size(size, size)
-                            .margin_right(5.0)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        s.min_width(size).size(size, size).margin_right(5.0).color(
+                            config.symbol_color(&kind).unwrap_or_else(|| {
+                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                            }),
+                        )
                     }),
                     focus_text(
                         move || text.clone(),
