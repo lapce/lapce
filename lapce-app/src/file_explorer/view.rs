@@ -2,6 +2,7 @@ use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
     event::{Event, EventListener},
+    kurbo::Rect,
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Position, Style},
@@ -288,6 +289,7 @@ fn file_explorer_view(
     let scroll_to_line = data.scroll_to_line;
     let select = data.select;
     let secondary_click_data = data.clone();
+    let scroll_rect = create_rw_signal(Rect::ZERO);
 
     scroll(
         virtual_stack(
@@ -391,7 +393,7 @@ fn file_explorer_view(
                                 |x| {
                                     x.background(
                                         config.get().color(
-                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                            LapceColor::PANEL_CURRENT_BACKGROUND,
                                         ),
                                     )
                                 },
@@ -443,10 +445,19 @@ fn file_explorer_view(
             }
         }
     })
+    .on_resize(move |rect| {
+        scroll_rect.set(rect);
+    })
     .scroll_to(move || {
         if let Some(line) = scroll_to_line.get() {
-            let line_height = ui_line_height.get();
-            Some((0.0, line * line_height).into())
+            let line_height = ui_line_height.get_untracked();
+            Some(
+                (
+                    0.0,
+                    line * line_height - scroll_rect.get_untracked().height() / 2.0,
+                )
+                    .into(),
+            )
         } else {
             None
         }
