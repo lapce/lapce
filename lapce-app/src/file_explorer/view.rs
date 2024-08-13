@@ -286,6 +286,7 @@ fn file_explorer_view(
     let config = data.common.config;
     let naming = data.naming;
     let scroll_to_line = data.scroll_to_line;
+    let select = data.select;
     let secondary_click_data = data.clone();
 
     scroll(
@@ -370,28 +371,45 @@ fn file_explorer_view(
                     },
                     file_node_text_view(data, node, source_control.clone()),
                 ))
-                .style(move |s| {
-                    s.padding_right(15.0)
-                        .padding_left((level * 10) as f32)
-                        .align_items(AlignItems::Center)
-                        .hover(|s| {
-                            s.background(
-                                config
-                                    .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                .style({
+                    let kind = kind.clone();
+                    move |s| {
+                        s.padding_right(15.0)
+                            .padding_left((level * 10) as f32)
+                            .align_items(AlignItems::Center)
+                            .hover(|s| {
+                                s.background(
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                                .cursor(CursorStyle::Pointer)
+                            })
+                            .apply_if(
+                                select.get().map(|x| x == kind).unwrap_or_default(),
+                                |x| {
+                                    x.background(
+                                        config.get().color(
+                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ),
+                                    )
+                                },
                             )
-                            .cursor(CursorStyle::Pointer)
-                        })
+                    }
                 });
 
                 // Only handle click events if we are not naming the file node
-                if let FileNodeViewKind::Path(path) = kind {
+                if let FileNodeViewKind::Path(path) = &kind {
                     let click_path = path.clone();
                     let double_click_path = path.clone();
                     let secondary_click_path = path.clone();
-                    let aux_click_path = path;
-                    view.on_click_stop(move |_| {
-                        click_data.click(&click_path);
+                    let aux_click_path = path.clone();
+                    view.on_click_stop({
+                        let kind = kind.clone();
+                        move |_| {
+                            click_data.click(&click_path);
+                            select.update(|x| *x = Some(kind.clone()));
+                        }
                     })
                     .on_double_click(move |_| {
                         double_click_data.double_click(&double_click_path)

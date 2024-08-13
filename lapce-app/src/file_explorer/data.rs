@@ -22,7 +22,10 @@ use lapce_core::{
     register::Clipboard,
 };
 use lapce_rpc::{
-    file::{Duplicating, FileNodeItem, Naming, NamingState, NewNode, Renaming},
+    file::{
+        Duplicating, FileNodeItem, FileNodeViewKind, Naming, NamingState, NewNode,
+        Renaming,
+    },
     proxy::ProxyResponse,
 };
 
@@ -51,6 +54,7 @@ pub struct FileExplorerData {
     pub common: Rc<CommonData>,
     pub scroll_to_line: RwSignal<Option<f64>>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+    pub select: RwSignal<Option<FileNodeViewKind>>,
 }
 
 impl KeyPressFocus for FileExplorerData {
@@ -131,6 +135,7 @@ impl FileExplorerData {
             common,
             scroll_to_line: cx.create_rw_signal(None),
             left_diff_path: cx.create_rw_signal(None),
+            select: cx.create_rw_signal(None),
         };
         if data.common.workspace.path.is_some() {
             // only fill in the child files if there is open folder
@@ -448,7 +453,8 @@ impl FileExplorerData {
             let (found, line) =
                 self.root.with_untracked(|x| x.find_file_at_line(&path));
             if found {
-                self.scroll_to_line.set(Some(line))
+                self.scroll_to_line.set(Some(line));
+                self.select.set(Some(FileNodeViewKind::Path(path)));
             }
         }
     }
