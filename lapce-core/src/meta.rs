@@ -1,4 +1,4 @@
-#[derive(strum_macros::AsRefStr)]
+#[derive(strum_macros::AsRefStr, PartialEq, Eq)]
 pub enum ReleaseType {
     Debug,
     Stable,

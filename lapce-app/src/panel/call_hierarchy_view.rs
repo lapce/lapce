@@ -1,14 +1,13 @@
 use std::{ops::AddAssign, rc::Rc};
 
 use floem::{
-    event::EventPropagation,
     reactive::RwSignal,
-    style::{AlignItems, CursorStyle},
+    style::CursorStyle,
     views::{
-        container, label, scroll, stack, svg, virtual_stack, Decorators,
+        container, empty, label, scroll, stack, svg, virtual_stack, Decorators,
         VirtualDirection, VirtualItemSize, VirtualVector,
     },
-    View, ViewId,
+    IntoView, View, ViewId,
 };
 use lsp_types::{CallHierarchyItem, Range};
 
@@ -140,24 +139,26 @@ pub fn show_hierarchy_panel(
             move |(_, level, rw_data)| {
                 let data = rw_data.get_untracked();
                 let open = data.open;
+                let kind = data.item.kind;
                 stack((
-                    svg(move || {
-                        let config = config.get();
-                        let svg_str = match open.get() {
-                            true => LapceIcons::ITEM_OPENED,
-                            false => LapceIcons::ITEM_CLOSED,
-                        };
-                        config.ui_svg(svg_str)
-                    })
-                    .style(move |s| {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        s.size(size, size)
-                            .flex_shrink(0.0)
-                            .margin_left(10.0)
-                            .margin_right(6.0)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-                    }).on_click_stop({
+                    container(
+                        svg(move || {
+                            let config = config.get();
+                            let svg_str = match open.get() {
+                                true => LapceIcons::ITEM_OPENED,
+                                false => LapceIcons::ITEM_CLOSED,
+                            };
+                            config.ui_svg(svg_str)
+                        })
+                        .style(move |s| {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+                            s.size(size, size)
+                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        })
+                    )
+                    .style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
+                    .on_click_stop({
                         let window_tab_data = window_tab_data.clone();
                         move |_x| {
                             open.update(|x| {
@@ -172,27 +173,37 @@ pub fn show_hierarchy_panel(
                             }
                         }
                     }),
-                    container(
-                        label(move || {
-                            format!(
-                                "{} {} {}",
-                                data.item.name,
-                                data.item.detail.as_deref().unwrap_or(""), data.from_range.start.line
-                            )
-                        })
-                        .style(move |s| {
-                            s.flex_grow(1.0)
-                                .height(ui_line_height.get())
-                                .selectable(false)
-                                .align_items(AlignItems::Center)
+                    svg(move || {
+                        let config = config.get();
+                        config
+                            .symbol_svg(&kind)
+                            .unwrap_or_else(|| config.ui_svg(LapceIcons::FILE))
+                    }).style(move |s| {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+                            s.min_width(size)
+                                .size(size, size)
+                                .margin_right(5.0)
+                                .color(config.symbol_color(&kind).unwrap_or_else(|| {
+                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                }))
                         }),
-                    )
-                    .style(|s| s.flex_grow(1.0).padding(0.0).margin(0.0)),
+                    data.item.name.clone().into_view(),
+                    if data.item.detail.is_some() {
+                        label(move || {
+                            data.item.detail.clone().unwrap_or_default().replace('\n', "↵")
+                        }).style(move |s| s.margin_left(6.0)
+                                                .color(config.get().color(LapceColor::EDITOR_DIM))
+                        ).into_any()
+                    } else {
+                        empty().into_any()
+                    },
                 ))
                 .style(move |s| {
                     s.padding_right(5.0)
+                        .height(ui_line_height.get())
                         .padding_left((level * 10) as f32)
-                        .align_items(AlignItems::Center)
+                        .items_center()
                         .hover(|s| {
                             s.background(
                                 config
@@ -202,13 +213,15 @@ pub fn show_hierarchy_panel(
                             .cursor(CursorStyle::Pointer)
                         })
                 })
-                .on_double_click({
+                .on_click_stop({
                     let window_tab_data = window_tab_data.clone();
                     let data = rw_data;
                     move |_| {
-                        window_tab_data.common.internal_command.send(
-                            InternalCommand::CallHierarchyIncoming { item_id: rw_data.get_untracked().view_id },
-                        );
+                        if !rw_data.get_untracked().init {
+                            window_tab_data.common.internal_command.send(
+                                InternalCommand::CallHierarchyIncoming { item_id: rw_data.get_untracked().view_id },
+                            );
+                        }
                         let data = data.get_untracked();
                         if let Ok(path) = data.item.uri.to_file_path() {
                             window_tab_data
@@ -222,7 +235,6 @@ pub fn show_hierarchy_panel(
                                     same_editor_tab: false,
                                 } });
                         }
-                        EventPropagation::Stop
                     }
                 })
             },

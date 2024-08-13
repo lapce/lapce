@@ -1,13 +1,12 @@
 use std::{ops::AddAssign, path::PathBuf, rc::Rc};
 
 use floem::{
-    event::EventPropagation,
     peniko::Color,
     reactive::{RwSignal, Scope},
-    style::{AlignItems, CursorStyle},
+    style::CursorStyle,
     views::{
-        editor::id::Id, label, scroll, stack, svg, virtual_stack, Decorators,
-        VirtualDirection, VirtualItemSize, VirtualVector,
+        container, editor::id::Id, label, scroll, stack, svg, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     View,
 };
@@ -58,6 +57,7 @@ impl SymbolData {
 pub struct SymbolInformationItemData {
     pub id: Id,
     pub name: String,
+    pub detail: Option<String>,
     pub item: DocumentSymbol,
     pub open: RwSignal<bool>,
     pub children: Vec<RwSignal<SymbolInformationItemData>>,
@@ -73,16 +73,12 @@ impl From<(DocumentSymbol, Scope)> for SymbolInformationItemData {
         } else {
             Vec::with_capacity(0)
         };
-        let name = if let Some(detail) = &item.detail {
-            format!("{} {}", item.name, detail)
-        } else {
-            item.name.clone()
-        };
         Self {
             id: Id::next(),
-            name,
+            name: item.name.clone(),
+            detail: item.detail.clone(),
             item,
-            open: cx.create_rw_signal(false),
+            open: cx.create_rw_signal(true),
             children,
         }
     }
@@ -209,27 +205,28 @@ pub fn symbol_panel(
                 let has_child = !data.children.is_empty();
                 let kind = data.item.kind;
                 stack((
-                    svg(move || {
-                        let config = config.get();
-                        let svg_str = match open.get() {
-                            true => LapceIcons::ITEM_OPENED,
-                            false => LapceIcons::ITEM_CLOSED,
-                        };
-                        config.ui_svg(svg_str)
-                    })
-                    .style(move |s| {
-                        let config = config.get();
-                        let color = if has_child {
-                            config.color(LapceColor::LAPCE_ICON_ACTIVE)
-                        } else {
-                            Color::TRANSPARENT
-                        };
-                        let size = config.ui.icon_size() as f32;
-                        s.size(size, size)
-                            .flex_shrink(0.0)
-                            .margin_left(10.0)
-                            .margin_right(6.0).color(color)
-                    }).on_click_stop({
+                    container(
+                        svg(move || {
+                            let config = config.get();
+                            let svg_str = match open.get() {
+                                true => LapceIcons::ITEM_OPENED,
+                                false => LapceIcons::ITEM_CLOSED,
+                            };
+                            config.ui_svg(svg_str)
+                        })
+                        .style(move |s| {
+                            let config = config.get();
+                            let color = if has_child {
+                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                            } else {
+                                Color::TRANSPARENT
+                            };
+                            let size = config.ui.icon_size() as f32;
+                            s.size(size, size)
+                                 .color(color)
+                        })
+                    ).style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
+                    .on_click_stop({
                         move |_x| {
                             if has_child {
                                 open.update(|x| {
@@ -249,22 +246,31 @@ pub fn symbol_panel(
                             s.min_width(size)
                                 .size(size, size)
                                 .margin_right(5.0)
-                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                                .color(config.symbol_color(&kind).unwrap_or_else(|| {
+                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                }))
                         }),
                     label(move || {
-                            data.name.clone()
+                            data.name.replace('\n', "↵")
                     })
                     .style(move |s| {
-                        s.flex_grow(1.0)
-                            .height(ui_line_height.get())
-                            .selectable(false)
-                            .align_items(AlignItems::Center)
+                        s.selectable(false)
                     }),
+                    label(move || {
+                        data.detail.clone().unwrap_or_default()
+                    }).style(move |s| s.margin_left(6.0)
+                                              .color(config.get().color(LapceColor::EDITOR_DIM))
+                                              .selectable(false)
+                                              .apply_if(
+                                                data.item.detail.clone().is_none(),
+                                                 |s| s.hide())
+                    ),
                 ))
                 .style(move |s| {
                     s.padding_right(5.0)
                         .padding_left((level * 10) as f32)
-                        .align_items(AlignItems::Center)
+                        .items_center()
+                        .height(ui_line_height.get())
                         .hover(|s| {
                             s.background(
                                 config
@@ -274,7 +280,7 @@ pub fn symbol_panel(
                             .cursor(CursorStyle::Pointer)
                         })
                 })
-                .on_double_click({
+                .on_click_stop({
                     let window_tab_data = window_tab_data.clone();
                     let data = rw_data;
                     move |_| {
@@ -284,12 +290,11 @@ pub fn symbol_panel(
                                 .internal_command
                                 .send(InternalCommand::GoToLocation { location: EditorLocation {
                                     path: path.to_path_buf(),
-                                    position: Some(crate::editor::location::EditorPosition::Position(data.item.range.start)),
+                                    position: Some(crate::editor::location::EditorPosition::Position(data.item.selection_range.start)),
                                     scroll_offset: None,
                                     ignore_unconfirmed: false,
                                     same_editor_tab: false,
                                 } });
-                        EventPropagation::Stop
                     }
                 })
             },

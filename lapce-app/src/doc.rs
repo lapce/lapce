@@ -919,9 +919,6 @@ impl Doc {
     pub fn get_document_symbol(&self) {
         let cx = self.scope;
         let doc = self.clone();
-        self.document_symbol_data.update(|symbol| {
-            symbol.take();
-        });
         let rev = self.rev();
         if let DocContent::File { path, .. } = doc.content.get_untracked() {
             let send = create_ext_action(cx, {
