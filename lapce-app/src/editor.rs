@@ -2736,23 +2736,21 @@ impl EditorData {
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::ShowCallHierarchy,
                 )),
-                None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
+                Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),
+                None,
+                Some(CommandKind::Workbench(LapceWorkbenchCommand::RevealInPanel)),
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::RevealInFileExplorer,
+                )),
                 None,
                 Some(CommandKind::Edit(EditCommand::ClipboardCut)),
                 Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
                 Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
                 None,
                 Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::RevealInFileTree,
-                )),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::RevealInFileExplorer,
-                )),
-                Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteCommand,
                 )),
-                Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),
             ]
         } else {
             vec![

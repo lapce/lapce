@@ -187,12 +187,18 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Show Call Hierarchy")]
     ShowCallHierarchy,
 
-    #[strum(serialize = "reveal_in_file_tree")]
-    #[strum(message = "Reveal in File Tree")]
-    RevealInFileTree,
+    #[strum(serialize = "reveal_in_panel")]
+    #[strum(message = "Reveal in Panel")]
+    RevealInPanel,
 
+    #[cfg(not(target_os = "macos"))]
     #[strum(serialize = "reveal_in_file_explorer")]
-    #[strum(message = "Reveal in File Explorer")]
+    #[strum(message = "Reveal in System File Explorer")]
+    RevealInFileExplorer,
+
+    #[cfg(target_os = "macos")]
+    #[strum(serialize = "reveal_in_file_explorer")]
+    #[strum(message = "Reveal in Finder")]
     RevealInFileExplorer,
 
     #[strum(serialize = "run_in_terminal")]
