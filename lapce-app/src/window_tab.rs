@@ -684,7 +684,12 @@ impl WindowTabData {
             OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_common.window_command;
-                    let options = FileDialogOptions::new().select_directories();
+                    let mut options = FileDialogOptions::new().select_directories();
+                    options = if let Some(parent) = self.workspace.path.as_ref().and_then(|x| x.parent()) {
+                        options.force_starting_directory(parent)
+                    } else {
+                        options
+                    };
                     open_file(options, move |file| {
                         if let Some(mut file) = file {
                             let workspace = LapceWorkspace {
