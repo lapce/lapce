@@ -1387,6 +1387,24 @@ impl WindowTabData {
                     }
                 }
             }
+            RevealInFileExplorer => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
+                        let path = path.parent().unwrap_or(&path);
+                        if !path.exists() {
+                            return;
+                        }
+                        if let Err(err) = open::that(path) {
+                            error!(
+                            "Failed to reveal file in system file explorer: {}",
+                            err
+                        );
+                        }
+                    }
+                }
+            }
             ShowCallHierarchy => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
