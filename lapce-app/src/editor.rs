@@ -2747,6 +2747,9 @@ impl EditorData {
                     LapceWorkbenchCommand::RevealInFileTree,
                 )),
                 Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::RevealInFileExplorer,
+                )),
+                Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteCommand,
                 )),
                 Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),
