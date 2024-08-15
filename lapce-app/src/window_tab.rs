@@ -18,6 +18,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
+    views::editor::core::buffer::rope_text::RopeText,
     ViewId,
 };
 use indexmap::IndexMap;
@@ -1389,6 +1390,32 @@ impl WindowTabData {
                     });
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
                         self.file_explorer.reveal_in_file_tree(path);
+                    }
+                }
+            }
+            OpenInGitHub => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
+                        let offset = editor_data.cursor().with_untracked(|c| c.offset());
+                        let line = editor_data.doc()
+                            .buffer
+                            .with_untracked(|buffer| buffer.line_of_offset(offset));
+                        self.common.proxy.git_get_remote_file_url(
+                            path,
+                            create_ext_action(self.scope, move |result| {
+                                if let Ok(ProxyResponse::GitGetRemoteFileUrl {
+                                              file_url
+                                          }) = result
+                                {
+                                    if let Err(err) = open::that(format!("{}#L{}", file_url, line)) {
+                                        error!("Failed to open file in github: {}",  err);
+                                    }
+                                }
+                            }),
+                        );
+
                     }
                 }
             }

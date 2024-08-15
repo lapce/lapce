@@ -2743,6 +2743,7 @@ impl EditorData {
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::RevealInFileExplorer,
                 )),
+                Some(CommandKind::Workbench(LapceWorkbenchCommand::OpenInGitHub)),
                 None,
                 Some(CommandKind::Edit(EditCommand::ClipboardCut)),
                 Some(CommandKind::Edit(EditCommand::ClipboardCopy)),

@@ -191,6 +191,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal in Panel")]
     RevealInPanel,
 
+    #[strum(serialize = "open_in_git_bub")]
+    #[strum(message = "Open In GitHub")]
+    OpenInGitHub,
+
     #[cfg(not(target_os = "macos"))]
     #[strum(serialize = "reveal_in_file_explorer")]
     #[strum(message = "Reveal in System File Explorer")]
