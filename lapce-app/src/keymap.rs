@@ -523,10 +523,10 @@ fn keyboard_picker_view(
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
                 if !keypress.filter_out_key() {
-                    let keypress = keypress.keymap_press();
+                    let keymap_press = keypress.keymap_press();
                     picker.keys.update(|keys| {
                         if let Some((last_key, last_key_confirmed)) = keys.last() {
-                            if keypress == *last_key {
+                            if keymap_press == *last_key && !keypress.only_shift() {
                                 return;
                             }
                             if !*last_key_confirmed && last_key.is_modifiers() {
@@ -536,7 +536,7 @@ fn keyboard_picker_view(
                         if keys.len() == 2 {
                             keys.clear();
                         }
-                        keys.push((keypress, false));
+                        keys.push((keymap_press, false));
                     })
                 }
             }

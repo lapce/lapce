@@ -37,8 +37,6 @@ impl KeyPress {
         {
             *key_without_modifiers == Key::Named(NamedKey::Alt)
                 || *key_without_modifiers == Key::Named(NamedKey::Control)
-                || (*key_without_modifiers == Key::Named(NamedKey::Shift)
-                    && !self.mods.contains(Modifiers::SHIFT))
         } else {
             false
         }
