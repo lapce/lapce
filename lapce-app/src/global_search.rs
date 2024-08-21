@@ -3,7 +3,7 @@ use std::{ops::Range, path::PathBuf, rc::Rc};
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
-    reactive::{Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::VirtualVector,
 };
 use indexmap::IndexMap;

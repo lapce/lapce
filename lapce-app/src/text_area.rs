@@ -1,6 +1,8 @@
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{create_effect, create_rw_signal},
+    reactive::{
+        create_effect, create_rw_signal, SignalGet, SignalUpdate, SignalWith,
+    },
     text::{Attrs, AttrsList, LineHeightValue, TextLayout},
     views::{container, label, rich_text, scroll, stack, Decorators},
     View,

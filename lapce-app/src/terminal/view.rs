@@ -14,7 +14,7 @@ use floem::{
         Color,
     },
     pointer::PointerInputEvent,
-    reactive::{create_effect, ReadSignal, RwSignal},
+    reactive::{create_effect, ReadSignal, RwSignal, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
     Renderer, View, ViewId,

@@ -4,7 +4,7 @@ use floem::{
     event::{Event, EventListener},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope,
+        Scope, SignalGet, SignalUpdate, SignalWith,
     },
     style::CursorStyle,
     views::{

@@ -3,7 +3,9 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     event::EventListener,
     peniko::Color,
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::CursorStyle,
     text::Style as FontStyle,
     views::{

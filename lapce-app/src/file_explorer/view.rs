@@ -4,7 +4,9 @@ use floem::{
     event::{Event, EventListener},
     kurbo::Rect,
     peniko::Color,
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::{AlignItems, CursorStyle, Position, Style},
     text::Style as FontStyle,
     views::{

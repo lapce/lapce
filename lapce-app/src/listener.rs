@@ -1,4 +1,4 @@
-use floem::reactive::{RwSignal, Scope};
+use floem::reactive::{RwSignal, Scope, SignalGet, SignalUpdate};
 
 /// A signal listener that receives 'events' from the outside and runs the callback.  
 /// This is implemented using effects and normal rw signals. This should be used when it doesn't  

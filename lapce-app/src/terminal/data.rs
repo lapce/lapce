@@ -10,7 +10,7 @@ use alacritty_terminal::{
 use anyhow::anyhow;
 use floem::{
     keyboard::{Key, KeyEvent, Modifiers, NamedKey},
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     views::editor::text::SystemClipboard,
 };
 use lapce_core::{

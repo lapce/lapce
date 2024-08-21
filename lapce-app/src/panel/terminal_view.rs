@@ -5,7 +5,7 @@ use floem::{
     event::{Event, EventListener, EventPropagation},
     kurbo::Size,
     menu::{Menu, MenuItem},
-    reactive::create_rw_signal,
+    reactive::{create_rw_signal, SignalGet, SignalUpdate, SignalWith},
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, Thickness, VerticalScrollAsHorizontal},

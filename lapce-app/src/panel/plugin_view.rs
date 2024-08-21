@@ -3,13 +3,13 @@ use std::{ops::Range, rc::Rc};
 use floem::{
     event::EventListener,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{create_memo, create_rw_signal, RwSignal},
+    reactive::{
+        create_memo, create_rw_signal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::CursorStyle,
     views::{
-        container, dyn_container, img, label,
-        scroll::{scroll, HideBar},
-        stack, svg, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
-        VirtualVector,
+        container, dyn_container, img, label, scroll::scroll, stack, svg,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     IntoView, View,
 };
@@ -363,10 +363,10 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
             .on_event_cont(EventListener::PointerDown, move |_| {
                 focus.set(Focus::Panel(PanelKind::Plugin));
             })
+            .scroll_style(|s| s.hide_bars(true))
             .style(move |s| {
                 let config = config.get();
-                s.set(HideBar, true)
-                    .width_pct(100.0)
+                s.width_pct(100.0)
                     .cursor(CursorStyle::Text)
                     .items_center()
                     .background(config.color(LapceColor::EDITOR_BACKGROUND))

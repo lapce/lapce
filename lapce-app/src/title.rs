@@ -4,7 +4,9 @@ use floem::{
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::Color,
-    reactive::{create_memo, Memo, ReadSignal, RwSignal},
+    reactive::{
+        create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::{AlignItems, CursorStyle, JustifyContent},
     views::{container, drag_window_area, empty, label, stack, svg, Decorators},
     View,

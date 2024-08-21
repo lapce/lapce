@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
-use floem::peniko::kurbo::Vec2;
+use floem::{peniko::kurbo::Vec2, reactive::SignalGet};
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 use sha2::{Digest, Sha256};

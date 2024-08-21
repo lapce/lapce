@@ -1,7 +1,7 @@
 use floem::{
     context::PaintCx,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::Memo,
+    reactive::{Memo, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     Renderer, View, ViewId,
 };

@@ -12,7 +12,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     menu::{Menu, MenuItem},
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;

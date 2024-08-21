@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{

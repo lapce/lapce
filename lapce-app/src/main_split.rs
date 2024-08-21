@@ -10,7 +10,7 @@ use floem::{
     file::{FileDialogOptions, FileInfo},
     keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::id::EditorId,
 };
 use itertools::Itertools;

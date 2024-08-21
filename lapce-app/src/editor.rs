@@ -13,7 +13,10 @@ use floem::{
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
-    reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
+    reactive::{
+        batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
+        SignalWith,
+    },
     views::editor::{
         command::CommandExecuted,
         id::EditorId,
@@ -766,7 +769,9 @@ impl EditorData {
                 self.cancel_completion();
             }
             FocusCommand::SplitVertical => {
-                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                if let Some(editor_tab_id) =
+                    self.editor_tab_id.read_only().get_untracked()
+                {
                     self.common.internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,

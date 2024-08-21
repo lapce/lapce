@@ -3,7 +3,9 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     event::{Event, EventListener, EventPropagation},
     kurbo::{Point, Size},
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::{CursorStyle, Style},
     taffy::AlignItems,
     unit::PxPctAuto,

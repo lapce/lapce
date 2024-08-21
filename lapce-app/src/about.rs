@@ -3,7 +3,7 @@ use std::rc::Rc;
 use floem::{
     event::EventListener,
     keyboard::Modifiers,
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     style::{CursorStyle, Display, Position},
     views::{container, label, stack, svg, Decorators},
     View,

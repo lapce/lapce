@@ -1,7 +1,7 @@
 use std::{ops::AddAssign, rc::Rc};
 
 use floem::{
-    reactive::RwSignal,
+    reactive::{RwSignal, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
         container, empty, label, scroll, stack, svg, virtual_stack, Decorators,

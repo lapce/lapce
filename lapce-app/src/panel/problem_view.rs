@@ -2,7 +2,10 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     peniko::Color,
-    reactive::{create_effect, create_rw_signal, ReadSignal},
+    reactive::{
+        create_effect, create_rw_signal, ReadSignal, SignalGet, SignalUpdate,
+        SignalWith,
+    },
     style::{CursorStyle, Style},
     views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
     View,

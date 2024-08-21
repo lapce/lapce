@@ -11,6 +11,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+        SignalGet, SignalUpdate, SignalWith,
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
@@ -30,7 +31,7 @@ use floem::{
             ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
         },
         empty, label,
-        scroll::{scroll, HideBar, PropagatePointerWheel},
+        scroll::{scroll, PropagatePointerWheel},
         stack, svg, Decorators,
     },
     Renderer, View, ViewId,
@@ -1897,9 +1898,9 @@ fn editor_breadcrumbs(
             doc.track();
             Some(Point::new(3000.0, 0.0))
         })
+        .scroll_style(|s| s.hide_bars(true))
         .style(move |s| {
-            s.set(HideBar, true)
-                .absolute()
+            s.absolute()
                 .size_pct(100.0, 100.0)
                 .border_bottom(1.0)
                 .border_color(config.get().color(LapceColor::LAPCE_BORDER))

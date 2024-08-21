@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     keyboard::Modifiers,
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalWith},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;

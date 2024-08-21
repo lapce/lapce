@@ -11,7 +11,7 @@ use floem::{
     prop_extractor,
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope,
+        Scope, SignalGet, SignalUpdate, SignalWith,
     },
     style::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,

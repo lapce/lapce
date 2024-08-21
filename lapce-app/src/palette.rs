@@ -15,7 +15,10 @@ use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     keyboard::Modifiers,
-    reactive::{use_context, ReadSignal, RwSignal, Scope},
+    reactive::{
+        use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
+        SignalWith,
+    },
 };
 use itertools::Itertools;
 use lapce_core::{

@@ -23,7 +23,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
-        ReadSignal, RwSignal, Scope,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
     },
     style::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,
@@ -38,9 +38,7 @@ use floem::{
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
         empty, label, rich_text,
-        scroll::{
-            scroll, HideBar, PropagatePointerWheel, VerticalScrollAsHorizontal,
-        },
+        scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
         stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
@@ -1055,9 +1053,9 @@ fn editor_tab_header(
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
                     .get_untracked()
             })
+            .scroll_style(|s| s.hide_bars(true))
             .style(|s| {
-                s.set(HideBar, true)
-                    .set(VerticalScrollAsHorizontal, true)
+                s.set(VerticalScrollAsHorizontal, true)
                     .absolute()
                     .size_full()
             }),
@@ -3624,7 +3622,11 @@ fn window(window_data: WindowData) -> impl View {
 }
 
 pub fn launch() {
-    logging::panic_hook();
+    let cli = Cli::parse();
+
+    if !cli.wait {
+        logging::panic_hook();
+    }
 
     let (reload_handle, _guard) = logging::logging();
     trace!(TraceLevel::INFO, "Starting up Lapce..");
@@ -3659,8 +3661,6 @@ pub fn launch() {
         trace!(TraceLevel::INFO, "Loading custom environment from shell");
         load_shell_env();
     }
-
-    let cli = Cli::parse();
 
     // small hack to unblock terminal if launched from it
     // launch it as a separate process that waits

@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     event::EventListener,
-    reactive::ReadSignal,
+    reactive::{ReadSignal, SignalGet, SignalUpdate},
     style::{CursorStyle, Style},
     views::{
         container, label, scroll, stack, svg, virtual_stack, Decorators,

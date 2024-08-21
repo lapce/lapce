@@ -3,7 +3,7 @@ use std::{rc::Rc, sync::atomic};
 use floem::{
     event::EventListener,
     ext_event::create_ext_action,
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
         clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,

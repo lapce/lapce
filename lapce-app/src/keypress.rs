@@ -10,7 +10,7 @@ use anyhow::Result;
 use floem::{
     keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
     pointer::{PointerButton, PointerInputEvent},
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalUpdate, SignalWith},
 };
 use indexmap::IndexMap;
 use itertools::Itertools;

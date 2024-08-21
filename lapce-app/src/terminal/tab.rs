@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use floem::reactive::{RwSignal, Scope};
+use floem::reactive::{RwSignal, Scope, SignalGet, SignalWith};
 use lapce_rpc::terminal::TerminalProfile;
 
 use super::data::TerminalData;

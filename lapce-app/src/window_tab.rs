@@ -16,7 +16,10 @@ use floem::{
     keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
+    reactive::{
+        use_context, Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
+        SignalWith, WriteSignal,
+    },
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ViewId,
 };

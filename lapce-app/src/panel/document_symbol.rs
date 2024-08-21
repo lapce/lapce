@@ -2,7 +2,7 @@ use std::{ops::AddAssign, path::PathBuf, rc::Rc};
 
 use floem::{
     peniko::Color,
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
         container, editor::id::Id, label, scroll, stack, svg, virtual_stack,

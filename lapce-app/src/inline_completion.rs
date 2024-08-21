@@ -1,6 +1,6 @@
 use std::{borrow::Cow, ops::Range, path::PathBuf, str::FromStr};
 
-use floem::reactive::{batch, RwSignal, Scope};
+use floem::reactive::{batch, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith};
 use lapce_core::{
     buffer::{
         rope_text::{RopeText, RopeTextRef},

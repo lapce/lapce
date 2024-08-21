@@ -17,7 +17,9 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     peniko::Color,
-    reactive::{batch, ReadSignal, RwSignal, Scope},
+    reactive::{
+        batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+    },
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::editor::{
         actions::CommonAction,
