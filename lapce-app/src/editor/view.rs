@@ -1955,6 +1955,8 @@ fn editor_content(
         });
     }
 
+    let current_scroll = create_rw_signal(Rect::ZERO);
+
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
@@ -2002,10 +2004,14 @@ fn editor_content(
     .on_move(move |point| {
         window_origin.set(point);
     })
-    .on_scroll(move |_| {
-        let e_data = e_data.get_untracked();
-        e_data.cancel_completion();
-        e_data.cancel_inline_completion();
+    .on_scroll(move |rect| {
+        if rect.y0 != current_scroll.get_untracked().y0 {
+            // only cancel completion if scrolled vertically
+            let e_data = e_data.get_untracked();
+            e_data.cancel_completion();
+            e_data.cancel_inline_completion();
+        }
+        current_scroll.set(rect);
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())
