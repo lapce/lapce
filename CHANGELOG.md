@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Features/Changes
+
+### Bug Fixes
+
+## 0.4.2
+
+### Features/Changes
 - Implement "Run in terminal"
 - Implement document symbols in a panel
 - Implement "Go To Location" functionality in the Diff editor.
