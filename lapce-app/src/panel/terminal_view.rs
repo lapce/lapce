@@ -38,12 +38,6 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
             focus.set(Focus::Panel(PanelKind::Terminal));
         }
     })
-    .on_double_click(move |_| {
-        window_tab_data
-            .panel
-            .toggle_maximize(&crate::panel::kind::PanelKind::Terminal);
-        EventPropagation::Stop
-    })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
     .debug_name("Terminal Panel")
 }
@@ -248,6 +242,12 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         if header_height.get_untracked() != size.height {
             header_height.set(size.height);
         }
+    })
+    .on_double_click(move |_| {
+        window_tab_data
+            .panel
+            .toggle_maximize(&crate::panel::kind::PanelKind::Terminal);
+        EventPropagation::Stop
     })
     .style(move |s| {
         let config = config.get();
