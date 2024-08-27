@@ -112,6 +112,7 @@ impl DapClient {
         thread::spawn(move || -> Result<()> {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
+                    tracing::debug!("write to dap server: {}", msg);
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
                     writer.write_all(msg.as_bytes())?;
@@ -128,6 +129,7 @@ impl DapClient {
                 loop {
                     match crate::plugin::lsp::read_message(&mut reader) {
                         Ok(message_str) => {
+                            tracing::debug!("read from dap server: {}", message_str);
                             dap_rpc.handle_server_message(&message_str);
                         }
                         Err(_err) => {
@@ -220,7 +222,11 @@ impl DapClient {
                     }
                 }
                 // send dap configurations here
-                let _ = self.dap_rpc.request::<ConfigurationDone>(());
+                self.dap_rpc.request_async::<ConfigurationDone>((), |rs| {
+                    if let Err(e) = rs {
+                        tracing::error!("request ConfigurationDone: {:?}", e)
+                    }
+                });
             }
             DapEvent::Stopped(stopped) => {
                 let all_threads_stopped =
@@ -313,10 +319,6 @@ impl DapClient {
             path_format: Some("path".to_owned()),
             supports_variable_type: Some(true),
             supports_variable_paging: Some(false),
-            // See comment on dispatch of `NewTerminal`
-            #[cfg(target_os = "windows")]
-            supports_run_in_terminal_request: Some(false),
-            #[cfg(not(target_os = "windows"))]
             supports_run_in_terminal_request: Some(true),
             supports_memory_references: Some(false),
             supports_progress_reporting: Some(false),
@@ -449,7 +451,9 @@ impl DapRpcHandler {
             match msg {
                 DapRpc::HostRequest(req) => {
                     let result = dap_client.handle_host_request(&req);
+                    let seq = self.seq_counter.fetch_add(1, Ordering::Relaxed);
                     let resp = DapResponse {
+                        seq,
                         request_seq: req.seq,
                         success: result.is_ok(),
                         command: req.command.clone(),

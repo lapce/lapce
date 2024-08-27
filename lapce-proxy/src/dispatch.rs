@@ -177,12 +177,12 @@ impl ProxyHandler for Dispatcher {
                 #[allow(unused)]
                 let mut child_id = None;
 
+                #[cfg(target_os = "windows")]
+                {
+                    child_id = terminal.pty.child_watcher().pid().map(|x| x.get());
+                }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    // Alacritty currently doesn't expose the child process ID on windows, so this won't compile
-                    // Alacritty does acquire this information, but it is discarded
-                    // This is currently only used for debug adapter protocol's RunInTerminal request, which we
-                    // specify isn't supported on Windows at the moment
                     child_id = Some(terminal.pty.child().id());
                 }
 
