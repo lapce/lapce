@@ -1073,6 +1073,22 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     });
             }
+            GetCodeLensResolve { code_lens, path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_code_lens_resolve(
+                    &path,
+                    &code_lens,
+                    move |plugin_id, result| {
+                        let result = result.map(|resp| {
+                            ProxyResponse::GetCodeLensResolveResponse {
+                                plugin_id,
+                                resp,
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
         }
     }
 }

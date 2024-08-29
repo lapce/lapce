@@ -34,7 +34,7 @@ use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
-        CodeActionResolveRequest, CodeLensRequest, Completion,
+        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
@@ -733,6 +733,25 @@ impl PluginCatalogRpcHandler {
         self.send_request_to_all_plugins(
             method,
             params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_code_lens_resolve(
+        &self,
+        path: &Path,
+        code_lens: &CodeLens,
+        cb: impl FnOnce(PluginId, Result<CodeLens, RpcError>) + Clone + Send + 'static,
+    ) {
+        let method = CodeLensResolve::METHOD;
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+
+        self.send_request_to_all_plugins(
+            method,
+            code_lens,
             language_id,
             Some(path.to_path_buf()),
             cb,
