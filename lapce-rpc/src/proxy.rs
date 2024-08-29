@@ -146,6 +146,10 @@ pub enum ProxyRequest {
     GetCodeLens {
         path: PathBuf,
     },
+    GetCodeLensResolve {
+        code_lens: CodeLens,
+        path: PathBuf,
+    },
     GetDocumentSymbols {
         path: PathBuf,
     },
@@ -387,6 +391,10 @@ pub enum ProxyResponse {
     GetCodeLensResponse {
         plugin_id: PluginId,
         resp: Option<Vec<CodeLens>>,
+    },
+    GetCodeLensResolveResponse {
+        plugin_id: PluginId,
+        resp: CodeLens,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -922,6 +930,15 @@ impl ProxyRpcHandler {
 
     pub fn get_code_lens(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetCodeLens { path }, f);
+    }
+
+    pub fn get_code_lens_resolve(
+        &self,
+        code_lens: CodeLens,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::GetCodeLensResolve { code_lens, path }, f);
     }
 
     pub fn get_document_formatting(

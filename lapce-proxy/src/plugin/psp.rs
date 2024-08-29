@@ -30,7 +30,7 @@ use lsp_types::{
     },
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
-        CodeActionResolveRequest, CodeLensRequest, Completion,
+        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
         PrepareRenameRequest, References, RegisterCapability, Rename,
@@ -796,6 +796,12 @@ impl PluginHostHandler {
             CodeLensRequest::METHOD => {
                 self.server_capabilities.code_lens_provider.is_some()
             }
+            CodeLensResolve::METHOD => self
+                .server_capabilities
+                .code_lens_provider
+                .as_ref()
+                .and_then(|x| x.resolve_provider)
+                .unwrap_or(false),
             CallHierarchyPrepare::METHOD => {
                 self.server_capabilities.call_hierarchy_provider.is_some()
             }
