@@ -410,6 +410,7 @@ fn keyboard_picker_view(
                         s.padding_horiz(5.0)
                             .padding_vert(1.0)
                             .margin_right(5.0)
+                            .height(ui_line_height.get() as f32)
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
@@ -424,7 +425,7 @@ fn keyboard_picker_view(
                     .justify_center()
                     .width_pct(100.0)
                     .margin_top(20.0)
-                    .height(ui_line_height.get() as f32 + 16.0)
+                    .height((ui_line_height.get() as f32) * 1.2)
                     .border(1.0)
                     .border_radius(6.0)
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
@@ -548,7 +549,8 @@ fn keyboard_picker_view(
             .items_center()
             .justify_center()
             .apply_if(picker.keymap.with(|keymap| keymap.is_none()), |s| s.hide())
-    });
+    })
+    .debug_name("keyboard picker");
 
     let id = view.id();
     create_effect(move |_| {
