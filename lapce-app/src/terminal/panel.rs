@@ -377,7 +377,7 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn terminal_stopped(&self, term_id: &TermId) {
+    pub fn terminal_stopped(&self, term_id: &TermId, exit_code: Option<i32>) {
         if let Some(terminal) = self.get_terminal(term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
                 let was_prelaunch = terminal
@@ -402,7 +402,8 @@ impl TerminalPanelData {
                         }
                     })
                     .unwrap();
-                if was_prelaunch == Some(true) {
+                let exit_code = exit_code.unwrap_or(0);
+                if was_prelaunch == Some(true) && exit_code == 0 {
                     let run_debug = terminal.run_debug.get_untracked();
                     if let Some(run_debug) = run_debug {
                         if run_debug.mode == RunDebugMode::Debug {

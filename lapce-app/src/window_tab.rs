@@ -2039,12 +2039,12 @@ impl WindowTabData {
                     });
                 }
             }
-            CoreNotification::TerminalProcessStopped { term_id } => {
+            CoreNotification::TerminalProcessStopped { term_id, exit_code } => {
                 let _ = self
                     .common
                     .term_tx
                     .send((*term_id, TermEvent::CloseTerminal));
-                self.terminal.terminal_stopped(term_id);
+                self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
                     .terminal
                     .tab_info
