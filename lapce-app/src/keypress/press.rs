@@ -9,11 +9,10 @@ pub struct KeyPress {
 }
 
 impl KeyPress {
-    #[tracing::instrument]
-    pub fn keymap_press(&self) -> KeyMapPress {
-        KeyMapPress {
-            key: self.key.keymap_key(),
+    pub fn keymap_press(&self) -> Option<KeyMapPress> {
+        self.key.keymap_key().map(|key| KeyMapPress {
+            key,
             mods: self.mods,
-        }
+        })
     }
 }
