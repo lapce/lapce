@@ -66,26 +66,27 @@ impl LapceDb {
                 let event = save_rx.recv()?;
                 match event {
                     SaveEvent::App(info) => {
-                        let _ = local_db.insert_app_info(info);
+                        local_db.insert_app_info(info).unwrap();
                     }
                     SaveEvent::Workspace(workspace, info) => {
-                        let _ = local_db.insert_workspace(&workspace, &info);
+                        local_db.insert_workspace(&workspace, &info).unwrap();
                     }
                     SaveEvent::RecentWorkspace(workspace) => {
-                        let _ = local_db.insert_recent_workspace(workspace);
+                        local_db.insert_recent_workspace(workspace).unwrap();
                     }
                     SaveEvent::Doc(info) => {
-                        let _ = local_db.insert_doc(&info);
+                        local_db.insert_doc(&info).unwrap();
                     }
                     SaveEvent::DisabledVolts(volts) => {
-                        let _ = local_db.insert_disabled_volts(volts);
+                        local_db.insert_disabled_volts(volts).unwrap();
                     }
                     SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
-                        let _ = local_db
-                            .insert_workspace_disabled_volts(workspace, volts);
+                        local_db
+                            .insert_workspace_disabled_volts(workspace, volts)
+                            .unwrap();
                     }
                     SaveEvent::PanelOrder(order) => {
-                        let _ = local_db.insert_panel_orders(&order);
+                        local_db.insert_panel_orders(&order).unwrap();
                     }
                 }
             }

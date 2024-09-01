@@ -203,13 +203,13 @@ impl WindowData {
         match cmd {
             WindowCommand::SetWorkspace { workspace } => {
                 let db: Arc<LapceDb> = use_context().unwrap();
-                let _ = db.update_recent_workspace(&workspace);
+                db.update_recent_workspace(&workspace).unwrap();
 
                 let active = self.active.get_untracked();
                 self.window_tabs.with_untracked(|window_tabs| {
                     if !window_tabs.is_empty() {
                         let active = window_tabs.len().saturating_sub(1).min(active);
-                        let _ = db.insert_window_tab(window_tabs[active].1.clone());
+                        db.insert_window_tab(window_tabs[active].1.clone()).unwrap();
                     }
                 });
 
@@ -234,7 +234,7 @@ impl WindowData {
             }
             WindowCommand::NewWorkspaceTab { workspace, end } => {
                 let db: Arc<LapceDb> = use_context().unwrap();
-                let _ = db.update_recent_workspace(&workspace);
+                db.update_recent_workspace(&workspace).unwrap();
 
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
@@ -275,7 +275,7 @@ impl WindowData {
                         let (_, old_window_tab) = window_tabs.remove(index);
                         old_window_tab.proxy.shutdown();
                         let db: Arc<LapceDb> = use_context().unwrap();
-                        let _ = db.save_window_tab(old_window_tab);
+                        db.save_window_tab(old_window_tab).unwrap();
                     }
                 });
 
