@@ -112,6 +112,7 @@ pub enum CoreNotification {
     },
     TerminalProcessStopped {
         term_id: TermId,
+        exit_code: Option<i32>,
     },
     RunInTerminal {
         config: RunDebugConfig,
@@ -328,8 +329,11 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn terminal_process_stopped(&self, term_id: TermId) {
-        self.notification(CoreNotification::TerminalProcessStopped { term_id });
+    pub fn terminal_process_stopped(&self, term_id: TermId, exit_code: Option<i32>) {
+        self.notification(CoreNotification::TerminalProcessStopped {
+            term_id,
+            exit_code,
+        });
     }
 
     pub fn terminal_launch_failed(&self, term_id: TermId, error: String) {
