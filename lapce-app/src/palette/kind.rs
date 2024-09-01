@@ -55,7 +55,9 @@ impl PaletteKind {
     /// Extract the palette kind from the input string. This is most often a prefix.
     pub fn from_input(input: &str) -> PaletteKind {
         match input {
-            _ if input.starts_with('?') => PaletteKind::PaletteHelp,
+            _ if input.starts_with('?') || input.is_empty() => {
+                PaletteKind::PaletteHelp
+            }
             _ if input.starts_with('/') => PaletteKind::Line,
             _ if input.starts_with('@') => PaletteKind::DocumentSymbol,
             _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
