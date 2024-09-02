@@ -209,7 +209,11 @@ impl PluginCatalog {
                     self.plugin_configurations.get(&meta.name).cloned();
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
-                    let _ = start_volt(workspace, configurations, plugin_rpc, meta);
+                    if let Err(err) =
+                        start_volt(workspace, configurations, plugin_rpc, meta)
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
         }
@@ -512,8 +516,11 @@ impl PluginCatalog {
                 let catalog_rpc = self.plugin_rpc.clone();
                 catalog_rpc.stop_volt(volt.clone());
                 thread::spawn(move || {
-                    let _ =
-                        install_volt(catalog_rpc, workspace, configurations, volt);
+                    if let Err(err) =
+                        install_volt(catalog_rpc, workspace, configurations, volt)
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
             ReloadVolt(volt) => {
@@ -525,7 +532,9 @@ impl PluginCatalog {
                         plugin.shutdown();
                     }
                 }
-                let _ = self.plugin_rpc.unactivated_volts(vec![volt]);
+                if let Err(err) = self.plugin_rpc.unactivated_volts(vec![volt]) {
+                    tracing::error!("{:?}", err);
+                }
             }
             StopVolt(volt) => {
                 let volt_id = volt.id();
@@ -546,7 +555,9 @@ impl PluginCatalog {
                 }
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
-                    let _ = enable_volt(plugin_rpc, volt);
+                    if let Err(err) = enable_volt(plugin_rpc, volt) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
             DapLoaded(dap_rpc) => {
@@ -577,9 +588,14 @@ impl PluginCatalog {
                             breakpoints,
                             plugin_rpc.clone(),
                         ) {
-                            let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
+                            if let Err(err) = plugin_rpc.dap_loaded(dap_rpc.clone())
+                            {
+                                tracing::error!("{:?}", err);
+                            }
 
-                            let _ = dap_rpc.launch(&config);
+                            if let Err(err) = dap_rpc.launch(&config) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     });
                 }
@@ -590,7 +606,11 @@ impl PluginCatalog {
                 term_id,
             } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
-                    let _ = dap.termain_process_tx.send((term_id, process_id));
+                    if let Err(err) =
+                        dap.termain_process_tx.send((term_id, process_id))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 }
             }
             DapContinue { dap_id, thread_id } => {
@@ -606,7 +626,9 @@ impl PluginCatalog {
             DapPause { dap_id, thread_id } => {
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     thread::spawn(move || {
-                        let _ = dap.pause_thread(thread_id);
+                        if let Err(err) = dap.pause_thread(thread_id) {
+                            tracing::error!("{:?}", err);
+                        }
                     });
                 }
             }
@@ -633,7 +655,9 @@ impl PluginCatalog {
             DapDisconnect { dap_id } => {
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     thread::spawn(move || {
-                        let _ = dap.disconnect();
+                        if let Err(err) = dap.disconnect() {
+                            tracing::error!("{:?}", err);
+                        }
                     });
                 }
             }
