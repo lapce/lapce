@@ -9,7 +9,10 @@ use floem::{
         kurbo::{Point, Rect},
         Color,
     },
-    reactive::{create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope},
+    reactive::{
+        create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope, SignalGet,
+        SignalUpdate, SignalWith,
+    },
     views::editor::id::EditorId,
 };
 use lapce_rpc::plugin::VoltID;

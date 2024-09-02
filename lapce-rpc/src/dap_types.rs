@@ -74,6 +74,7 @@ pub struct DapRequest {
 
 #[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 pub struct DapResponse {
+    pub seq: u64,
     pub request_seq: u64,
     pub success: bool,
     pub command: String,

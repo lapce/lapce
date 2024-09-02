@@ -23,9 +23,9 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 
 [workspace.package]
-version      = "0.4.0"
+version      = "0.4.2"
 edition      = "2021"
-rust-version = "1.77"
+rust-version = "1.77.0"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
@@ -76,9 +76,9 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+floem = { git = "https://github.com/lapce/floem", rev = "157631a49d6ba13a3467dcb994eb46a98c52eb76", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
 # floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "720e360500582704303c812c1ed78c98048b5428", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "157631a49d6ba13a3467dcb994eb46a98c52eb76", features = ["serde"] }
 # floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]

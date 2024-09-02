@@ -2,15 +2,15 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
     action::{add_overlay, exec_after, remove_overlay, TimerToken},
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::EventListener,
     keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope,
+        Scope, SignalGet, SignalUpdate, SignalWith,
     },
     style::CursorStyle,
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},
@@ -448,7 +448,7 @@ pub fn settings_view(
         .style(move |s| {
             s.width_pct(100.0)
                 .flex_col()
-                .line_height(1.6)
+                .line_height(1.8)
                 .font_size(config.get().ui.font_size() as f32 + 1.0)
         })
     };
@@ -666,14 +666,14 @@ fn settings_item_view(
                 .text_ellipsis()
                 .min_width(0.0)
                 .max_width_pct(100.0)
-                .line_height(1.6)
+                .line_height(1.8)
                 .font_size(config.get().ui.font_size() as f32 + 1.0)
         }),
         stack((
             label(move || item.description.clone()).style(move |s| {
                 s.min_width(0.0)
                     .max_width_pct(100.0)
-                    .line_height(1.6)
+                    .line_height(1.8)
                     .apply_if(is_ticked.is_some(), |s| {
                         s.margin_left(config.get().ui.font_size() as f32 + 8.0)
                     })
@@ -700,7 +700,7 @@ fn settings_item_view(
                 container(
                     stack((
                         checkbox(move || checked.get(), config),
-                        label(|| " ".to_string()).style(|s| s.line_height(1.6)),
+                        label(|| " ".to_string()).style(|s| s.line_height(1.8)),
                     ))
                     .style(|s| s.items_center()),
                 )

@@ -30,7 +30,7 @@ use lsp_types::{
     },
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
-        CodeActionResolveRequest, CodeLensRequest, Completion,
+        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
         PrepareRenameRequest, References, RegisterCapability, Rename,
@@ -39,7 +39,7 @@ use lsp_types::{
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    InitializeResult, LogMessageParams, OneOf, ProgressParams,
+    InitializeResult, LogMessageParams, MessageType, OneOf, ProgressParams,
     PublishDiagnosticsParams, Range, Registration, RegistrationParams,
     SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
     ServerCapabilities, ShowMessageParams, TextDocumentContentChangeEvent,
@@ -135,6 +135,7 @@ pub enum PluginServerRpc {
     HostNotification {
         method: String,
         params: Params,
+        from: String,
     },
     DidSaveTextDocument {
         language_id: String,
@@ -210,7 +211,12 @@ pub trait PluginServerHandler {
         path: Option<&Path>,
     ) -> bool;
     fn method_registered(&mut self, method: &str) -> bool;
-    fn handle_host_notification(&mut self, method: String, params: Params);
+    fn handle_host_notification(
+        &mut self,
+        method: String,
+        params: Params,
+        from: String,
+    );
     fn handle_host_request(
         &mut self,
         id: Id,
@@ -471,8 +477,12 @@ impl PluginServerRpcHandler {
                 } => {
                     handler.handle_host_request(id, method, params, resp);
                 }
-                PluginServerRpc::HostNotification { method, params } => {
-                    handler.handle_host_notification(method, params);
+                PluginServerRpc::HostNotification {
+                    method,
+                    params,
+                    from,
+                } => {
+                    handler.handle_host_notification(method, params, from);
                 }
                 PluginServerRpc::DidSaveTextDocument {
                     language_id,
@@ -521,6 +531,7 @@ impl PluginServerRpcHandler {
 pub fn handle_plugin_server_message(
     server_rpc: &PluginServerRpcHandler,
     message: &str,
+    from: &str,
 ) -> Option<JsonRpc> {
     match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
@@ -551,6 +562,7 @@ pub fn handle_plugin_server_message(
             let rpc = PluginServerRpc::HostNotification {
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
+                from: from.to_string(),
             };
             server_rpc.handle_rpc(rpc);
             None
@@ -784,6 +796,12 @@ impl PluginHostHandler {
             CodeLensRequest::METHOD => {
                 self.server_capabilities.code_lens_provider.is_some()
             }
+            CodeLensResolve::METHOD => self
+                .server_capabilities
+                .code_lens_provider
+                .as_ref()
+                .and_then(|x| x.resolve_provider)
+                .unwrap_or(false),
             CallHierarchyPrepare::METHOD => {
                 self.server_capabilities.call_hierarchy_provider.is_some()
             }
@@ -1019,6 +1037,7 @@ impl PluginHostHandler {
         &mut self,
         method: String,
         params: Params,
+        from: String,
     ) -> Result<()> {
         match method.as_str() {
             // TODO: remove this after the next release and once we convert all the existing plugins to use the request.
@@ -1085,6 +1104,17 @@ impl PluginHostHandler {
             "experimental/serverStatus" => {
                 let param: ServerStatusParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
+                if !param.is_ok() {
+                    if let Some(msg) = &param.message {
+                        self.core_rpc.show_message(
+                            from,
+                            ShowMessageParams {
+                                typ: MessageType::ERROR,
+                                message: msg.clone(),
+                            },
+                        );
+                    }
+                }
                 self.catalog_rpc.core_rpc.server_status(param);
             }
             _ => {

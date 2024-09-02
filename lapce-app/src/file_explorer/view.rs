@@ -1,11 +1,14 @@
 use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
-    cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
+    kurbo::Rect,
     peniko::Color,
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::{AlignItems, CursorStyle, Position, Style},
+    text::Style as FontStyle,
     views::{
         container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
         Decorators, VirtualDirection, VirtualItemSize,
@@ -86,10 +89,8 @@ pub fn file_explorer_panel(
         )
         .add(
             "File Explorer",
-            container(
-                new_file_node_view(data, source_control).style(|s| s.absolute()),
-            )
-            .style(|s| s.size_full().line_height(1.6)),
+            container(file_explorer_view(data, source_control))
+                .style(|s| s.size_full()),
             window_tab_data
                 .panel
                 .section_open(PanelSection::FileExplorer),
@@ -173,7 +174,7 @@ fn file_node_text_view(
     let config = data.common.config;
     let ui_line_height = data.common.ui_line_height;
 
-    let view = match node.kind.clone() {
+    match node.kind.clone() {
         FileNodeViewKind::Path(path) => container(
             label(move || {
                 path.file_name()
@@ -181,8 +182,7 @@ fn file_node_text_view(
                     .unwrap_or_default()
             })
             .style(move |s| {
-                s.flex_grow(1.0)
-                    .height(ui_line_height.get())
+                s.height(ui_line_height.get())
                     .color(file_node_text_color(
                         config,
                         node.clone(),
@@ -212,9 +212,7 @@ fn file_node_text_view(
 
             file_node_input_view(data, err.clone())
         }
-    };
-
-    view.style(|s| s.flex_grow(1.0).padding(0.0).margin(0.0))
+    }
 }
 
 /// Input used for naming a file/directory
@@ -282,7 +280,7 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
     }
 }
 
-fn new_file_node_view(
+fn file_explorer_view(
     data: FileExplorerData,
     source_control: SourceControlData,
 ) -> impl View {
@@ -291,7 +289,9 @@ fn new_file_node_view(
     let config = data.common.config;
     let naming = data.naming;
     let scroll_to_line = data.scroll_to_line;
+    let select = data.select;
     let secondary_click_data = data.clone();
+    let scroll_rect = create_rw_signal(Rect::ZERO);
 
     scroll(
         virtual_stack(
@@ -375,28 +375,46 @@ fn new_file_node_view(
                     },
                     file_node_text_view(data, node, source_control.clone()),
                 ))
-                .style(move |s| {
-                    s.padding_right(5.0)
-                        .padding_left((level * 10) as f32)
-                        .align_items(AlignItems::Center)
-                        .hover(|s| {
-                            s.background(
-                                config
-                                    .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                .style({
+                    let kind = kind.clone();
+                    move |s| {
+                        s.padding_right(15.0)
+                            .min_width_full()
+                            .padding_left((level * 10) as f32)
+                            .align_items(AlignItems::Center)
+                            .hover(|s| {
+                                s.background(
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                                .cursor(CursorStyle::Pointer)
+                            })
+                            .apply_if(
+                                select.get().map(|x| x == kind).unwrap_or_default(),
+                                |x| {
+                                    x.background(
+                                        config.get().color(
+                                            LapceColor::PANEL_CURRENT_BACKGROUND,
+                                        ),
+                                    )
+                                },
                             )
-                            .cursor(CursorStyle::Pointer)
-                        })
+                    }
                 });
 
                 // Only handle click events if we are not naming the file node
-                if let FileNodeViewKind::Path(path) = kind {
+                if let FileNodeViewKind::Path(path) = &kind {
                     let click_path = path.clone();
                     let double_click_path = path.clone();
                     let secondary_click_path = path.clone();
-                    let aux_click_path = path;
-                    view.on_click_stop(move |_| {
-                        click_data.click(&click_path);
+                    let aux_click_path = path.clone();
+                    view.on_click_stop({
+                        let kind = kind.clone();
+                        move |_| {
+                            click_data.click(&click_path);
+                            select.update(|x| *x = Some(kind.clone()));
+                        }
                     })
                     .on_double_click(move |_| {
                         double_click_data.double_click(&double_click_path)
@@ -419,9 +437,9 @@ fn new_file_node_view(
                 }
             },
         )
-        .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
+        .style(|s| s.absolute().flex_col().min_width_full()),
     )
-    .style(|s| s.size_full())
+    .style(|s| s.absolute().size_full().line_height(1.8))
     .on_secondary_click_stop(move |_| {
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
@@ -429,10 +447,19 @@ fn new_file_node_view(
             }
         }
     })
+    .on_resize(move |rect| {
+        scroll_rect.set(rect);
+    })
     .scroll_to(move || {
         if let Some(line) = scroll_to_line.get() {
-            let line_height = ui_line_height.get();
-            Some((0.0, line * line_height).into())
+            let line_height = ui_line_height.get_untracked();
+            Some(
+                (
+                    0.0,
+                    line * line_height - scroll_rect.get_untracked().height() / 2.0,
+                )
+                    .into(),
+            )
         } else {
             None
         }
@@ -560,6 +587,6 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.flex_col().width_pct(100.0)),
     )
-    .style(|s| s.absolute().size_full().line_height(1.6))
+    .style(|s| s.absolute().size_full().line_height(1.8))
     .debug_name("Open Editors")
 }

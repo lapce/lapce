@@ -2,7 +2,7 @@ use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{ReadSignal, RwSignal, Scope},
+    reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::{id::EditorId, text::Document},
 };
 use lapce_core::{

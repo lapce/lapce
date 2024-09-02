@@ -4,7 +4,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     peniko::kurbo::Rect,
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;

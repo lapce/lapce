@@ -10,11 +10,8 @@ use lapce_core::directory::Directory;
 use crate::{tracing::*, update::ReleaseInfo};
 
 fn get_github_api(url: &str) -> Result<String> {
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent(format!("Lapce/{}", lapce_core::meta::VERSION))
-        .build()?
-        .get(url)
-        .send()?;
+    let user_agent = format!("Lapce/{}", lapce_core::meta::VERSION);
+    let resp = lapce_proxy::get_url(url, Some(user_agent.as_str()))?;
     if !resp.status().is_success() {
         return Err(anyhow!("get release info failed {}", resp.text()?));
     }
@@ -22,7 +19,7 @@ fn get_github_api(url: &str) -> Result<String> {
     Ok(resp.text()?)
 }
 
-pub fn find_release() -> Result<ReleaseInfo> {
+pub fn find_grammar_release() -> Result<ReleaseInfo> {
     let releases: Vec<ReleaseInfo> = serde_json::from_str(&get_github_api(
         "https://api.github.com/repos/lapce/tree-sitter-grammars/releases?per_page=100",
     ).context("Failed to retrieve releases for tree-sitter-grammars")?)?;
@@ -32,6 +29,10 @@ pub fn find_release() -> Result<ReleaseInfo> {
     let releases = releases
         .into_iter()
         .filter_map(|f| {
+            if matches!(RELEASE, ReleaseType::Debug | ReleaseType::Nightly) {
+                return Some(f);
+            }
+
             let tag_name = if f.tag_name.starts_with('v') {
                 f.tag_name.trim_start_matches('v')
             } else {
@@ -45,9 +46,7 @@ pub fn find_release() -> Result<ReleaseInfo> {
             let sv = Version::parse(tag_name).ok()?;
             let version = Version::parse(VERSION).ok()?;
 
-            if matches!(sv.cmp_precedence(&version), Ordering::Equal)
-                || matches!(RELEASE, ReleaseType::Debug | ReleaseType::Nightly)
-            {
+            if matches!(sv.cmp_precedence(&version), Ordering::Equal) {
                 Some(f)
             } else {
                 None
@@ -62,51 +61,56 @@ pub fn find_release() -> Result<ReleaseInfo> {
     Ok(release.to_owned())
 }
 
-pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
+pub fn fetch_grammars(release: &ReleaseInfo) -> Result<bool> {
     let dir = Directory::grammars_directory()
         .ok_or_else(|| anyhow!("can't get grammars directory"))?;
 
     let file_name = format!("grammars-{}-{}", env::consts::OS, env::consts::ARCH);
 
-    download_release(dir, release, &file_name)?;
+    let updated = download_release(dir, release, &file_name)?;
 
     trace!(TraceLevel::INFO, "Successfully downloaded grammars");
 
-    Ok(())
+    Ok(updated)
 }
 
-pub fn fetch_queries(release: &ReleaseInfo) -> Result<()> {
+pub fn fetch_queries(release: &ReleaseInfo) -> Result<bool> {
     let dir = Directory::queries_directory()
         .ok_or_else(|| anyhow!("can't get queries directory"))?;
 
     let file_name = "queries";
 
-    download_release(dir, release, file_name)?;
+    let updated = download_release(dir, release, file_name)?;
 
     trace!(TraceLevel::INFO, "Successfully downloaded queries");
 
-    Ok(())
+    Ok(updated)
 }
 
 fn download_release(
     dir: PathBuf,
     release: &ReleaseInfo,
     file_name: &str,
-) -> Result<()> {
+) -> Result<bool> {
     if !dir.exists() {
         fs::create_dir(&dir)?;
     }
 
     let current_version =
         fs::read_to_string(dir.join("version")).unwrap_or_default();
+    let release_version = if release.tag_name == "nightly" {
+        format!("nightly-{}", &release.target_commitish[..7])
+    } else {
+        release.tag_name.clone()
+    };
 
-    if release.tag_name == current_version {
-        return Ok(());
+    if release_version == current_version {
+        return Ok(false);
     }
 
     for asset in &release.assets {
         if asset.name.starts_with(file_name) {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            let mut resp = lapce_proxy::get_url(&asset.browser_download_url, None)?;
             if !resp.status().is_success() {
                 return Err(anyhow!("download file error {}", resp.text()?));
             }
@@ -130,8 +134,8 @@ fn download_release(
                 archive.unpack(&dir)?;
             }
 
-            fs::write(dir.join("version"), release.tag_name.clone())?;
+            fs::write(dir.join("version"), &release_version)?;
         }
     }
-    Ok(())
+    Ok(true)
 }

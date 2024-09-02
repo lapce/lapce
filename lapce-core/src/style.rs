@@ -33,6 +33,14 @@ pub const SCOPES: &[&str] = &[
     "conceal",
     "none",
     "tag",
+    "markup.bold",
+    "markup.italic",
+    "markup.list",
+    "markup.quote",
+    "markup.heading",
+    "markup.link.url",
+    "markup.link.label",
+    "markup.link.text",
 ];
 
 pub fn line_styles(

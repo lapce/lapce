@@ -123,8 +123,13 @@ impl PluginServerHandler for Plugin {
         }
     }
 
-    fn handle_host_notification(&mut self, method: String, params: Params) {
-        let _ = self.host.handle_notification(method, params);
+    fn handle_host_notification(
+        &mut self,
+        method: String,
+        params: Params,
+        from: String,
+    ) {
+        let _ = self.host.handle_notification(method, params, from);
     }
 
     fn handle_host_request(
@@ -490,9 +495,12 @@ pub fn start_volt(
 
     let local_rpc = rpc.clone();
     let local_stdin = stdin.clone();
+    let volt_name = format!("volt {}", meta.name);
     linker.func_wrap("lapce", "host_handle_rpc", move || {
         if let Ok(msg) = wasi_read_string(&stdout) {
-            if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
+            if let Some(resp) =
+                handle_plugin_server_message(&local_rpc, &msg, &volt_name)
+            {
                 if let Ok(msg) = serde_json::to_string(&resp) {
                     let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
                 }

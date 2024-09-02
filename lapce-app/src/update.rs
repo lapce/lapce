@@ -30,11 +30,7 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
         _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
     };
 
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
+    let resp = lapce_proxy::get_url(url, Some("Lapce"))?;
     if !resp.status().is_success() {
         return Err(anyhow!("get release info failed {}", resp.text()?));
     }
@@ -76,7 +72,7 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
 
     for asset in &release.assets {
         if asset.name == name {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            let mut resp = lapce_proxy::get_url(&asset.browser_download_url, None)?;
             if !resp.status().is_success() {
                 return Err(anyhow!("download file error {}", resp.text()?));
             }

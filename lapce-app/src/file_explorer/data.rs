@@ -12,7 +12,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     menu::{Menu, MenuItem},
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;
@@ -22,7 +22,10 @@ use lapce_core::{
     register::Clipboard,
 };
 use lapce_rpc::{
-    file::{Duplicating, FileNodeItem, Naming, NamingState, NewNode, Renaming},
+    file::{
+        Duplicating, FileNodeItem, FileNodeViewKind, Naming, NamingState, NewNode,
+        Renaming,
+    },
     proxy::ProxyResponse,
 };
 
@@ -51,6 +54,7 @@ pub struct FileExplorerData {
     pub common: Rc<CommonData>,
     pub scroll_to_line: RwSignal<Option<f64>>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+    pub select: RwSignal<Option<FileNodeViewKind>>,
 }
 
 impl KeyPressFocus for FileExplorerData {
@@ -131,6 +135,7 @@ impl FileExplorerData {
             common,
             scroll_to_line: cx.create_rw_signal(None),
             left_diff_path: cx.create_rw_signal(None),
+            select: cx.create_rw_signal(None),
         };
         if data.common.workspace.path.is_some() {
             // only fill in the child files if there is open folder
@@ -448,7 +453,8 @@ impl FileExplorerData {
             let (found, line) =
                 self.root.with_untracked(|x| x.find_file_at_line(&path));
             if found {
-                self.scroll_to_line.set(Some(line))
+                self.scroll_to_line.set(Some(line));
+                self.select.set(Some(FileNodeViewKind::Path(path)));
             }
         }
     }
@@ -540,21 +546,23 @@ impl FileExplorerData {
         // TODO: there are situations where we can open the file explorer to remote files
         if !common.workspace.kind.is_remote() {
             let path = path_a.clone();
-            menu = menu.entry(MenuItem::new("Reveal in file explorer").action(
-                move || {
-                    let path = path.parent().unwrap_or(&path);
-                    if !path.exists() {
-                        return;
-                    }
+            #[cfg(not(target_os = "macos"))]
+            let title = "Reveal in system file explorer";
+            #[cfg(target_os = "macos")]
+            let title = "Reveal in Finder";
+            menu = menu.entry(MenuItem::new(title).action(move || {
+                let path = path.parent().unwrap_or(&path);
+                if !path.exists() {
+                    return;
+                }
 
-                    if let Err(err) = open::that(path) {
-                        tracing::error!(
-                            "Failed to reveal file in system file explorer: {}",
-                            err
-                        );
-                    }
-                },
-            ));
+                if let Err(err) = open::that(path) {
+                    tracing::error!(
+                        "Failed to reveal file in system file explorer: {}",
+                        err
+                    );
+                }
+            }));
         }
 
         if !is_workspace {

@@ -14,11 +14,13 @@ use std::{
 
 use floem::{
     action::exec_after,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
     keyboard::Modifiers,
     peniko::Color,
-    reactive::{batch, ReadSignal, RwSignal, Scope},
+    reactive::{
+        batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+    },
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::editor::{
         actions::CommonAction,
         command::{Command, CommandExecuted},
@@ -64,7 +66,8 @@ use lapce_xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
-    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
+    CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity,
+    DocumentSymbolResponse, InlayHint, InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -76,8 +79,11 @@ use crate::{
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
-    main_split::{Editors, ScoredCodeLensItem},
-    panel::kind::PanelKind,
+    main_split::Editors,
+    panel::{
+        document_symbol::{SymbolData, SymbolInformationItemData},
+        kind::PanelKind,
+    },
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
@@ -150,9 +156,10 @@ pub struct DocInfo {
 }
 
 /// (Offset -> (Plugin the code actions are from, Code Actions))
-pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
+pub type CodeActions =
+    im::HashMap<usize, (PluginId, im::Vector<CodeActionOrCommand>)>;
 
-pub type CodeLens = im::HashMap<PluginId, im::Vector<Arc<ScoredCodeLensItem>>>;
+pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>)>;
 
 #[derive(Clone)]
 pub struct Doc {
@@ -182,7 +189,7 @@ pub struct Doc {
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
 
-    pub code_lens: RwSignal<CodeLens>,
+    pub code_lens: RwSignal<AllCodeLens>,
 
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
@@ -203,6 +210,8 @@ pub struct Doc {
 
     editors: Editors,
     pub common: Rc<CommonData>,
+
+    pub document_symbol_data: RwSignal<Option<SymbolData>>,
 }
 impl Doc {
     pub fn new(
@@ -247,6 +256,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -296,6 +306,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -345,6 +356,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
+            document_symbol_data: cx.create_rw_signal(None),
         }
     }
 
@@ -638,6 +650,7 @@ impl Doc {
             self.clear_code_actions();
             self.clear_style_cache();
             self.get_code_lens();
+            self.get_document_symbol();
         });
     }
 
@@ -828,6 +841,10 @@ impl Doc {
 
         self.common.proxy.get_semantic_tokens(path, move |result| {
             if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                if styles.styles.is_empty() {
+                    send(None);
+                    return;
+                }
                 if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                     send(None);
                     return;
@@ -857,46 +874,85 @@ impl Doc {
     pub fn get_code_lens(&self) {
         let cx = self.scope;
         let doc = self.clone();
+        self.code_lens.update(|code_lens| {
+            code_lens.clear();
+        });
+        let rev = self.rev();
         if let DocContent::File { path, .. } = doc.content.get_untracked() {
             let send = create_ext_action(cx, move |result| {
+                if rev != doc.rev() {
+                    return;
+                }
                 if let Ok(ProxyResponse::GetCodeLensResponse { plugin_id, resp }) =
                     result
                 {
                     let Some(codelens) = resp else {
                         return;
                     };
-                    if codelens.is_empty() {
-                        doc.code_lens.update(|x| {
-                            x.remove(&plugin_id);
-                        });
-                    } else {
-                        let codelens = codelens
-                            .into_iter()
-                            .filter_map(|x| {
-                                tracing::debug!("{:?}", x);
-                                if let Some(command) = x.command {
-                                    if let Some(args) = command.arguments {
-                                        Some(Arc::new(ScoredCodeLensItem {
-                                            range: x.range,
-                                            title: command.title,
-                                            command: command.command,
-                                            args,
-                                        }))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
+                    doc.code_lens.update(|code_lens| {
+                        for codelens in codelens {
+                            if codelens.command.is_none() {
+                                continue;
+                            }
+                            let entry = code_lens
+                                .entry(codelens.range.start.line as usize)
+                                .or_insert_with(|| {
+                                    (
+                                        plugin_id,
+                                        doc.buffer.with_untracked(|b| {
+                                            b.offset_of_line(
+                                                codelens.range.start.line as usize,
+                                            )
+                                        }),
+                                        im::Vector::new(),
+                                    )
+                                });
+                            entry.2.push_back(codelens);
+                        }
+                    });
+                }
+            });
+            self.common.proxy.get_code_lens(path, move |result| {
+                send(result);
+            });
+        }
+    }
+
+    pub fn get_document_symbol(&self) {
+        let cx = self.scope;
+        let doc = self.clone();
+        let rev = self.rev();
+        if let DocContent::File { path, .. } = doc.content.get_untracked() {
+            let send = create_ext_action(cx, {
+                let path = path.clone();
+                move |result| {
+                    if rev != doc.rev() {
+                        return;
+                    }
+                    if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
+                        let items: Vec<RwSignal<SymbolInformationItemData>> =
+                            match resp {
+                                DocumentSymbolResponse::Flat(_symbols) => {
+                                    Vec::with_capacity(0)
                                 }
-                            })
-                            .collect();
-                        doc.code_lens.update(|x| {
-                            x.insert(plugin_id, codelens);
+                                DocumentSymbolResponse::Nested(symbols) => symbols
+                                    .into_iter()
+                                    .map(|x| {
+                                        cx.create_rw_signal(
+                                            SymbolInformationItemData::from((x, cx)),
+                                        )
+                                    })
+                                    .collect(),
+                            };
+                        let symbol_new = Some(SymbolData { items, path });
+                        doc.document_symbol_data.update(|symbol| {
+                            *symbol = symbol_new;
                         });
                     }
                 }
             });
-            self.common.proxy.get_code_lens(path, move |result| {
+
+            self.common.proxy.get_document_symbols(path, move |result| {
                 send(result);
             });
         }
@@ -1809,23 +1865,23 @@ impl Styling for DocStyling {
         &self,
         _: EditorId,
         _line: usize,
-    ) -> std::borrow::Cow<[floem::cosmic_text::FamilyOwned]> {
+    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
         // TODO: cache this
         Cow::Owned(self.config.with_untracked(|config| {
             FamilyOwned::parse_list(&config.editor.font_family).collect()
         }))
     }
 
-    fn weight(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Weight {
-        floem::cosmic_text::Weight::NORMAL
+    fn weight(&self, _: EditorId, _line: usize) -> floem::text::Weight {
+        floem::text::Weight::NORMAL
     }
 
-    fn italic_style(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Style {
-        floem::cosmic_text::Style::Normal
+    fn italic_style(&self, _: EditorId, _line: usize) -> floem::text::Style {
+        floem::text::Style::Normal
     }
 
-    fn stretch(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Stretch {
-        floem::cosmic_text::Stretch::Normal
+    fn stretch(&self, _: EditorId, _line: usize) -> floem::text::Stretch {
+        floem::text::Stretch::Normal
     }
 
     fn indent_line(&self, _: EditorId, line: usize, line_content: &str) -> usize {
@@ -2089,8 +2145,8 @@ fn extra_styles_for_range(
                 return None;
             }
 
-            let height = (run.glyph_ascent + run.glyph_descent) as f64;
-            let y = run.line_y as f64 - run.glyph_ascent as f64;
+            let height = (run.max_ascent + run.max_descent) as f64;
+            let y = run.line_y as f64 - run.max_ascent as f64;
 
             Some(LineExtraStyle {
                 x,

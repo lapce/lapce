@@ -1,7 +1,8 @@
 use floem::{
     context::PaintCx,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     peniko::kurbo::{Point, Rect, Size},
+    reactive::{Memo, SignalGet, SignalWith},
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     Renderer, View, ViewId,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
@@ -13,15 +14,20 @@ pub struct EditorGutterView {
     id: ViewId,
     editor: EditorData,
     width: f64,
+    gutter_padding_right: Memo<f32>,
 }
 
-pub fn editor_gutter_view(editor: EditorData) -> EditorGutterView {
+pub fn editor_gutter_view(
+    editor: EditorData,
+    gutter_padding_right: Memo<f32>,
+) -> EditorGutterView {
     let id = ViewId::new();
 
     EditorGutterView {
         id,
         editor,
         width: 0.0,
+        gutter_padding_right,
     }
 }
 
@@ -40,6 +46,7 @@ impl EditorGutterView {
 
         let changes = e_data.doc().head_changes().get_untracked();
         let line_height = config.editor.line_height() as f64;
+        let gutter_padding_right = self.gutter_padding_right.get_untracked() as f64;
 
         let changes = changes_colors_screen(config, &e_data.editor, changes);
         for (y, height, removed, color) in changes {
@@ -53,9 +60,10 @@ impl EditorGutterView {
                 y -= 5.0;
             }
             cx.fill(
-                &Size::new(3.0, height)
-                    .to_rect()
-                    .with_origin(Point::new(self.width + 7.0, y)),
+                &Size::new(3.0, height).to_rect().with_origin(Point::new(
+                    self.width + 5.0 - gutter_padding_right,
+                    y,
+                )),
                 color,
                 0.0,
             )
@@ -176,7 +184,10 @@ impl View for EditorGutterView {
                 cx.draw_text(
                     &text_layout,
                     Point::new(
-                        (self.width - (size.width)).max(0.0),
+                        (self.width
+                            - size.width
+                            - self.gutter_padding_right.get_untracked() as f64)
+                            .max(0.0),
                         y + (line_height - height) / 2.0 - viewport.y0,
                     ),
                 );

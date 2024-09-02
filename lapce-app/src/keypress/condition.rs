@@ -65,6 +65,8 @@ pub enum Condition {
     RenameFocus,
     #[strum(serialize = "search_active")]
     SearchActive,
+    #[strum(serialize = "on_screen_find_active")]
+    OnScreenFindActive,
     #[strum(serialize = "search_focus")]
     SearchFocus,
     #[strum(serialize = "replace_focus")]

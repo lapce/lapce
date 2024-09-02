@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     event::EventListener,
-    reactive::ReadSignal,
+    reactive::{ReadSignal, SignalGet, SignalUpdate},
     style::{CursorStyle, Style},
     views::{
         container, label, scroll, stack, svg, virtual_stack, Decorators,
@@ -310,7 +310,7 @@ fn search_result(
                     .style(|s| s.flex_col())
                 },
             )
-            .style(|s| s.flex_col().min_width_pct(100.0).line_height(1.6))
+            .style(|s| s.flex_col().min_width_pct(100.0).line_height(1.8))
         })
         .style(|s| s.absolute().size_pct(100.0, 100.0))
     })

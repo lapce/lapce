@@ -177,12 +177,12 @@ impl ProxyHandler for Dispatcher {
                 #[allow(unused)]
                 let mut child_id = None;
 
+                #[cfg(target_os = "windows")]
+                {
+                    child_id = terminal.pty.child_watcher().pid().map(|x| x.get());
+                }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    // Alacritty currently doesn't expose the child process ID on windows, so this won't compile
-                    // Alacritty does acquire this information, but it is discarded
-                    // This is currently only used for debug adapter protocol's RunInTerminal request, which we
-                    // specify isn't supported on Windows at the moment
                     child_id = Some(terminal.pty.child().id());
                 }
 
@@ -1072,6 +1072,22 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     });
+            }
+            GetCodeLensResolve { code_lens, path } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_code_lens_resolve(
+                    &path,
+                    &code_lens,
+                    move |plugin_id, result| {
+                        let result = result.map(|resp| {
+                            ProxyResponse::GetCodeLensResolveResponse {
+                                plugin_id,
+                                resp,
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
             }
         }
     }

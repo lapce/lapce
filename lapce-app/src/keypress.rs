@@ -4,13 +4,13 @@ pub mod keymap;
 mod loader;
 mod press;
 
-use std::{path::PathBuf, rc::Rc, str::FromStr};
+use std::{path::PathBuf, rc::Rc, str::FromStr, time::SystemTime};
 
 use anyhow::Result;
 use floem::{
     keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
     pointer::{PointerButton, PointerInputEvent},
-    reactive::{RwSignal, Scope},
+    reactive::{RwSignal, Scope, SignalUpdate, SignalWith},
 };
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -147,7 +147,7 @@ pub struct KeyPressHandle {
 #[derive(Clone, Debug)]
 pub struct KeyPressData {
     count: RwSignal<Option<usize>>,
-    pending_keypress: RwSignal<Vec<KeyPress>>,
+    pending_keypress: RwSignal<(Vec<KeyPress>, Option<SystemTime>)>,
     pub commands: Rc<IndexMap<String, LapceCommand>>,
     pub keymaps: Rc<IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>>,
     pub command_keymaps: Rc<IndexMap<String, Vec<KeyMap>>>,
@@ -161,7 +161,7 @@ impl KeyPressData {
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
             count: cx.create_rw_signal(None),
-            pending_keypress: cx.create_rw_signal(Vec::new()),
+            pending_keypress: cx.create_rw_signal((Vec::new(), None)),
             keymaps: Rc::new(keymaps),
             command_keymaps: Rc::new(command_keymaps),
             commands: Rc::new(lapce_internal_commands()),
@@ -259,6 +259,7 @@ impl KeyPressData {
                     physical: ev.key.physical_key,
                     key_without_modifiers: ev.key.key_without_modifiers(),
                     location: ev.key.location,
+                    repeat: ev.key.repeat,
                 },
                 mods: Self::get_key_modifiers(ev),
             },
@@ -297,13 +298,26 @@ impl KeyPressData {
             };
         }
 
-        self.pending_keypress.update(|pending_keypress| {
-            pending_keypress.push(keypress.clone());
-        });
+        self.pending_keypress
+            .update(|(pending_keypress, last_time)| {
+                let last_time = last_time.replace(SystemTime::now());
+                if let Some(last_time_val) = last_time {
+                    if last_time_val
+                        .elapsed()
+                        .map(|x| x.as_millis() > 1000)
+                        .unwrap_or_default()
+                    {
+                        pending_keypress.clear();
+                    }
+                }
+                pending_keypress.push(keypress.clone());
+            });
 
-        let keymatch = self.pending_keypress.with_untracked(|pending_keypress| {
-            self.match_keymap(pending_keypress, focus)
-        });
+        let keymatch =
+            self.pending_keypress
+                .with_untracked(|(pending_keypress, _)| {
+                    self.match_keymap(pending_keypress, focus)
+                });
         self.handle_keymatch(focus, keymatch, keypress)
     }
 
@@ -316,9 +330,11 @@ impl KeyPressData {
         let mods = keypress.mods;
         match &keymatch {
             KeymapMatch::Full(command) => {
-                self.pending_keypress.update(|pending_keypress| {
-                    pending_keypress.clear();
-                });
+                self.pending_keypress
+                    .update(|(pending_keypress, last_time)| {
+                        last_time.take();
+                        pending_keypress.clear();
+                    });
                 let count = self.count.try_update(|count| count.take()).unwrap();
                 let handled = self.run_command(command, count, mods, focus)
                     == CommandExecuted::Yes;
@@ -329,9 +345,11 @@ impl KeyPressData {
                 };
             }
             KeymapMatch::Multiple(commands) => {
-                self.pending_keypress.update(|pending_keypress| {
-                    pending_keypress.clear();
-                });
+                self.pending_keypress
+                    .update(|(pending_keypress, last_time)| {
+                        last_time.take();
+                        pending_keypress.clear();
+                    });
                 let count = self.count.try_update(|count| count.take()).unwrap();
                 for command in commands {
                     let handled = self.run_command(command, count, mods, focus)
@@ -361,9 +379,11 @@ impl KeyPressData {
                 };
             }
             KeymapMatch::None => {
-                self.pending_keypress.update(|pending_keypress| {
-                    pending_keypress.clear();
-                });
+                self.pending_keypress
+                    .update(|(pending_keypress, last_time)| {
+                        pending_keypress.clear();
+                        last_time.take();
+                    });
                 if focus.get_mode() == Mode::Insert {
                     let old_keypress = keypress.clone();
                     let mut keypress = keypress.clone();
@@ -449,7 +469,7 @@ impl KeyPressData {
         check: &T,
     ) -> KeymapMatch {
         let keypresses: Vec<KeyMapPress> =
-            keypresses.iter().map(|k| k.keymap_press()).collect();
+            keypresses.iter().filter_map(|k| k.keymap_press()).collect();
         let matches: Vec<_> = self
             .keymaps
             .get(&keypresses)

@@ -1,7 +1,6 @@
 use floem::keyboard::{Key, KeyLocation, NamedKey, PhysicalKey};
 
 use super::keymap::KeyMapKey;
-use crate::tracing::*;
 
 #[derive(Clone, Debug)]
 pub(crate) enum KeyInput {
@@ -10,25 +9,32 @@ pub(crate) enum KeyInput {
         logical: Key,
         location: KeyLocation,
         key_without_modifiers: Key,
+        repeat: bool,
     },
     Pointer(floem::pointer::PointerButton),
 }
 
 impl KeyInput {
-    #[instrument]
-    pub fn keymap_key(&self) -> KeyMapKey {
-        match self {
+    pub fn keymap_key(&self) -> Option<KeyMapKey> {
+        if let KeyInput::Keyboard { repeat, .. } = self {
+            if *repeat {
+                return None;
+            }
+        }
+
+        Some(match self {
             KeyInput::Pointer(b) => KeyMapKey::Pointer(*b),
             KeyInput::Keyboard {
                 physical,
                 key_without_modifiers,
                 logical,
                 location,
+                ..
             } => {
                 #[allow(clippy::single_match)]
                 match location {
                     KeyLocation::Numpad => {
-                        return KeyMapKey::Logical(logical.to_owned())
+                        return Some(KeyMapKey::Logical(logical.to_owned()))
                     }
                     _ => {}
                 }
@@ -52,6 +58,6 @@ impl KeyInput {
                     Key::Dead(_) => KeyMapKey::Physical(*physical),
                 }
             }
-        }
+        })
     }
 }

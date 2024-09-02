@@ -14,7 +14,6 @@ use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
     action::show_context_menu,
-    cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
     menu::{Menu, MenuItem},
@@ -24,7 +23,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
-        ReadSignal, RwSignal, Scope,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
     },
     style::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,
@@ -34,13 +33,12 @@ use floem::{
         style_helpers::{self, auto, fr},
         Line,
     },
+    text::{Style as FontStyle, Weight},
     unit::PxPctAuto,
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
         empty, label, rich_text,
-        scroll::{
-            scroll, HideBar, PropagatePointerWheel, VerticalScrollAsHorizontal,
-        },
+        scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
         stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
@@ -51,7 +49,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    syntax::highlight::reset_highlight_configs,
+    syntax::{highlight::reset_highlight_configs, Syntax},
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
@@ -147,7 +145,7 @@ pub struct AppInfo {
 #[derive(Clone)]
 pub enum AppCommand {
     SaveApp,
-    NewWindow,
+    NewWindow { folder: Option<PathBuf> },
     CloseWindow(WindowId),
     WindowGotFocus(WindowId),
     WindowClosed(WindowId),
@@ -202,7 +200,7 @@ impl AppData {
             .title("Lapce")
     }
 
-    pub fn new_window(&self) {
+    pub fn new_window(&self, folder: Option<PathBuf>) {
         let config = self
             .active_window()
             .map(|window| {
@@ -228,6 +226,10 @@ impl AppData {
         } else {
             config
         };
+        let workspace = LapceWorkspace {
+            path: folder,
+            ..Default::default()
+        };
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -239,7 +241,7 @@ impl AppData {
                         maximised: false,
                         tabs: TabsInfo {
                             active_tab: 0,
-                            workspaces: vec![LapceWorkspace::default()],
+                            workspaces: vec![workspace],
                         },
                     },
                 )
@@ -274,8 +276,8 @@ impl AppData {
             AppCommand::CloseWindow(window_id) => {
                 floem::close_window(window_id);
             }
-            AppCommand::NewWindow => {
-                self.new_window();
+            AppCommand::NewWindow { folder } => {
+                self.new_window(folder);
             }
             AppCommand::WindowGotFocus(window_id) => {
                 self.active_window.set(window_id);
@@ -566,12 +568,15 @@ impl AppData {
                     EventPropagation::Continue
                 }
             })
-            .on_event(EventListener::PointerDown, move |event| {
-                if let Event::PointerDown(pointer_event) = event {
-                    window_data.key_down(pointer_event);
-                    EventPropagation::Stop
-                } else {
-                    EventPropagation::Continue
+            .on_event(EventListener::PointerDown, {
+                let window_data = window_data.clone();
+                move |event| {
+                    if let Event::PointerDown(pointer_event) = event {
+                        window_data.key_down(pointer_event);
+                        EventPropagation::Stop
+                    } else {
+                        EventPropagation::Continue
+                    }
                 }
             })
             .on_event_stop(EventListener::WindowResized, move |event| {
@@ -589,6 +594,29 @@ impl AppData {
             })
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
+            })
+            .on_event_stop(EventListener::DroppedFile, move |event: &Event| {
+                if let Event::DroppedFile(file) = event {
+                    if file.path.is_dir() {
+                        app_command.send(AppCommand::NewWindow {
+                            folder: Some(file.path.clone()),
+                        });
+                    } else if let Some(win_tab_data) =
+                        window_data.active_window_tab()
+                    {
+                        win_tab_data.common.internal_command.send(
+                            InternalCommand::GoToLocation {
+                                location: EditorLocation {
+                                    path: file.path.clone(),
+                                    position: None,
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
+                            },
+                        )
+                    }
+                }
             })
             .debug_name("App View")
     }
@@ -1025,9 +1053,9 @@ fn editor_tab_header(
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
                     .get_untracked()
             })
+            .scroll_style(|s| s.hide_bars(true))
             .style(|s| {
-                s.set(HideBar, true)
-                    .set(VerticalScrollAsHorizontal, true)
+                s.set(VerticalScrollAsHorizontal, true)
                     .absolute()
                     .size_full()
             }),
@@ -2231,10 +2259,11 @@ fn palette_item(
                     .style(move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
-                        s.min_width(size)
-                            .size(size, size)
-                            .margin_right(5.0)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        s.min_width(size).size(size, size).margin_right(5.0).color(
+                            config.symbol_color(&kind).unwrap_or_else(|| {
+                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                            }),
+                        )
                     }),
                     focus_text(
                         move || text.clone(),
@@ -2765,10 +2794,10 @@ fn window_message_view(
                 }),
                 stack((
                     text(title.clone()).style(|s| {
-                        s.min_width(0.0).line_height(1.6).font_weight(Weight::BOLD)
+                        s.min_width(0.0).line_height(1.8).font_weight(Weight::BOLD)
                     }),
                     text(message.message.clone()).style(|s| {
-                        s.min_width(0.0).line_height(1.6).margin_top(5.0)
+                        s.min_width(0.0).line_height(1.8).margin_top(5.0)
                     }),
                 ))
                 .style(move |s| {
@@ -2788,6 +2817,7 @@ fn window_message_view(
                 )
                 .style(|s| s.margin_left(6.0)),
             ))
+            .on_event_stop(EventListener::PointerDown, |_| {})
             .style(move |s| {
                 let config = config.get();
                 s.width_full()
@@ -2816,7 +2846,11 @@ fn window_message_view(
                     .style(|s| s.flex_col().width_full()),
                 )
                 .style(|s| {
-                    s.absolute().width_full().min_height(0.0).max_height_full()
+                    s.absolute()
+                        .width_full()
+                        .min_height(0.0)
+                        .max_height_full()
+                        .set(PropagatePointerWheel, false)
                 }),
             )
             .style(|s| s.size_full()),
@@ -2900,6 +2934,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
         layout_rect.set(rect);
     })
     .on_event_stop(EventListener::PointerMove, |_| {})
+    .on_event_stop(EventListener::PointerDown, |_| {})
     .style(move |s| {
         let active = window_tab_data.common.hover.active.get();
         if !active {
@@ -3075,7 +3110,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .align_items(Some(AlignItems::Center))
                             .min_width(0.0)
                             .width_full()
-                            .line_height(1.6)
+                            .line_height(1.8)
                             .border_radius(6.0)
                             .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
@@ -3587,14 +3622,18 @@ fn window(window_data: WindowData) -> impl View {
 }
 
 pub fn launch() {
-    logging::panic_hook();
+    let cli = Cli::parse();
+
+    if !cli.wait {
+        logging::panic_hook();
+    }
 
     let (reload_handle, _guard) = logging::logging();
     trace!(TraceLevel::INFO, "Starting up Lapce..");
 
     #[cfg(feature = "vendored-fonts")]
     {
-        use floem::cosmic_text::{fontdb::Source, FONT_SYSTEM};
+        use floem::text::{fontdb::Source, FONT_SYSTEM};
 
         const FONT_DEJAVU_SANS_REGULAR: &[u8] = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -3606,12 +3645,12 @@ pub fn launch() {
         ));
 
         FONT_SYSTEM
-            .db()
-            .write()
+            .lock()
+            .db_mut()
             .load_font_source(Source::Binary(Arc::new(FONT_DEJAVU_SANS_REGULAR)));
         FONT_SYSTEM
-            .db()
-            .write()
+            .lock()
+            .db_mut()
             .load_font_source(Source::Binary(Arc::new(
                 FONT_DEJAVU_SANS_MONO_REGULAR,
             )));
@@ -3622,8 +3661,6 @@ pub fn launch() {
         trace!(TraceLevel::INFO, "Loading custom environment from shell");
         load_shell_env();
     }
-
-    let cli = Cli::parse();
 
     // small hack to unblock terminal if launched from it
     // launch it as a separate process that waits
@@ -3678,30 +3715,6 @@ pub fn launch() {
             };
             return;
         }
-    }
-
-    {
-        let cx = Scope::new();
-        let send = create_ext_action(cx, |_| {
-            reset_highlight_configs();
-        });
-        std::thread::spawn(move || {
-            use self::grammars::*;
-            match find_release() {
-                Ok(release) => {
-                    if let Err(e) = fetch_grammars(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                    if let Err(e) = fetch_queries(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                }
-                Err(e) => {
-                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
-                }
-            }
-            send(());
-        });
     }
 
     #[cfg(feature = "updater")]
@@ -3774,6 +3787,62 @@ pub fn launch() {
         });
     }
 
+    {
+        let cx = Scope::new();
+        let app_data = app_data.clone();
+        let send = create_ext_action(cx, move |updated| {
+            if updated {
+                trace!(
+                    TraceLevel::INFO,
+                    "grammar or query got updated, reset highlight configs"
+                );
+                reset_highlight_configs();
+                for (_, window) in app_data.windows.get_untracked() {
+                    for (_, tab) in window.window_tabs.get_untracked() {
+                        for (_, doc) in tab.main_split.docs.get_untracked() {
+                            doc.syntax.update(|syntaxt| {
+                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            });
+                            doc.trigger_syntax_change(None);
+                        }
+                    }
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            use self::grammars::*;
+            let updated = match find_grammar_release() {
+                Ok(release) => {
+                    let mut updated = false;
+                    match fetch_grammars(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    match fetch_queries(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    updated
+                }
+                Err(e) => {
+                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
+                    false
+                }
+            };
+            send(updated);
+        });
+    }
+
     #[cfg(feature = "updater")]
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -3824,7 +3893,7 @@ pub fn launch() {
             has_visible_windows,
         } => {
             if !has_visible_windows {
-                app_data.new_window();
+                app_data.new_window(None);
             }
         }
     })

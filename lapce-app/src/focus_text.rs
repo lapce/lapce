@@ -1,5 +1,4 @@
 use floem::{
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     peniko::{
         kurbo::{Point, Rect},
         Color,
@@ -8,6 +7,7 @@ use floem::{
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::NodeId,
+    text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     Renderer, View, ViewId,
 };
 

@@ -34,7 +34,7 @@ use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
-        CodeActionResolveRequest, CodeLensRequest, Completion,
+        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
@@ -49,10 +49,10 @@ use lsp_types::{
     CodeActionResponse, CodeLens, CodeLensParams, CompletionClientCapabilities,
     CompletionItem, CompletionItemCapability,
     CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
-    Diagnostic, DocumentFormattingParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FormattingOptions, GotoCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverClientCapabilities, HoverParams, InlayHint,
-    InlayHintClientCapabilities, InlayHintParams,
+    Diagnostic, DocumentFormattingParams, DocumentSymbolClientCapabilities,
+    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
+    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
     InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
@@ -733,6 +733,25 @@ impl PluginCatalogRpcHandler {
         self.send_request_to_all_plugins(
             method,
             params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_code_lens_resolve(
+        &self,
+        path: &Path,
+        code_lens: &CodeLens,
+        cb: impl FnOnce(PluginId, Result<CodeLens, RpcError>) + Clone + Send + 'static,
+    ) {
+        let method = CodeLensResolve::METHOD;
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+
+        self.send_request_to_all_plugins(
+            method,
+            code_lens,
             language_id,
             Some(path.to_path_buf()),
             cb,
@@ -1434,7 +1453,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         volt.author, volt.name, volt.version
     );
 
-    let resp = reqwest::blocking::get(url)?;
+    let resp = crate::get_url(url, None)?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }
@@ -1442,7 +1461,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     // this is the s3 url
     let url = resp.text()?;
 
-    let mut resp = reqwest::blocking::get(url)?;
+    let mut resp = crate::get_url(url, None)?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }
@@ -1622,6 +1641,10 @@ fn client_capabilities() -> ClientCapabilities {
             }),
             call_hierarchy: Some(CallHierarchyClientCapabilities {
                 dynamic_registration: Some(true),
+            }),
+            document_symbol: Some(DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
             }),
             ..Default::default()
         }),

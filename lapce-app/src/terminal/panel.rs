@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{
@@ -220,19 +220,40 @@ impl TerminalPanelData {
     }
 
     pub fn close_tab(&self, terminal_tab_id: Option<TerminalTabId>) {
-        self.tab_info.update(|info| {
-            if let Some(terminal_tab_id) = terminal_tab_id {
-                info.tabs
-                    .retain(|(_, t)| t.terminal_tab_id != terminal_tab_id);
-            } else {
-                let active = info.active.min(info.tabs.len().saturating_sub(1));
-                if !info.tabs.is_empty() {
-                    info.tabs.remove(active);
+        if let Some(close_tab) = self
+            .tab_info
+            .try_update(|info| {
+                let mut close_tab = None;
+                if let Some(terminal_tab_id) = terminal_tab_id {
+                    if let Some(index) =
+                        info.tabs.iter().enumerate().find_map(|(index, (_, t))| {
+                            if t.terminal_tab_id == terminal_tab_id {
+                                Some(index)
+                            } else {
+                                None
+                            }
+                        })
+                    {
+                        close_tab = Some(
+                            info.tabs.remove(index).1.terminals.get_untracked(),
+                        );
+                    }
+                } else {
+                    let active = info.active.min(info.tabs.len().saturating_sub(1));
+                    if !info.tabs.is_empty() {
+                        info.tabs.remove(active);
+                    }
                 }
-            }
-            let new_active = info.active.min(info.tabs.len().saturating_sub(1));
-            info.active = new_active;
-        });
+                let new_active = info.active.min(info.tabs.len().saturating_sub(1));
+                info.active = new_active;
+                close_tab
+            })
+            .flatten()
+        {
+            close_tab
+                .into_iter()
+                .for_each(|x| self.common.proxy.terminal_close(x.1.term_id));
+        }
         self.update_debug_active_term();
     }
 
@@ -356,7 +377,7 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn terminal_stopped(&self, term_id: &TermId) {
+    pub fn terminal_stopped(&self, term_id: &TermId, exit_code: Option<i32>) {
         if let Some(terminal) = self.get_terminal(term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
                 let was_prelaunch = terminal
@@ -381,7 +402,8 @@ impl TerminalPanelData {
                         }
                     })
                     .unwrap();
-                if was_prelaunch == Some(true) {
+                let exit_code = exit_code.unwrap_or(0);
+                if was_prelaunch == Some(true) && exit_code == 0 {
                     let run_debug = terminal.run_debug.get_untracked();
                     if let Some(run_debug) = run_debug {
                         if run_debug.mode == RunDebugMode::Debug {

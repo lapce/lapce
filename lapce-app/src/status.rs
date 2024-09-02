@@ -5,7 +5,9 @@ use std::{
 
 use floem::{
     event::EventPropagation,
-    reactive::{create_memo, Memo, ReadSignal, RwSignal},
+    reactive::{
+        create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+    },
     style::{AlignItems, CursorStyle, Display, FlexWrap},
     views::{dyn_stack, label, stack, svg, Decorators},
     View,

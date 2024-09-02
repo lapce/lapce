@@ -8,7 +8,7 @@ use std::{
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::VirtualVector,
 };
 use lapce_rpc::{

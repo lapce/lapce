@@ -6,7 +6,10 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use flate2::read::GzDecoder;
-use lapce_core::{directory::Directory, meta};
+use lapce_core::{
+    directory::Directory,
+    meta::{self, ReleaseType},
+};
 use lapce_rpc::{
     core::CoreRpcHandler,
     proxy::{ProxyRpc, ProxyRpcHandler},
@@ -118,7 +121,7 @@ pub fn start_remote(
         .args([&remote_proxy_file, "--version"])
         .output()
         .map(|output| {
-            if meta::VERSION == "debug" {
+            if meta::RELEASE == ReleaseType::Debug {
                 String::from_utf8_lossy(&output.stdout).starts_with("Lapce-proxy")
             } else {
                 String::from_utf8_lossy(&output.stdout).trim()
@@ -267,10 +270,10 @@ fn download_remote(
         _ => {
             let proxy_script = general_purpose::STANDARD.encode(UNIX_PROXY_SCRIPT);
 
-            let version = if meta::VERSION == "debug" {
-                "nightly"
-            } else {
-                meta::VERSION
+            let version = match meta::RELEASE {
+                ReleaseType::Debug => "nightly".to_string(),
+                ReleaseType::Nightly => "nightly".to_string(),
+                ReleaseType::Stable => format!("v{}", meta::VERSION),
             };
             let cmd = remote
                 .command_builder()
@@ -283,7 +286,7 @@ fn download_remote(
                     "|",
                     "sh",
                     "/dev/stdin",
-                    version,
+                    &version,
                     remote_proxy_path,
                 ])
                 .output()?;
@@ -325,7 +328,7 @@ fn download_remote(
             };
             let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
             debug!("proxy download URI: {url}");
-            let mut resp = reqwest::blocking::get(url).expect("request failed");
+            let mut resp = lapce_proxy::get_url(url, None).expect("request failed");
             if resp.status().is_success() {
                 let mut out = std::fs::File::create(&local_proxy_file)
                     .expect("failed to create file");

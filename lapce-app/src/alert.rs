@@ -6,7 +6,7 @@ use std::{
 
 use floem::{
     event::EventListener,
-    reactive::{ReadSignal, RwSignal, Scope},
+    reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate},
     style::CursorStyle,
     views::{container, dyn_stack, label, stack, svg, Decorators},
     View,

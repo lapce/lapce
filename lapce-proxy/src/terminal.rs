@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -6,6 +5,7 @@ use std::{
     num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 
 use alacritty_terminal::{
@@ -116,6 +116,7 @@ impl Terminal {
             polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
 
         let timeout = Some(Duration::from_secs(6));
+        let mut exit_code = None;
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -133,10 +134,11 @@ impl Terminal {
             for event in events.iter() {
                 match event.key {
                     PTY_CHILD_EVENT_TOKEN => {
-                        if let Some(tty::ChildEvent::Exited(_)) =
+                        if let Some(tty::ChildEvent::Exited(exited_code)) =
                             self.pty.next_child_event()
                         {
                             let _ = self.pty_read(&core_rpc, &mut buf);
+                            exit_code = exited_code;
                             break 'event_loop;
                         }
                     }
@@ -192,7 +194,7 @@ impl Terminal {
                     .unwrap();
             }
         }
-        core_rpc.terminal_process_stopped(self.term_id);
+        core_rpc.terminal_process_stopped(self.term_id, exit_code);
         let _ = self.pty.deregister(&self.poller);
     }
 

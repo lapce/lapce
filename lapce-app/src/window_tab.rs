@@ -1,4 +1,3 @@
-use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -8,16 +7,21 @@ use std::{
     time::Instant,
 };
 
+use alacritty_terminal::vte::ansi::Handler;
 use crossbeam_channel::Sender;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
     keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
+    reactive::{
+        use_context, Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
+        SignalWith, WriteSignal,
+    },
+    text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
+    views::editor::core::buffer::rope_text::RopeText,
     ViewId,
 };
 use indexmap::IndexMap;
@@ -30,12 +34,16 @@ use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
     file::{Naming, PathObject},
+    plugin::PluginId,
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
     RpcError,
 };
-use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
+use lsp_types::{
+    CodeActionOrCommand, CodeLens, Diagnostic, ProgressParams, ProgressToken,
+    ShowMessageParams,
+};
 use serde_json::Value;
 use tracing::{debug, error, event, Level};
 
@@ -66,7 +74,8 @@ use crate::{
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
-        data::{default_panel_order, PanelData},
+        call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
+        data::{default_panel_order, PanelData, PanelSection},
         kind::PanelKind,
         position::PanelContainerPosition,
     },
@@ -168,6 +177,7 @@ pub struct WindowTabData {
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
+    pub call_hierarchy_data: CallHierarchyData,
     pub about_data: AboutData,
     pub alert_data: AlertBoxData,
     pub layout_rect: RwSignal<Rect>,
@@ -340,7 +350,7 @@ impl WindowTabData {
             let attrs = Attrs::new()
                 .family(&family)
                 .font_size(config.ui.font_size() as f32)
-                .line_height(LineHeightValue::Normal(1.6));
+                .line_height(LineHeightValue::Normal(1.8));
             let attrs_list = AttrsList::new(attrs);
             text_layout.set_text("W", attrs_list);
             text_layout.size().height
@@ -439,7 +449,7 @@ impl WindowTabData {
             .map(|i| {
                 let panel_order = db
                     .get_panel_orders()
-                    .unwrap_or_else(|_| i.panel.panels.clone());
+                    .unwrap_or_else(|_| default_panel_order());
                 PanelData {
                     panels: cx.create_rw_signal(panel_order),
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
@@ -501,6 +511,7 @@ impl WindowTabData {
             HashSet::from_iter(workspace_disabled_volts),
             main_split.editors,
             common.clone(),
+            proxy.core_rpc.clone(),
         );
 
         {
@@ -540,6 +551,11 @@ impl WindowTabData {
             plugin,
             rename,
             global_search,
+            call_hierarchy_data: CallHierarchyData {
+                root: cx.create_rw_signal(None),
+                common: common.clone(),
+                scroll_to_line: cx.create_rw_signal(None),
+            },
             about_data,
             alert_data,
             layout_rect: cx.create_rw_signal(Rect::ZERO),
@@ -672,7 +688,12 @@ impl WindowTabData {
             OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_common.window_command;
-                    let options = FileDialogOptions::new().select_directories();
+                    let mut options = FileDialogOptions::new().select_directories();
+                    options = if let Some(parent) = self.workspace.path.as_ref().and_then(|x| x.parent()) {
+                        options.force_starting_directory(parent)
+                    } else {
+                        options
+                    };
                     open_file(options, move |file| {
                         if let Some(mut file) = file {
                             let workspace = LapceWorkspace {
@@ -1361,12 +1382,61 @@ impl WindowTabData {
             Quit => {
                 floem::quit_app();
             }
-            RevealInFileTree => {
+            RevealInPanel => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    self.show_panel(PanelKind::FileExplorer);
+                    self.panel
+                        .section_open(PanelSection::FileExplorer).update(|x| {
+                        *x = true;
+                    });
+                    if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
+                        self.file_explorer.reveal_in_file_tree(path);
+                    }
+                }
+            }
+            SourceControlOpenActiveFileRemoteUrl => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
-                        self.file_explorer.reveal_in_file_tree(path);
+                        let offset = editor_data.cursor().with_untracked(|c| c.offset());
+                        let line = editor_data.doc()
+                            .buffer
+                            .with_untracked(|buffer| buffer.line_of_offset(offset));
+                        self.common.proxy.git_get_remote_file_url(
+                            path,
+                            create_ext_action(self.scope, move |result| {
+                                if let Ok(ProxyResponse::GitGetRemoteFileUrl {
+                                              file_url
+                                          }) = result
+                                {
+                                    if let Err(err) = open::that(format!("{}#L{}", file_url, line)) {
+                                        error!("Failed to open file in github: {}",  err);
+                                    }
+                                }
+                            }),
+                        );
+
+                    }
+                }
+            }
+            RevealInFileExplorer => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
+                        let path = path.parent().unwrap_or(&path);
+                        if !path.exists() {
+                            return;
+                        }
+                        if let Err(err) = open::that(path) {
+                            error!(
+                            "Failed to reveal file in system file explorer: {}",
+                            err
+                        );
+                        }
                     }
                 }
             }
@@ -1374,9 +1444,68 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.show_call_hierarchy();
+                    editor_data.call_hierarchy(self.clone());
                 }
             }
+            RunInTerminal => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let name = editor_data.word_at_cursor();
+                    if !name.is_empty() {
+                        let mut args_str = name.split(" ");
+                        let program = args_str.next().map(|x| x.to_string()).unwrap();
+                        let args: Vec<String> = args_str.map(|x| x.to_string()).collect();
+                        let args = if args.is_empty() {
+                            None
+                        } else {
+                            Some(args)
+                        };
+
+                        let config = RunDebugConfig {
+                            ty: None,
+                            name,
+                            program,
+                            args,
+                            cwd: None,
+                            env: None,
+                            prelaunch: None,
+                            debug_command: None,
+                            dap_id: Default::default(),
+                        };
+                        self.common
+                            .internal_command
+                            .send(InternalCommand::RunAndDebug { mode: RunDebugMode::Run, config });
+                    }
+                }
+            }
+            GoToLocation => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let doc = editor_data.doc();
+                    let path = match if doc.loaded() {
+                        doc.content.with_untracked(|c| c.path().cloned())
+                    } else {
+                        None
+                    } {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    let offset = editor_data.cursor().with_untracked(|c| c.offset());
+                    let internal_command = self.common.internal_command;
+
+                    internal_command.send(InternalCommand::MakeConfirmed);
+                    internal_command.send(InternalCommand::GoToLocation { location: EditorLocation {
+                        path,
+                        position: Some(EditorPosition::Offset(offset)),
+                        scroll_offset: None,
+                        ignore_unconfirmed: false,
+                        same_editor_tab: false,
+                    } });
+                }
+            }
+
         }
     }
 
@@ -1627,10 +1756,11 @@ impl WindowTabData {
             InternalCommand::ShowCodeActions {
                 offset,
                 mouse_click,
+                plugin_id,
                 code_actions,
             } => {
                 let mut code_action = self.code_action.get_untracked();
-                code_action.show(code_actions, offset, mouse_click);
+                code_action.show(plugin_id, code_actions, offset, mouse_click);
                 self.code_action.set(code_action);
             }
             InternalCommand::RunCodeAction { plugin_id, action } => {
@@ -1841,6 +1971,9 @@ impl WindowTabData {
                 raw.write().term.reset_state();
                 view_id.request_paint();
             }
+            InternalCommand::CallHierarchyIncoming { item_id } => {
+                self.call_hierarchy_incoming(item_id);
+            }
         }
     }
 
@@ -1927,17 +2060,18 @@ impl WindowTabData {
                     self.main_split.docs.with_untracked(|x| {
                         for doc in x.values() {
                             doc.get_code_lens();
+                            doc.get_document_symbol();
                             doc.get_semantic_styles();
                         }
                     });
                 }
             }
-            CoreNotification::TerminalProcessStopped { term_id } => {
+            CoreNotification::TerminalProcessStopped { term_id, exit_code } => {
                 let _ = self
                     .common
                     .term_tx
                     .send((*term_id, TermEvent::CloseTerminal));
-                self.terminal.terminal_stopped(term_id);
+                self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
                     .terminal
                     .tab_info
@@ -2390,7 +2524,9 @@ impl WindowTabData {
             PanelKind::FileExplorer
             | PanelKind::Plugin
             | PanelKind::Problem
-            | PanelKind::Debug => {
+            | PanelKind::Debug
+            | PanelKind::CallHierarchy
+            | PanelKind::DocumentSymbol => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
@@ -2655,6 +2791,81 @@ impl WindowTabData {
         }) {
             remove_overlay(old_id);
         }
+    }
+
+    pub fn show_code_lens(
+        &self,
+        mouse_click: bool,
+        plugin_id: PluginId,
+        offset: usize,
+        lens: im::Vector<CodeLens>,
+    ) {
+        self.common
+            .internal_command
+            .send(InternalCommand::ShowCodeActions {
+                offset,
+                mouse_click,
+                plugin_id,
+                code_actions: lens
+                    .into_iter()
+                    .filter_map(|lens| {
+                        Some(CodeActionOrCommand::Command(lens.command?))
+                    })
+                    .collect(),
+            });
+    }
+
+    pub fn call_hierarchy_incoming(&self, item_id: ViewId) {
+        let Some(root) = self.call_hierarchy_data.root.get_untracked() else {
+            return;
+        };
+        let Some(item) = CallHierarchyItemData::find_by_id(root, item_id) else {
+            return;
+        };
+        let root_item = item;
+        let path: PathBuf = item.get_untracked().item.uri.to_file_path().unwrap();
+        let scope = self.scope;
+        let send =
+            create_ext_action(scope, move |_rs: Result<ProxyResponse, RpcError>| {
+                match _rs {
+                    Ok(ProxyResponse::CallHierarchyIncomingResponse { items }) => {
+                        if let Some(items) = items {
+                            let mut item_children = Vec::new();
+                            for x in items {
+                                let item = Rc::new(x.from);
+                                for range in x.from_ranges {
+                                    item_children.push(scope.create_rw_signal(
+                                        CallHierarchyItemData {
+                                            view_id: floem::ViewId::new(),
+                                            item: item.clone(),
+                                            from_range: range,
+                                            init: false,
+                                            open: scope.create_rw_signal(false),
+                                            children:
+                                                scope.create_rw_signal(Vec::new()),
+                                        },
+                                    ))
+                                }
+                            }
+                            root_item.update(|x| {
+                                x.init = true;
+                                x.children.update(|children| {
+                                    *children = item_children;
+                                })
+                            });
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("{:?}", err);
+                    }
+                    Ok(_) => {}
+                }
+            });
+        self.common.proxy.call_hierarchy_incoming(
+            path,
+            item.get_untracked().item.as_ref().clone(),
+            send,
+        );
     }
 }
 
