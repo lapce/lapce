@@ -27,15 +27,22 @@ impl EventListener for EventProxy {
                 self.proxy.terminal_write(self.term_id, s);
             }
             alacritty_terminal::event::Event::MouseCursorDirty => {
-                let _ = self
+                if let Err(err) = self
                     .term_notification_tx
-                    .send(TermNotification::RequestPaint);
+                    .send(TermNotification::RequestPaint)
+                {
+                    tracing::error!("{:?}", err);
+                }
             }
             alacritty_terminal::event::Event::Title(s) => {
-                let _ = self.term_notification_tx.send(TermNotification::SetTitle {
-                    term_id: self.term_id,
-                    title: s,
-                });
+                if let Err(err) =
+                    self.term_notification_tx.send(TermNotification::SetTitle {
+                        term_id: self.term_id,
+                        title: s,
+                    })
+                {
+                    tracing::error!("{:?}", err);
+                }
             }
             _ => (),
         }

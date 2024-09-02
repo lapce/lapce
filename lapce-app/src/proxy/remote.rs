@@ -181,14 +181,26 @@ pub fn start_remote(
         for msg in local_proxy_rpc.rx() {
             match msg {
                 ProxyRpc::Request(id, rpc) => {
-                    let _ = local_writer_tx.send(RpcMessage::Request(id, rpc));
+                    if let Err(err) =
+                        local_writer_tx.send(RpcMessage::Request(id, rpc))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 ProxyRpc::Notification(rpc) => {
-                    let _ = local_writer_tx.send(RpcMessage::Notification(rpc));
+                    if let Err(err) =
+                        local_writer_tx.send(RpcMessage::Notification(rpc))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 ProxyRpc::Shutdown => {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    if let Err(err) = child.kill() {
+                        tracing::error!("{:?}", err);
+                    }
+                    if let Err(err) = child.wait() {
+                        tracing::error!("{:?}", err);
+                    }
                     return;
                 }
             }
@@ -203,10 +215,18 @@ pub fn start_remote(
                     let core_rpc = core_rpc.clone();
                     std::thread::spawn(move || match core_rpc.request(req) {
                         Ok(resp) => {
-                            let _ = writer_tx.send(RpcMessage::Response(id, resp));
+                            if let Err(err) =
+                                writer_tx.send(RpcMessage::Response(id, resp))
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                         Err(e) => {
-                            let _ = writer_tx.send(RpcMessage::Error(id, e));
+                            if let Err(err) =
+                                writer_tx.send(RpcMessage::Error(id, e))
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     });
                 }

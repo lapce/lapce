@@ -1447,7 +1447,9 @@ impl EditorData {
             return;
         };
 
-        let _ = item.apply(self, start_offset);
+        if let Err(err) = item.apply(self, start_offset) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn next_inline_completion(&self) {
@@ -1613,7 +1615,9 @@ impl EditorData {
                     {
                         return;
                     }
-                    let _ = editor.apply_completion_item(&item);
+                    if let Err(err) = editor.apply_completion_item(&item) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
                 self.common.proxy.completion_resolve(
                     item.plugin_id,
@@ -1631,8 +1635,8 @@ impl EditorData {
                         send(item);
                     },
                 );
-            } else {
-                let _ = self.apply_completion_item(&item.item);
+            } else if let Err(err) = self.apply_completion_item(&item.item) {
+                tracing::error!("{:?}", err);
             }
         }
     }
@@ -2238,7 +2242,9 @@ impl EditorData {
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
                 proxy.get_document_formatting(path, move |result| {
-                    let _ = tx.send(result);
+                    if let Err(err) = tx.send(result) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));
                 send(result);
@@ -2270,7 +2276,9 @@ impl EditorData {
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
                 proxy.get_document_formatting(path, move |result| {
-                    let _ = tx.send(result);
+                    if let Err(err) = tx.send(result) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));
                 send(result);
