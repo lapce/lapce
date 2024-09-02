@@ -30,7 +30,9 @@ impl notify::EventHandler for ConfigWatcher {
                             std::thread::sleep(std::time::Duration::from_millis(
                                 500,
                             ));
-                            let _ = tx.send(());
+                            if let Err(err) = tx.send(()) {
+                                tracing::error!("{:?}", err);
+                            }
                             config_mutex
                                 .store(false, std::sync::atomic::Ordering::Relaxed);
                         });

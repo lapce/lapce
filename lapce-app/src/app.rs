@@ -254,7 +254,9 @@ impl AppData {
         match cmd {
             AppCommand::SaveApp => {
                 let db: Arc<LapceDb> = use_context().unwrap();
-                let _ = db.save_app(self);
+                if let Err(err) = db.save_app(self) {
+                    tracing::error!("{:?}", err);
+                }
             }
             AppCommand::WindowClosed(window_id) => {
                 if self.app_terminated.get_untracked() {
@@ -262,7 +264,9 @@ impl AppData {
                 }
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if self.windows.with_untracked(|w| w.len()) == 1 {
-                    let _ = db.insert_app(self.clone());
+                    if let Err(err) = db.insert_app(self.clone()) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 let window_data = self
                     .windows
@@ -271,7 +275,9 @@ impl AppData {
                 if let Some(window_data) = window_data {
                     window_data.scope.dispose();
                 }
-                let _ = db.save_app(self);
+                if let Err(err) = db.save_app(self) {
+                    tracing::error!("{:?}", err);
+                }
             }
             AppCommand::CloseWindow(window_id) => {
                 floem::close_window(window_id);
@@ -3720,7 +3726,9 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
-    let _ = lapce_proxy::register_lapce_path();
+    if let Err(err) = lapce_proxy::register_lapce_path() {
+        tracing::error!("{:?}", err);
+    }
     let db = match LapceDb::new() {
         Ok(db) => Arc::new(db),
         Err(e) => {
@@ -3743,16 +3751,24 @@ pub fn launch() {
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
     if let Some(path) = LapceConfig::settings_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
+            tracing::error!("{:?}", err);
+        }
     }
     if let Some(path) = Directory::themes_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
+            tracing::error!("{:?}", err);
+        }
     }
     if let Some(path) = LapceConfig::keymaps_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
+            tracing::error!("{:?}", err);
+        }
     }
     if let Some(path) = Directory::plugins_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+        if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     let windows = scope.create_rw_signal(im::HashMap::new());
@@ -3855,7 +3871,9 @@ pub fn launch() {
         });
         std::thread::spawn(move || loop {
             if let Ok(release) = crate::update::get_latest_release() {
-                let _ = tx.send(release);
+                if let Err(err) = tx.send(release) {
+                    tracing::error!("{:?}", err);
+                }
             }
             std::thread::sleep(std::time::Duration::from_secs(60 * 60));
         });
@@ -3873,7 +3891,9 @@ pub fn launch() {
             }
         });
         std::thread::spawn(move || {
-            let _ = listen_local_socket(tx);
+            if let Err(err) = listen_local_socket(tx) {
+                tracing::error!("{:?}", err);
+            }
         });
     }
 
@@ -3887,7 +3907,9 @@ pub fn launch() {
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
             app_data.app_terminated.set(true);
-            let _ = db.insert_app(app_data.clone());
+            if let Err(err) = db.insert_app(app_data.clone()) {
+                tracing::error!("{:?}", err);
+            }
         }
         floem::AppEvent::Reopen {
             has_visible_windows,
@@ -3993,7 +4015,9 @@ pub fn try_open_in_existing_process(
 fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
-    let _ = std::fs::remove_file(&local_socket);
+    if let Err(err) = std::fs::remove_file(&local_socket) {
+        tracing::error!("{:?}", err);
+    }
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
 
@@ -4012,8 +4036,12 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
                 }
 
                 let stream_ref = reader.get_mut();
-                let _ = stream_ref.write_all(b"received");
-                let _ = stream_ref.flush();
+                if let Err(err) = stream_ref.write_all(b"received") {
+                    tracing::error!("{:?}", err);
+                }
+                if let Err(err) = stream_ref.flush() {
+                    tracing::error!("{:?}", err);
+                }
             }
         });
     }

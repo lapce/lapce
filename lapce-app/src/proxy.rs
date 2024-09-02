@@ -128,12 +128,17 @@ pub fn new_proxy(
 impl CoreHandler for Proxy {
     fn handle_notification(&mut self, rpc: lapce_rpc::core::CoreNotification) {
         if let CoreNotification::UpdateTerminal { term_id, content } = &rpc {
-            let _ = self
+            if let Err(err) = self
                 .term_tx
-                .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
+                .send((*term_id, TermEvent::UpdateContent(content.to_vec())))
+            {
+                tracing::error!("{:?}", err);
+            }
             return;
         }
-        let _ = self.tx.send(rpc);
+        if let Err(err) = self.tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn handle_request(
