@@ -16,8 +16,19 @@ pub(crate) enum KeyInput {
 
 impl KeyInput {
     pub fn keymap_key(&self) -> Option<KeyMapKey> {
-        if let KeyInput::Keyboard { repeat, .. } = self {
-            if *repeat {
+        if let KeyInput::Keyboard {
+            repeat, logical, ..
+        } = self
+        {
+            if *repeat
+                && (matches!(
+                    logical,
+                    Key::Named(NamedKey::Meta)
+                        | Key::Named(NamedKey::Shift)
+                        | Key::Named(NamedKey::Alt)
+                        | Key::Named(NamedKey::Control),
+                ))
+            {
                 return None;
             }
         }
