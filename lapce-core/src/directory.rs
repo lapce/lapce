@@ -37,7 +37,9 @@ impl Directory {
             Some(dir) => {
                 let dir = dir.data_local_dir();
                 if !dir.exists() {
-                    let _ = std::fs::create_dir_all(dir);
+                    if let Err(err) = std::fs::create_dir_all(dir) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 Some(dir.to_path_buf())
             }
@@ -51,7 +53,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("logs");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -64,7 +68,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("cache");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -79,7 +85,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("proxy");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -92,7 +100,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("themes");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -106,7 +116,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("plugins");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -120,7 +132,9 @@ impl Directory {
             Some(dir) => {
                 let dir = dir.config_dir();
                 if !dir.exists() {
-                    let _ = std::fs::create_dir_all(dir);
+                    if let Err(err) = std::fs::create_dir_all(dir) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 Some(dir.to_path_buf())
             }
@@ -136,7 +150,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("updates");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
             Some(dir)
         } else {
@@ -148,7 +164,9 @@ impl Directory {
         if let Some(dir) = Self::config_directory() {
             let dir = dir.join("queries");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
 
             Some(dir)
@@ -161,7 +179,9 @@ impl Directory {
         if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("grammars");
             if !dir.exists() {
-                let _ = std::fs::create_dir(&dir);
+                if let Err(err) = std::fs::create_dir(&dir) {
+                    tracing::error!("{:?}", err);
+                }
             }
 
             Some(dir)

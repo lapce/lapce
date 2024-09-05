@@ -491,7 +491,9 @@ impl SyntaxLayers {
 
         let cancel_flag = AtomicUsize::new(0);
         if let Some(source) = source {
-            let _ = syntax.update(0, 0, source, None, &cancel_flag);
+            if let Err(err) = syntax.update(0, 0, source, None, &cancel_flag) {
+                tracing::error!("{:?}", err);
+            }
         }
 
         syntax
@@ -949,8 +951,11 @@ impl Syntax {
             None => return,
         };
         let edits = edits.filter(|edits| new_rev == self.rev + edits.len() as u64);
-        let _ =
-            layers.update(self.rev, new_rev, &new_text, edits, &self.cancel_flag);
+        if let Err(err) =
+            layers.update(self.rev, new_rev, &new_text, edits, &self.cancel_flag)
+        {
+            tracing::error!("{:?}", err);
+        }
         let tree = layers.try_tree();
 
         let styles = if tree.is_some() {
