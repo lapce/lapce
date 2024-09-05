@@ -725,22 +725,26 @@ impl SyntaxLayers {
                         if let (Some(injection_capture), Some(content_node)) =
                             (injection_capture, content_node)
                         {
-                            if let Ok(config) =
-                                (injection_callback)(&injection_capture)
-                            {
-                                let ranges = intersect_ranges(
-                                    &layer.ranges,
-                                    &[content_node],
-                                    included_children,
-                                );
+                            match (injection_callback)(&injection_capture) {
+                                Ok(config) => {
+                                    let ranges = intersect_ranges(
+                                        &layer.ranges,
+                                        &[content_node],
+                                        included_children,
+                                    );
 
-                                if !ranges.is_empty() {
-                                    if content_node.start_byte() < last_injection_end
-                                    {
-                                        continue;
+                                    if !ranges.is_empty() {
+                                        if content_node.start_byte()
+                                            < last_injection_end
+                                        {
+                                            continue;
+                                        }
+                                        last_injection_end = content_node.end_byte();
+                                        injections.push((config, ranges));
                                     }
-                                    last_injection_end = content_node.end_byte();
-                                    injections.push((config, ranges));
+                                }
+                                Err(err) => {
+                                    tracing::error!("{:?}", err);
                                 }
                             }
                         }
@@ -752,14 +756,19 @@ impl SyntaxLayers {
                         if let (Some(lang_name), false) =
                             (lang_name, content_nodes.is_empty())
                         {
-                            if let Ok(config) = (injection_callback)(&lang_name) {
-                                let ranges = intersect_ranges(
-                                    &layer.ranges,
-                                    &content_nodes,
-                                    included_children,
-                                );
-                                if !ranges.is_empty() {
-                                    injections.push((config, ranges));
+                            match (injection_callback)(&lang_name) {
+                                Ok(config) => {
+                                    let ranges = intersect_ranges(
+                                        &layer.ranges,
+                                        &content_nodes,
+                                        included_children,
+                                    );
+                                    if !ranges.is_empty() {
+                                        injections.push((config, ranges));
+                                    }
+                                }
+                                Err(err) => {
+                                    tracing::error!("{:?}", err);
                                 }
                             }
                         }

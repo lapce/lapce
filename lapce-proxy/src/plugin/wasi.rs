@@ -222,8 +222,8 @@ impl Plugin {
             None,
             None,
             false,
-            move |value| {
-                if let Ok(value) = value {
+            move |value| match value {
+                Ok(value) => {
                     if let Ok(result) = serde_json::from_value(value) {
                         server_rpc.handle_rpc(PluginServerRpc::Handler(
                             PluginHandlerNotification::InitializeResult(result),
@@ -236,6 +236,9 @@ impl Plugin {
                             false,
                         );
                     }
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
                 }
             },
         );
