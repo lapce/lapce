@@ -203,7 +203,9 @@ impl CoreRpcHandler {
     ) {
         let tx = { self.pending.lock().remove(&id) };
         if let Some(tx) = tx {
-            let _ = tx.send(response);
+            if let Err(err) = tx.send(response) {
+                tracing::error!("{:?}", err);
+            }
         }
     }
 
@@ -214,7 +216,9 @@ impl CoreRpcHandler {
             let mut pending = self.pending.lock();
             pending.insert(id, tx);
         }
-        let _ = self.tx.send(CoreRpc::Request(id, request));
+        if let Err(err) = self.tx.send(CoreRpc::Request(id, request)) {
+            tracing::error!("{:?}", err);
+        }
         rx.recv().unwrap_or_else(|_| {
             Err(RpcError {
                 code: 0,
@@ -224,11 +228,16 @@ impl CoreRpcHandler {
     }
 
     pub fn shutdown(&self) {
-        let _ = self.tx.send(CoreRpc::Shutdown);
+        if let Err(err) = self.tx.send(CoreRpc::Shutdown) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn notification(&self, notification: CoreNotification) {
-        let _ = self.tx.send(CoreRpc::Notification(Box::new(notification)));
+        if let Err(err) = self.tx.send(CoreRpc::Notification(Box::new(notification)))
+        {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn workspace_file_change(&self) {

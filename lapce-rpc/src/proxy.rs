@@ -466,7 +466,9 @@ impl ResponseHandler {
         match self {
             ResponseHandler::Callback(f) => f(result),
             ResponseHandler::Chan(tx) => {
-                let _ = tx.send(result);
+                if let Err(err) = tx.send(result) {
+                    tracing::error!("{:?}", err);
+                }
             }
         }
     }
@@ -525,7 +527,9 @@ impl ProxyRpcHandler {
 
         self.pending.lock().insert(id, rh);
 
-        let _ = self.tx.send(ProxyRpc::Request(id, request));
+        if let Err(err) = self.tx.send(ProxyRpc::Request(id, request)) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn request(&self, request: ProxyRequest) -> Result<ProxyResponse, RpcError> {
@@ -559,7 +563,9 @@ impl ProxyRpcHandler {
     }
 
     pub fn notification(&self, notification: ProxyNotification) {
-        let _ = self.tx.send(ProxyRpc::Notification(notification));
+        if let Err(err) = self.tx.send(ProxyRpc::Notification(notification)) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn git_init(&self) {
@@ -596,7 +602,9 @@ impl ProxyRpcHandler {
 
     pub fn shutdown(&self) {
         self.notification(ProxyNotification::Shutdown {});
-        let _ = self.tx.send(ProxyRpc::Shutdown);
+        if let Err(err) = self.tx.send(ProxyRpc::Shutdown) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn initialize(
