@@ -317,19 +317,29 @@ impl FromStr for KeyMapKey {
 impl Display for KeyMapPress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.mods.contains(Modifiers::CONTROL) {
-            let _ = f.write_str("Ctrl+");
+            if let Err(err) = f.write_str("Ctrl+") {
+                tracing::error!("{:?}", err);
+            }
         }
         if self.mods.contains(Modifiers::ALT) {
-            let _ = f.write_str("Alt+");
+            if let Err(err) = f.write_str("Alt+") {
+                tracing::error!("{:?}", err);
+            }
         }
         if self.mods.contains(Modifiers::ALTGR) {
-            let _ = f.write_str("AltGr+");
+            if let Err(err) = f.write_str("AltGr+") {
+                tracing::error!("{:?}", err);
+            }
         }
         if self.mods.contains(Modifiers::META) {
-            let _ = f.write_str("Meta+");
+            if let Err(err) = f.write_str("Meta+") {
+                tracing::error!("{:?}", err);
+            }
         }
         if self.mods.contains(Modifiers::SHIFT) {
-            let _ = f.write_str("Shift+");
+            if let Err(err) = f.write_str("Shift+") {
+                tracing::error!("{:?}", err);
+            }
         }
         f.write_str(&self.key.to_string())
     }

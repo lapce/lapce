@@ -434,7 +434,9 @@ impl PluginData {
                 let buf = resp.bytes()?.to_vec();
 
                 if let Some(path) = cache_file_path.as_ref() {
-                    let _ = std::fs::write(path, &buf);
+                    if let Err(err) = std::fs::write(path, &buf) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
 
                 buf

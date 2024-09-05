@@ -154,7 +154,11 @@ impl PaletteData {
                     let run_id = run_id.get_untracked();
                     let preselect_index =
                         preselect_index.try_update(|i| i.take()).unwrap();
-                    let _ = tx.send((run_id, input.input, items, preselect_index));
+                    if let Err(err) =
+                        tx.send((run_id, input.input, items, preselect_index))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
             // this effect only monitors input change
@@ -166,7 +170,9 @@ impl PaletteData {
                 }
                 let items = items.get_untracked();
                 let run_id = run_id.get_untracked();
-                let _ = tx.send((run_id, input.input, items, None));
+                if let Err(err) = tx.send((run_id, input.input, items, None)) {
+                    tracing::error!("{:?}", err);
+                }
                 kind
             });
         }
@@ -1610,12 +1616,14 @@ impl PaletteData {
                     items,
                     &mut matcher,
                 ) {
-                    let _ = resp_tx.send((
+                    if let Err(err) = resp_tx.send((
                         current_run_id,
                         input,
                         filtered_items,
                         preselect_index,
-                    ));
+                    )) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
             } else {
                 return;

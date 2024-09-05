@@ -420,7 +420,11 @@ impl TerminalData {
 
         {
             let raw = raw.clone();
-            let _ = common.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
+            if let Err(err) =
+                common.term_tx.send((term_id, TermEvent::NewTerminal(raw)))
+            {
+                tracing::error!("{:?}", err);
+            }
             common.proxy.new_terminal(term_id, profile);
         }
 

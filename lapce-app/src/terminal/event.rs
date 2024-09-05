@@ -50,13 +50,19 @@ pub fn terminal_update_process(
                     if last_event.is_some() {
                         if last_redraw.elapsed().as_millis() > 10 {
                             last_redraw = Instant::now();
-                            let _ = term_notification_tx
-                                .send(TermNotification::RequestPaint);
+                            if let Err(err) = term_notification_tx
+                                .send(TermNotification::RequestPaint)
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     } else {
                         last_redraw = Instant::now();
-                        let _ = term_notification_tx
-                            .send(TermNotification::RequestPaint);
+                        if let Err(err) =
+                            term_notification_tx.send(TermNotification::RequestPaint)
+                        {
+                            tracing::error!("{:?}", err);
+                        }
                     }
                 }
             }

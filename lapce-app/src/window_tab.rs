@@ -2067,10 +2067,13 @@ impl WindowTabData {
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id, exit_code } => {
-                let _ = self
+                if let Err(err) = self
                     .common
                     .term_tx
-                    .send((*term_id, TermEvent::CloseTerminal));
+                    .send((*term_id, TermEvent::CloseTerminal))
+                {
+                    tracing::error!("{:?}", err);
+                }
                 self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
                     .terminal
