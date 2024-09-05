@@ -566,10 +566,13 @@ impl LapceConfig {
         let path = Directory::config_directory()?.join("settings.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            if let Err(err) = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)
+            {
+                tracing::error!("{:?}", err);
+            }
         }
 
         Some(path)
@@ -579,10 +582,13 @@ impl LapceConfig {
         let path = Directory::config_directory()?.join("keymaps.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            if let Err(err) = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)
+            {
+                tracing::error!("{:?}", err);
+            }
         }
 
         Some(path)
