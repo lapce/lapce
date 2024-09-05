@@ -379,29 +379,35 @@ impl LspClient {
             root_path: None,
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        if let Ok(value) = self.server_rpc.server_request(
+        match self.server_rpc.server_request(
             Initialize::METHOD,
             params,
             None,
             None,
             false,
         ) {
-            let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
-            self.server_rpc.server_notification(
-                Initialized::METHOD,
-                InitializedParams {},
-                None,
-                None,
-                false,
-            );
-            if self
-                .plugin_rpc
-                .plugin_server_loaded(self.server_rpc.clone())
-                .is_err()
-            {
-                self.server_rpc.shutdown();
-                self.shutdown();
+            Ok(value) => {
+                let result: InitializeResult =
+                    serde_json::from_value(value).unwrap();
+                self.host.server_capabilities = result.capabilities;
+                self.server_rpc.server_notification(
+                    Initialized::METHOD,
+                    InitializedParams {},
+                    None,
+                    None,
+                    false,
+                );
+                if self
+                    .plugin_rpc
+                    .plugin_server_loaded(self.server_rpc.clone())
+                    .is_err()
+                {
+                    self.server_rpc.shutdown();
+                    self.shutdown();
+                }
+            }
+            Err(err) => {
+                tracing::error!("{:?}", err);
             }
         }
         //     move |result| {

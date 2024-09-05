@@ -1765,10 +1765,14 @@ impl LapceLanguage {
         let grammar_fn_name = self.grammar_fn_name();
 
         if let Some(grammars_dir) = Directory::grammars_directory() {
-            if let Ok(grammar) =
-                self::load_grammar(&grammar_name, &grammar_fn_name, &grammars_dir)
+            match self::load_grammar(&grammar_name, &grammar_fn_name, &grammars_dir)
             {
-                return Some(grammar);
+                Ok(grammar) => {
+                    return Some(grammar);
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
+                }
             }
         };
 

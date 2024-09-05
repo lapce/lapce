@@ -213,14 +213,17 @@ impl DapClient {
         match event {
             DapEvent::Initialized(_) => {
                 for (path, breakpoints) in self.breakpoints.clone().into_iter() {
-                    if let Ok(breakpoints) =
-                        self.dap_rpc.set_breakpoints(path.clone(), breakpoints)
-                    {
-                        self.plugin_rpc.core_rpc.dap_breakpoints_resp(
-                            self.config.dap_id,
-                            path,
-                            breakpoints.breakpoints.unwrap_or_default(),
-                        );
+                    match self.dap_rpc.set_breakpoints(path.clone(), breakpoints) {
+                        Ok(breakpoints) => {
+                            self.plugin_rpc.core_rpc.dap_breakpoints_resp(
+                                self.config.dap_id,
+                                path,
+                                breakpoints.breakpoints.unwrap_or_default(),
+                            );
+                        }
+                        Err(err) => {
+                            tracing::error!("{:?}", err);
+                        }
                     }
                 }
                 // send dap configurations here

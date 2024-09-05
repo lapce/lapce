@@ -1081,14 +1081,17 @@ impl PluginCatalogRpcHandler {
             params,
             language_id,
             Some(path.to_path_buf()),
-            move |plugin_id, result| {
-                if let Ok(value) = result {
+            move |plugin_id, result| match result {
+                Ok(value) => {
                     if let Ok(resp) =
                         serde_json::from_value::<CompletionResponse>(value)
                     {
                         core_rpc
                             .completion_response(request_id, input, resp, plugin_id);
                     }
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
                 }
             },
         );
@@ -1160,13 +1163,16 @@ impl PluginCatalogRpcHandler {
             language_id,
             Some(path.to_path_buf()),
             true,
-            move |plugin_id, result| {
-                if let Ok(value) = result {
+            move |plugin_id, result| match result {
+                Ok(value) => {
                     if let Ok(resp) = serde_json::from_value::<SignatureHelp>(value)
                     {
                         core_rpc
                             .signature_help_response(request_id, resp, plugin_id);
                     }
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
                 }
             },
         );
