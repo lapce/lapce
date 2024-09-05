@@ -114,7 +114,9 @@ impl PluginServerHandler for LspClient {
         params: Params,
         from: String,
     ) {
-        let _ = self.host.handle_notification(method, params, from);
+        if let Err(err) = self.host.handle_notification(method, params, from) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn handle_did_save_text_document(
@@ -185,10 +187,13 @@ impl LspClient {
             "file" => {
                 let path = server_uri.to_file_path().map_err(|_| anyhow!(""))?;
                 #[cfg(unix)]
-                let _ = std::process::Command::new("chmod")
+                if let Err(err) = std::process::Command::new("chmod")
                     .arg("+x")
                     .arg(&path)
-                    .output();
+                    .output()
+                {
+                    tracing::error!("{:?}", err);
+                }
                 path.to_str().ok_or_else(|| anyhow!(""))?.to_string()
             }
             "urn" => server_uri.path().to_string(),
@@ -220,8 +225,12 @@ impl LspClient {
                 if let Ok(msg) = serde_json::to_string(&msg) {
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
-                    let _ = writer.write(msg.as_bytes());
-                    let _ = writer.flush();
+                    if let Err(err) = writer.write(msg.as_bytes()) {
+                        tracing::error!("{:?}", err);
+                    }
+                    if let Err(err) = writer.flush() {
+                        tracing::error!("{:?}", err);
+                    }
                 }
             }
         });
@@ -240,7 +249,9 @@ impl LspClient {
                             &message_str,
                             &name,
                         ) {
-                            let _ = io_tx.send(resp);
+                            if let Err(err) = io_tx.send(resp) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     }
                     Err(_err) => {
@@ -406,8 +417,12 @@ impl LspClient {
     }
 
     fn shutdown(&mut self) {
-        let _ = self.process.kill();
-        let _ = self.process.wait();
+        if let Err(err) = self.process.kill() {
+            tracing::error!("{:?}", err);
+        }
+        if let Err(err) = self.process.wait() {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn process(

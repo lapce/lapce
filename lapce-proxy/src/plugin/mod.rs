@@ -241,7 +241,9 @@ impl PluginCatalogRpcHandler {
     #[allow(dead_code)]
     fn handle_response(&self, id: RequestId, result: Result<Value, RpcError>) {
         if let Some(chan) = { self.pending.lock().remove(&id) } {
-            let _ = chan.send(result);
+            if let Err(err) = chan.send(result) {
+                tracing::error!("{:?}", err);
+            }
         }
     }
 
@@ -354,8 +356,14 @@ impl PluginCatalogRpcHandler {
     }
 
     pub fn shutdown(&self) {
-        let _ = self.catalog_notification(PluginCatalogNotification::Shutdown);
-        let _ = self.plugin_tx.send(PluginCatalogRpc::Shutdown);
+        if let Err(err) =
+            self.catalog_notification(PluginCatalogNotification::Shutdown)
+        {
+            tracing::error!("{:?}", err);
+        }
+        if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::Shutdown) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn catalog_notification(
@@ -443,7 +451,9 @@ impl PluginCatalogRpcHandler {
             check,
             f: Box::new(f),
         };
-        let _ = self.plugin_tx.send(rpc);
+        if let Err(err) = self.plugin_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -465,7 +475,9 @@ impl PluginCatalogRpcHandler {
             path,
             check,
         };
-        let _ = self.plugin_tx.send(rpc);
+        if let Err(err) = self.plugin_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn format_semantic_tokens(
@@ -475,24 +487,32 @@ impl PluginCatalogRpcHandler {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        let _ = self.plugin_tx.send(PluginCatalogRpc::FormatSemanticTokens {
-            plugin_id,
-            tokens,
-            text,
-            f,
-        });
+        if let Err(err) =
+            self.plugin_tx.send(PluginCatalogRpc::FormatSemanticTokens {
+                plugin_id,
+                tokens,
+                text,
+                f,
+            })
+        {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn did_save_text_document(&self, path: &Path, text: Rope) {
         let text_document =
             TextDocumentIdentifier::new(Url::from_file_path(path).unwrap());
         let language_id = language_id_from_path(path).unwrap_or("").to_string();
-        let _ = self.plugin_tx.send(PluginCatalogRpc::DidSaveTextDocument {
-            language_id,
-            text_document,
-            path: path.into(),
-            text,
-        });
+        if let Err(err) =
+            self.plugin_tx.send(PluginCatalogRpc::DidSaveTextDocument {
+                language_id,
+                text_document,
+                path: path.into(),
+                text,
+            })
+        {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn did_change_text_document(
@@ -508,15 +528,18 @@ impl PluginCatalogRpcHandler {
             rev as i32,
         );
         let language_id = language_id_from_path(path).unwrap_or("").to_string();
-        let _ = self
-            .plugin_tx
-            .send(PluginCatalogRpc::DidChangeTextDocument {
-                language_id,
-                document,
-                delta,
-                text,
-                new_text,
-            });
+        if let Err(err) =
+            self.plugin_tx
+                .send(PluginCatalogRpc::DidChangeTextDocument {
+                    language_id,
+                    document,
+                    delta,
+                    text,
+                    new_text,
+                })
+        {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn get_definition(
@@ -1194,14 +1217,18 @@ impl PluginCatalogRpcHandler {
     ) {
         match Url::from_file_path(path) {
             Ok(path) => {
-                let _ = self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
-                    document: TextDocumentItem::new(
-                        path,
-                        language_id,
-                        version,
-                        text,
-                    ),
-                });
+                if let Err(err) =
+                    self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
+                        document: TextDocumentItem::new(
+                            path,
+                            language_id,
+                            version,
+                            text,
+                        ),
+                    })
+                {
+                    tracing::error!("{:?}", err);
+                }
             }
             Err(_) => {
                 tracing::error!("Failed to parse URL from file path: {path:?}");
@@ -1245,7 +1272,9 @@ impl PluginCatalogRpcHandler {
                 }
             }),
         };
-        let _ = self.plugin_tx.send(rpc);
+        if let Err(err) = self.plugin_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn remove_volt(&self, volt: VoltMetadata) {
@@ -1262,7 +1291,9 @@ impl PluginCatalogRpcHandler {
                 }
             }),
         };
-        let _ = self.plugin_tx.send(rpc);
+        if let Err(err) = self.plugin_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
@@ -1380,11 +1411,13 @@ impl PluginCatalogRpcHandler {
         reference: usize,
         f: impl FnOnce(Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
     ) {
-        let _ = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
+        if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
             dap_id,
             reference,
             f: Box::new(f),
-        });
+        }) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn dap_get_scopes(
@@ -1396,11 +1429,13 @@ impl PluginCatalogRpcHandler {
             ) + Send
             + 'static,
     ) {
-        let _ = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
+        if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
             dap_id,
             frame_id,
             f: Box::new(f),
-        });
+        }) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn register_debugger_type(
@@ -1409,13 +1444,15 @@ impl PluginCatalogRpcHandler {
         program: String,
         args: Option<Vec<String>>,
     ) {
-        let _ = self.catalog_notification(
+        if let Err(err) = self.catalog_notification(
             PluginCatalogNotification::RegisterDebuggerType {
                 debugger_type,
                 program,
                 args,
             },
-        );
+        ) {
+            tracing::error!("{:?}", err);
+        }
     }
 }
 
@@ -1476,7 +1513,9 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
         .join(id.to_string());
-    let _ = fs::remove_dir_all(&plugin_dir);
+    if let Err(err) = fs::remove_dir_all(&plugin_dir) {
+        tracing::error!("{:?}", err);
+    }
     fs::create_dir_all(&plugin_dir)?;
 
     if is_zstd {
@@ -1509,7 +1548,11 @@ pub fn install_volt(
     let local_catalog_rpc = catalog_rpc.clone();
     let local_meta = meta.clone();
 
-    let _ = start_volt(workspace, configurations, local_catalog_rpc, local_meta);
+    if let Err(err) =
+        start_volt(workspace, configurations, local_catalog_rpc, local_meta)
+    {
+        tracing::error!("{:?}", err);
+    }
     let icon = volt_icon(&meta);
     catalog_rpc.core_rpc.volt_installed(meta, icon);
     Ok(())

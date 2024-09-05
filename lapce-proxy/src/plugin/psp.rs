@@ -72,7 +72,9 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
     pub fn invoke(self, result: Result<Resp, Error>) {
         match self {
             ResponseHandler::Chan(tx) => {
-                let _ = tx.send(result);
+                if let Err(err) = tx.send(result) {
+                    tracing::error!("{:?}", err);
+                }
             }
             ResponseHandler::Callback(f) => f.call(result),
         }
@@ -189,18 +191,24 @@ impl ResponseSender {
             code: 0,
             message: e.to_string(),
         });
-        let _ = self.tx.send(result);
+        if let Err(err) = self.tx.send(result) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn send_null(&self) {
-        let _ = self.tx.send(Ok(Value::Null));
+        if let Err(err) = self.tx.send(Ok(Value::Null)) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn send_err(&self, code: i64, message: impl Into<String>) {
-        let _ = self.tx.send(Err(RpcError {
+        if let Err(err) = self.tx.send(Err(RpcError {
             code,
             message: message.into(),
-        }));
+        })) {
+            tracing::error!("{:?}", err);
+        }
     }
 }
 
@@ -308,11 +316,15 @@ impl PluginServerRpcHandler {
     }
 
     fn send_server_rpc(&self, msg: JsonRpc) {
-        let _ = self.io_tx.send(msg);
+        if let Err(err) = self.io_tx.send(msg) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn handle_rpc(&self, rpc: PluginServerRpc) {
-        let _ = self.rpc_tx.send(rpc);
+        if let Err(err) = self.rpc_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     /// Send a notification.  
@@ -329,12 +341,14 @@ impl PluginServerRpcHandler {
         let method = method.into();
 
         if check {
-            let _ = self.rpc_tx.send(PluginServerRpc::ServerNotification {
+            if let Err(err) = self.rpc_tx.send(PluginServerRpc::ServerNotification {
                 method,
                 params,
                 language_id,
                 path,
-            });
+            }) {
+                tracing::error!("{:?}", err);
+            }
         } else {
             self.send_server_notification(&method, params);
         }
@@ -402,14 +416,16 @@ impl PluginServerRpcHandler {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
         let params = Params::from(serde_json::to_value(params).unwrap());
         if check {
-            let _ = self.rpc_tx.send(PluginServerRpc::ServerRequest {
+            if let Err(err) = self.rpc_tx.send(PluginServerRpc::ServerRequest {
                 id: Id::Num(id as i64),
                 method,
                 params,
                 language_id,
                 path,
                 rh,
-            });
+            }) {
+                tracing::error!("{:?}", err);
+            }
         } else {
             self.send_server_request(Id::Num(id as i64), &method, params, rh);
         }
@@ -852,7 +868,9 @@ impl PluginHostHandler {
 
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
         for registration in registrations {
-            let _ = self.register_capability(registration);
+            if let Err(err) = self.register_capability(registration) {
+                tracing::error!("{:?}", err);
+            }
         }
     }
 
@@ -952,7 +970,7 @@ impl PluginHostHandler {
                 self.spawned_lsp
                     .insert(plugin_id, SpawnedLspInfo { resp: Some(resp) });
                 thread::spawn(move || {
-                    let _ = LspClient::start(
+                    if let Err(err) = LspClient::start(
                         catalog_rpc,
                         params.document_selector,
                         workspace,
@@ -964,7 +982,9 @@ impl PluginHostHandler {
                         params.server_uri,
                         params.server_args,
                         params.options,
-                    );
+                    ) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
             SendLspNotification::METHOD => {
@@ -1059,7 +1079,7 @@ impl PluginHostHandler {
                 let volt_id = self.volt_id.clone();
                 let volt_display_name = self.volt_display_name.clone();
                 thread::spawn(move || {
-                    let _ = LspClient::start(
+                    if let Err(err) = LspClient::start(
                         catalog_rpc,
                         params.document_selector,
                         workspace,
@@ -1071,7 +1091,9 @@ impl PluginHostHandler {
                         params.server_uri,
                         params.server_args,
                         params.options,
-                    );
+                    ) {
+                        tracing::error!("{:?}", err);
+                    }
                 });
             }
             PublishDiagnostics::METHOD => {

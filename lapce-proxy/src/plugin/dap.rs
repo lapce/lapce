@@ -133,9 +133,11 @@ impl DapClient {
                             dap_rpc.handle_server_message(&message_str);
                         }
                         Err(_err) => {
-                            let _ = io_tx.send(DapPayload::Event(
-                                DapEvent::Initialized(None),
-                            ));
+                            if let Err(err) = io_tx
+                                .send(DapPayload::Event(DapEvent::Initialized(None)))
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                             plugin_rpc.core_rpc.log(
                                 lapce_rpc::core::LogLevel::Error,
                                 format!("dap server {program} stopped!"),
@@ -294,7 +296,9 @@ impl DapClient {
                 if let Some(term_id) = self.term_id {
                     self.plugin_rpc.proxy_rpc.terminal_close(term_id);
                 }
-                let _ = self.check_restart();
+                if let Err(err) = self.check_restart() {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapEvent::Thread { .. } => {}
             DapEvent::Output(_) => {}
@@ -343,11 +347,15 @@ impl DapClient {
             .unwrap_or(false)
         {
             thread::spawn(move || {
-                let _ = dap_rpc.terminate();
+                if let Err(err) = dap_rpc.terminate() {
+                    tracing::error!("{:?}", err);
+                }
             });
         } else {
             thread::spawn(move || {
-                let _ = dap_rpc.disconnect();
+                if let Err(err) = dap_rpc.disconnect() {
+                    tracing::error!("{:?}", err);
+                }
             });
         }
     }
@@ -381,7 +389,9 @@ impl DapClient {
         let dap_rpc = self.dap_rpc.clone();
         let config = self.config.clone();
         thread::spawn(move || {
-            let _ = dap_rpc.launch(&config);
+            if let Err(err) = dap_rpc.launch(&config) {
+                tracing::error!("{:?}", err);
+            }
         });
 
         Ok(())
@@ -393,7 +403,9 @@ impl DapClient {
         if !self.terminated {
             self.stop();
         } else {
-            let _ = self.check_restart();
+            if let Err(err) = self.check_restart() {
+                tracing::error!("{:?}", err);
+            }
         }
     }
 }
@@ -460,10 +472,14 @@ impl DapRpcHandler {
                         message: result.as_ref().err().map(|e| e.to_string()),
                         body: result.ok(),
                     };
-                    let _ = self.io_tx.send(DapPayload::Response(resp));
+                    if let Err(err) = self.io_tx.send(DapPayload::Response(resp)) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 DapRpc::HostEvent(event) => {
-                    let _ = dap_client.handle_host_event(&event);
+                    if let Err(err) = dap_client.handle_host_event(&event) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 DapRpc::Stop => {
                     dap_client.stop();
@@ -482,7 +498,9 @@ impl DapRpcHandler {
                     if let Some(term_id) = dap_client.term_id {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
-                    let _ = dap_client.check_restart();
+                    if let Err(err) = dap_client.check_restart() {
+                        tracing::error!("{:?}", err);
+                    }
                 }
             }
         }
@@ -562,11 +580,13 @@ impl DapRpcHandler {
             let mut pending = self.server_pending.lock();
             pending.insert(seq, rh);
         }
-        let _ = self.io_tx.send(DapPayload::Request(DapRequest {
+        if let Err(err) = self.io_tx.send(DapPayload::Request(DapRequest {
             seq,
             command: command.to_string(),
             arguments: Some(arguments),
-        }));
+        })) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn handle_server_response(&self, resp: DapResponse) {
@@ -579,10 +599,14 @@ impl DapRpcHandler {
         if let Ok(payload) = serde_json::from_str::<DapPayload>(message_str) {
             match payload {
                 DapPayload::Request(req) => {
-                    let _ = self.rpc_tx.send(DapRpc::HostRequest(req));
+                    if let Err(err) = self.rpc_tx.send(DapRpc::HostRequest(req)) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 DapPayload::Event(event) => {
-                    let _ = self.rpc_tx.send(DapRpc::HostEvent(event));
+                    if let Err(err) = self.rpc_tx.send(DapRpc::HostEvent(event)) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 DapPayload::Response(resp) => {
                     self.handle_server_response(resp);
@@ -605,15 +629,21 @@ impl DapRpcHandler {
     }
 
     pub fn stop(&self) {
-        let _ = self.rpc_tx.send(DapRpc::Stop);
+        if let Err(err) = self.rpc_tx.send(DapRpc::Stop) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn restart(&self, breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>) {
-        let _ = self.rpc_tx.send(DapRpc::Restart(breakpoints));
+        if let Err(err) = self.rpc_tx.send(DapRpc::Restart(breakpoints)) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     fn disconnected(&self) {
-        let _ = self.rpc_tx.send(DapRpc::Disconnected);
+        if let Err(err) = self.rpc_tx.send(DapRpc::Disconnected) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn disconnect(&self) -> Result<()> {

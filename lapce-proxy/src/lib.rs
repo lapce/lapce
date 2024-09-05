@@ -66,10 +66,18 @@ pub fn mainloop() {
         for msg in local_core_rpc.rx() {
             match msg {
                 CoreRpc::Request(id, rpc) => {
-                    let _ = local_writer_tx.send(RpcMessage::Request(id, rpc));
+                    if let Err(err) =
+                        local_writer_tx.send(RpcMessage::Request(id, rpc))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 CoreRpc::Notification(rpc) => {
-                    let _ = local_writer_tx.send(RpcMessage::Notification(rpc));
+                    if let Err(err) =
+                        local_writer_tx.send(RpcMessage::Notification(rpc))
+                    {
+                        tracing::error!("{:?}", err);
+                    }
                 }
                 CoreRpc::Shutdown => {
                     return;
@@ -87,10 +95,18 @@ pub fn mainloop() {
                     let writer_tx = writer_tx.clone();
                     local_proxy_rpc.request_async(req, move |result| match result {
                         Ok(resp) => {
-                            let _ = writer_tx.send(RpcMessage::Response(id, resp));
+                            if let Err(err) =
+                                writer_tx.send(RpcMessage::Response(id, resp))
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                         Err(e) => {
-                            let _ = writer_tx.send(RpcMessage::Error(id, e));
+                            if let Err(err) =
+                                writer_tx.send(RpcMessage::Error(id, e))
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     });
                 }
@@ -110,9 +126,13 @@ pub fn mainloop() {
 
     let local_proxy_rpc = proxy_rpc.clone();
     std::thread::spawn(move || {
-        let _ = listen_local_socket(local_proxy_rpc);
+        if let Err(err) = listen_local_socket(local_proxy_rpc) {
+            tracing::error!("{:?}", err);
+        }
     });
-    let _ = register_lapce_path();
+    if let Err(err) = register_lapce_path() {
+        tracing::error!("{:?}", err);
+    }
 
     proxy_rpc.mainloop(&mut dispatcher);
 }
@@ -138,7 +158,9 @@ pub fn register_lapce_path() -> Result<()> {
 fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
-    let _ = std::fs::remove_file(&local_socket);
+    if let Err(err) = std::fs::remove_file(&local_socket) {
+        tracing::error!("{:?}", err);
+    }
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
     for stream in socket.incoming().flatten() {

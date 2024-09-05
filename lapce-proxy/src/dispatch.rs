@@ -163,7 +163,9 @@ impl ProxyHandler for Dispatcher {
                 );
             }
             UpdatePluginConfigs { configs } => {
-                let _ = self.catalog_rpc.update_plugin_configs(configs);
+                if let Err(err) = self.catalog_rpc.update_plugin_configs(configs) {
+                    tracing::error!("{:?}", err);
+                }
             }
             NewTerminal { term_id, profile } => {
                 let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
@@ -226,57 +228,86 @@ impl ProxyHandler for Dispatcher {
                 config,
                 breakpoints,
             } => {
-                let _ = self.catalog_rpc.dap_start(config, breakpoints);
+                if let Err(err) = self.catalog_rpc.dap_start(config, breakpoints) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapProcessId {
                 dap_id,
                 process_id,
                 term_id,
             } => {
-                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id, term_id);
+                if let Err(err) =
+                    self.catalog_rpc.dap_process_id(dap_id, process_id, term_id)
+                {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapContinue { dap_id, thread_id } => {
-                let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
+                if let Err(err) = self.catalog_rpc.dap_continue(dap_id, thread_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapPause { dap_id, thread_id } => {
-                let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+                if let Err(err) = self.catalog_rpc.dap_pause(dap_id, thread_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapStepOver { dap_id, thread_id } => {
-                let _ = self.catalog_rpc.dap_step_over(dap_id, thread_id);
+                if let Err(err) = self.catalog_rpc.dap_step_over(dap_id, thread_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapStepInto { dap_id, thread_id } => {
-                let _ = self.catalog_rpc.dap_step_into(dap_id, thread_id);
+                if let Err(err) = self.catalog_rpc.dap_step_into(dap_id, thread_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapStepOut { dap_id, thread_id } => {
-                let _ = self.catalog_rpc.dap_step_out(dap_id, thread_id);
+                if let Err(err) = self.catalog_rpc.dap_step_out(dap_id, thread_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapStop { dap_id } => {
-                let _ = self.catalog_rpc.dap_stop(dap_id);
+                if let Err(err) = self.catalog_rpc.dap_stop(dap_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapDisconnect { dap_id } => {
-                let _ = self.catalog_rpc.dap_disconnect(dap_id);
+                if let Err(err) = self.catalog_rpc.dap_disconnect(dap_id) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapRestart {
                 dap_id,
                 breakpoints,
             } => {
-                let _ = self.catalog_rpc.dap_restart(dap_id, breakpoints);
+                if let Err(err) = self.catalog_rpc.dap_restart(dap_id, breakpoints) {
+                    tracing::error!("{:?}", err);
+                }
             }
             DapSetBreakpoints {
                 dap_id,
                 path,
                 breakpoints,
             } => {
-                let _ =
+                if let Err(err) =
                     self.catalog_rpc
-                        .dap_set_breakpoints(dap_id, path, breakpoints);
+                        .dap_set_breakpoints(dap_id, path, breakpoints)
+                {
+                    tracing::error!("{:?}", err);
+                }
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
-                let _ = catalog_rpc.install_volt(volt);
+                if let Err(err) = catalog_rpc.install_volt(volt) {
+                    tracing::error!("{:?}", err);
+                }
             }
             ReloadVolt { volt } => {
-                let _ = self.catalog_rpc.reload_volt(volt);
+                if let Err(err) = self.catalog_rpc.reload_volt(volt) {
+                    tracing::error!("{:?}", err);
+                }
             }
             RemoveVolt { volt } => {
                 self.catalog_rpc.remove_volt(volt);
@@ -285,7 +316,9 @@ impl ProxyHandler for Dispatcher {
                 self.catalog_rpc.stop_volt(volt);
             }
             EnableVolt { volt } => {
-                let _ = self.catalog_rpc.enable_volt(volt);
+                if let Err(err) = self.catalog_rpc.enable_volt(volt) {
+                    tracing::error!("{:?}", err);
+                }
             }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
@@ -1192,14 +1225,18 @@ impl FileWatchNotifier {
         if let Some(sender) = handler.as_mut() {
             if explorer_change {
                 // only send the value if we need to update file explorer as well
-                let _ = sender.send(explorer_change);
+                if let Err(err) = sender.send(explorer_change) {
+                    tracing::error!("{:?}", err);
+                }
             }
             return;
         }
         let (sender, receiver) = crossbeam_channel::unbounded();
         if explorer_change {
             // only send the value if we need to update file explorer as well
-            let _ = sender.send(explorer_change);
+            if let Err(err) = sender.send(explorer_change) {
+                tracing::error!("{:?}", err);
+            }
         }
 
         let local_handler = self.workspace_fs_change_handler.clone();
@@ -1571,7 +1608,7 @@ fn search_in_path(
 
         if path.is_file() {
             let mut line_matches = Vec::new();
-            let _ = searcher.search_path(
+            if let Err(err) = searcher.search_path(
                 &matcher,
                 path.clone(),
                 UTF8(|lnum, line| {
@@ -1610,7 +1647,11 @@ fn search_in_path(
                     });
                     Ok(true)
                 }),
-            );
+            ) {
+                {
+                    tracing::error!("{:?}", err);
+                }
+            }
             if !line_matches.is_empty() {
                 matches.insert(path.clone(), line_matches);
             }

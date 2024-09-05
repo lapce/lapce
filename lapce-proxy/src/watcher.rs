@@ -145,7 +145,9 @@ impl FileWatcher {
         let mode = mode_from_bool(w.recursive);
 
         if !state.watchees.iter().any(|w2| w.path == w2.path) {
-            let _ = self.inner.watch(&w.path, mode);
+            if let Err(err) = self.inner.watch(&w.path, mode) {
+                tracing::error!("{:?}", err);
+            }
         }
 
         state.watchees.push(w);
@@ -165,7 +167,9 @@ impl FileWatcher {
         if let Some(idx) = idx {
             let removed = state.watchees.remove(idx);
             if !state.watchees.iter().any(|w| w.path == removed.path) {
-                let _ = self.inner.unwatch(&removed.path);
+                if let Err(err) = self.inner.unwatch(&removed.path) {
+                    tracing::error!("{:?}", err);
+                }
             }
             //TODO: Ideally we would be tracking what paths we're watching with
             // some prefix-tree-like structure, which would let us keep track
@@ -189,7 +193,9 @@ impl FileWatcher {
                     .collect::<Vec<_>>();
 
                 for (path, mode) in to_add {
-                    let _ = self.inner.watch(&path, mode);
+                    if let Err(err) = self.inner.watch(&path, mode) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
             }
         }

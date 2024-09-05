@@ -45,8 +45,12 @@ impl TerminalSender {
     }
 
     pub fn send(&self, msg: Msg) {
-        let _ = self.tx.send(msg);
-        let _ = self.poller.notify();
+        if let Err(err) = self.tx.send(msg) {
+            tracing::error!("{:?}", err);
+        }
+        if let Err(err) = self.poller.notify() {
+            tracing::error!("{:?}", err);
+        }
     }
 }
 
@@ -137,7 +141,9 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited(exited_code)) =
                             self.pty.next_child_event()
                         {
-                            let _ = self.pty_read(&core_rpc, &mut buf);
+                            if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
+                                tracing::error!("{:?}", err);
+                            }
                             exit_code = exited_code;
                             break 'event_loop;
                         }
@@ -195,7 +201,9 @@ impl Terminal {
             }
         }
         core_rpc.terminal_process_stopped(self.term_id, exit_code);
-        let _ = self.pty.deregister(&self.poller);
+        if let Err(err) = self.pty.deregister(&self.poller) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     /// Drain the channel.
