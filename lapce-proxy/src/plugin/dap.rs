@@ -119,6 +119,7 @@ impl DapClient {
                     writer.flush()?;
                 }
             }
+            tracing::debug!("thread(write to dap) exited");
             Ok(())
         });
 
@@ -145,6 +146,7 @@ impl DapClient {
                             );
 
                             dap_rpc.disconnected();
+                            tracing::debug!("thread(read from dap) exited");
                             return;
                         }
                     };
@@ -402,10 +404,8 @@ impl DapClient {
         self.breakpoints = breakpoints;
         if !self.terminated {
             self.stop();
-        } else {
-            if let Err(err) = self.check_restart() {
-                tracing::error!("{:?}", err);
-            }
+        } else if let Err(err) = self.check_restart() {
+            tracing::error!("{:?}", err);
         }
     }
 }

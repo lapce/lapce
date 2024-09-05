@@ -250,9 +250,9 @@ impl TerminalPanelData {
             })
             .flatten()
         {
-            close_tab
-                .into_iter()
-                .for_each(|x| self.common.proxy.terminal_close(x.1.term_id));
+            for (_, data) in close_tab {
+                data.stop();
+            }
         }
         self.update_debug_active_term();
     }

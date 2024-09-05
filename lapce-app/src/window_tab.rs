@@ -2067,6 +2067,7 @@ impl WindowTabData {
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id, exit_code } => {
+                debug!("TerminalProcessStopped {:?}, {:?}", term_id, exit_code);
                 if let Err(err) = self
                     .common
                     .term_tx
