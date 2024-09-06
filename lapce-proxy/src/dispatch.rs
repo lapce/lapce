@@ -168,6 +168,7 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             NewTerminal { term_id, profile } => {
+                tracing::debug!("NewTerminal {:?}", term_id);
                 let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
                     Ok(terminal) => terminal,
                     Err(e) => {

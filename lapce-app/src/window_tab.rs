@@ -2075,6 +2075,7 @@ impl WindowTabData {
                 {
                     tracing::error!("{:?}", err);
                 }
+                self.common.proxy.terminal_close(*term_id);
                 self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
                     .terminal
