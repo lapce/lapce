@@ -23,6 +23,7 @@ pub enum PaletteKind {
     SCMReferences,
     TerminalProfile,
     DiffFiles,
+    PaletteHelpAndFile,
 }
 
 impl PaletteKind {
@@ -46,6 +47,7 @@ impl PaletteKind {
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
+            | PaletteKind::PaletteHelpAndFile
             | PaletteKind::DiffFiles => "",
             #[cfg(windows)]
             PaletteKind::WslHost => "",
@@ -62,6 +64,7 @@ impl PaletteKind {
             _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
             _ if input.starts_with('<') => PaletteKind::TerminalProfile,
+            _ if input.is_empty() => PaletteKind::PaletteHelpAndFile,
             _ => PaletteKind::File,
         }
     }
@@ -79,7 +82,9 @@ impl PaletteKind {
             }
             PaletteKind::Workspace => Some(LapceWorkbenchCommand::PaletteWorkspace),
             PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
-            PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
+            PaletteKind::File | PaletteKind::PaletteHelpAndFile => {
+                Some(LapceWorkbenchCommand::Palette)
+            }
             PaletteKind::Reference => None, // InternalCommand::PaletteReferences
             PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
             #[cfg(windows)]
@@ -124,7 +129,7 @@ impl PaletteKind {
             | PaletteKind::IconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
-            | PaletteKind::SCMReferences
+            | PaletteKind::SCMReferences | PaletteKind::PaletteHelpAndFile
             | PaletteKind::DiffFiles => input,
             PaletteKind::PaletteHelp
             | PaletteKind::Command

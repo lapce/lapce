@@ -20,6 +20,7 @@ use floem::{
         SignalWith,
     },
 };
+use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
@@ -367,6 +368,7 @@ impl PaletteData {
             PaletteKind::File | PaletteKind::DiffFiles => {
                 self.get_files();
             }
+            PaletteKind::PaletteHelpAndFile => self.get_palette_help_and_file(),
             PaletteKind::Line => {
                 self.get_lines();
             }
@@ -416,7 +418,12 @@ impl PaletteData {
 
     /// Initialize the palette with a list of the available palette kinds.
     fn get_palette_help(&self) {
-        let items = PaletteKind::iter()
+        let items = self.get_palette_help_items();
+        self.items.set(items);
+    }
+
+    fn get_palette_help_items(&self) -> Vector<PaletteItem> {
+        PaletteKind::iter()
             .filter_map(|kind| {
                 // Don't include PaletteHelp as the user is already here.
                 (kind != PaletteKind::PaletteHelp)
@@ -443,9 +450,47 @@ impl PaletteData {
                     indices: vec![],
                 }
             })
-            .collect();
+            .collect()
+    }
 
-        self.items.set(items);
+    fn get_palette_help_and_file(&self) {
+        let help_items: Vector<PaletteItem> = self.get_palette_help_items();
+        let workspace = self.workspace.clone();
+        let set_items = self.items.write_only();
+        let send =
+            create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
+                let items = items
+                    .into_iter()
+                    .map(|full_path| {
+                        // Strip the workspace prefix off the path, to avoid clutter
+                        let path =
+                            if let Some(workspace_path) = workspace.path.as_ref() {
+                                full_path
+                                    .strip_prefix(workspace_path)
+                                    .unwrap_or(&full_path)
+                                    .to_path_buf()
+                            } else {
+                                full_path.clone()
+                            };
+                        let filter_text = path.to_string_lossy().into_owned();
+                        PaletteItem {
+                            content: PaletteItemContent::File { path, full_path },
+                            filter_text,
+                            score: 0,
+                            indices: Vec::new(),
+                        }
+                    })
+                    .collect::<im::Vector<_>>();
+                set_items.update(|x| {
+                    x.append(help_items);
+                    x.append(items);
+                });
+            });
+        self.common.proxy.get_files(move |result| {
+            if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
+                send(items);
+            }
+        });
     }
 
     /// Initialize the palette with the files in the current workspace.
