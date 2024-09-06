@@ -2091,6 +2091,7 @@ impl WindowTabData {
                 self.terminal.launch_failed(term_id, error);
             }
             CoreNotification::RunInTerminal { config } => {
+                tracing::debug!("RunInTerminal {:?}", config);
                 self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }
             CoreNotification::TerminalProcessId {

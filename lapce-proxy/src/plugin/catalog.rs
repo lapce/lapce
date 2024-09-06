@@ -615,7 +615,7 @@ impl PluginCatalog {
                                 }
 
                                 if let Err(err) = dap_rpc.launch(&config) {
-                                    tracing::error!("{:?}", err);
+                                    tracing::error!("dap_rpc.launch {:?}", err);
                                 }
                             }
                             Err(err) => {

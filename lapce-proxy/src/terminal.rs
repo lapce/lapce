@@ -200,6 +200,7 @@ impl Terminal {
                     .unwrap();
             }
         }
+        tracing::debug!("alacritty_terminal ended",);
         core_rpc.terminal_process_stopped(self.term_id, exit_code);
         if let Err(err) = self.pty.deregister(&self.poller) {
             tracing::error!("{:?}", err);

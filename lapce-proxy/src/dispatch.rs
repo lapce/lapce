@@ -220,6 +220,7 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             TerminalClose { term_id } => {
+                tracing::debug!("TerminalClose {:?}", term_id);
                 if let Some(tx) = self.terminals.remove(&term_id) {
                     tx.send(Msg::Shutdown);
                 }
@@ -228,6 +229,7 @@ impl ProxyHandler for Dispatcher {
                 config,
                 breakpoints,
             } => {
+                tracing::debug!("DapStart {:?}", config);
                 if let Err(err) = self.catalog_rpc.dap_start(config, breakpoints) {
                     tracing::error!("{:?}", err);
                 }

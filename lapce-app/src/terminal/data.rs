@@ -748,17 +748,30 @@ impl TerminalData {
     }
 
     pub fn stop(&self) {
-        if let Some(dap_id) = self.run_debug.with_untracked(|x| {
+        let (dap_id, stopped) = self.run_debug.with_untracked(|x| {
             if let Some(process) = x {
                 if !process.is_prelaunch && process.mode == RunDebugMode::Debug {
-                    return Some(process.config.dap_id);
+                    return (Some(process.config.dap_id), process.stopped);
+                } else {
+                    return (None, process.stopped);
                 }
             }
-            None
-        }) {
-            self.common.proxy.dap_stop(dap_id);
+            (None, true)
+        });
+
+        if !stopped {
+            if let Some(dap_id) = dap_id {
+                self.common.proxy.dap_stop(dap_id);
+            }
+            self.common.proxy.terminal_close(self.term_id);
+            if let Err(err) = self
+                .common
+                .term_tx
+                .send((self.term_id, TermEvent::CloseTerminal))
+            {
+                tracing::error!("{:?}", err);
+            }
         }
-        self.common.proxy.terminal_close(self.term_id);
     }
 }
 

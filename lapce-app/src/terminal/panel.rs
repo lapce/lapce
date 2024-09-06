@@ -220,6 +220,7 @@ impl TerminalPanelData {
     }
 
     pub fn close_tab(&self, terminal_tab_id: Option<TerminalTabId>) {
+        tracing::debug!("close_tab {:?}", terminal_tab_id);
         if let Some(close_tab) = self
             .tab_info
             .try_update(|info| {

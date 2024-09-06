@@ -36,9 +36,11 @@ pub fn terminal_update_process(
         };
         match event {
             TermEvent::CloseTerminal => {
+                tracing::debug!("TermEvent CloseTerminal {:?}", term_id);
                 terminals.remove(&term_id);
             }
             TermEvent::NewTerminal(raw) => {
+                tracing::debug!("TermEvent NewTerminal {:?}", term_id);
                 terminals.insert(term_id, raw);
             }
             TermEvent::UpdateContent(content) => {
