@@ -118,9 +118,12 @@ impl Terminal {
 
         let mut events =
             polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
-
+        #[cfg(target_os = "windows")]
+        let timeout = Some(Duration::from_millis(500));
+        #[cfg(not(target_os = "windows"))]
         let timeout = Some(Duration::from_secs(6));
         let mut exit_code = None;
+        let mut _should_exit = false;
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -128,6 +131,10 @@ impl Terminal {
                     ErrorKind::Interrupted => continue,
                     _ => panic!("EventLoop polling error: {err:?}"),
                 }
+            }
+            #[cfg(target_os = "windows")]
+            if _should_exit && events.is_empty() {
+                break;
             }
 
             // Handle channel events, if there are any.
@@ -144,7 +151,9 @@ impl Terminal {
                             if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
                                 tracing::error!("{:?}", err);
                             }
+                            _should_exit = true;
                             exit_code = exited_code;
+                            #[cfg(not(target_os = "windows"))]
                             break 'event_loop;
                         }
                     }
