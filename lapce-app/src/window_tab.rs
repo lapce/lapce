@@ -2105,6 +2105,7 @@ impl WindowTabData {
                 stack_frames,
                 variables,
             } => {
+                self.show_panel(PanelKind::Debug);
                 self.terminal
                     .dap_stopped(dap_id, stopped, stack_frames, variables);
             }
