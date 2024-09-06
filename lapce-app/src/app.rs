@@ -363,24 +363,29 @@ impl AppData {
             }
         } else if files.is_empty() {
             // There were no dirs and no files specified, so we'll load the last windows
-            if let Ok(app_info) = db.get_app() {
-                for info in app_info.windows {
-                    let config = self
-                        .default_window_config()
-                        .size(info.size)
-                        .position(info.pos);
-                    let config = if cfg!(target_os = "macos")
-                        || self.config.get_untracked().core.custom_titlebar
-                    {
-                        config.show_titlebar(false)
-                    } else {
-                        config
-                    };
-                    let app_data = self.clone();
-                    app = app.window(
-                        move |window_id| app_data.app_view(window_id, info),
-                        Some(config),
-                    );
+            match db.get_app() {
+                Ok(app_info) => {
+                    for info in app_info.windows {
+                        let config = self
+                            .default_window_config()
+                            .size(info.size)
+                            .position(info.pos);
+                        let config = if cfg!(target_os = "macos")
+                            || self.config.get_untracked().core.custom_titlebar
+                        {
+                            config.show_titlebar(false)
+                        } else {
+                            config
+                        };
+                        let app_data = self.clone();
+                        app = app.window(
+                            move |window_id| app_data.app_view(window_id, info),
+                            Some(config),
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
                 }
             }
         }
@@ -3715,11 +3720,16 @@ pub fn launch() {
     // If the cli is not requesting a new window, and we're not developing a plugin, we try to open
     // in the existing Lapce process
     if !cli.new {
-        if let Ok(socket) = get_socket() {
-            if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
-                trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
-            };
-            return;
+        match get_socket() {
+            Ok(socket) => {
+                if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
+                    trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
+                };
+                return;
+            }
+            Err(err) => {
+                tracing::error!("{:?}", err);
+            }
         }
     }
 
