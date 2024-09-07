@@ -460,14 +460,15 @@ impl TerminalPanelData {
         })
     }
 
-    pub fn restart_run_debug(&self, term_id: TermId) -> Option<()> {
+    /// Return whether it is in debug mode.
+    pub fn restart_run_debug(&self, term_id: TermId) -> Option<bool> {
         let (_, terminal_tab, index, terminal) =
             self.get_terminal_in_tab(&term_id)?;
         let run_debug = terminal.run_debug.get_untracked()?;
+        let mut is_debug = false;
         let new_term_id = match run_debug.mode {
             RunDebugMode::Run => {
                 self.common.proxy.terminal_close(term_id);
-
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 run_debug.is_prelaunch = true;
@@ -487,6 +488,7 @@ impl TerminalPanelData {
                 new_term_id
             }
             RunDebugMode::Debug => {
+                is_debug = true;
                 let dap_id =
                     terminal.run_debug.get_untracked().as_ref()?.config.dap_id;
                 let daps = self.debug.daps.get_untracked();
@@ -500,7 +502,7 @@ impl TerminalPanelData {
 
         self.focus_terminal(new_term_id);
 
-        Some(())
+        Some(is_debug)
     }
 
     pub fn focus_terminal(&self, term_id: TermId) {
