@@ -49,10 +49,37 @@ impl EventListener for EventProxy {
     }
 }
 
+pub enum TerminalOutPut {
+    Ingore,
+    Output(Vec<u8>),
+}
+
+impl TerminalOutPut {
+    pub fn new(tracing_output: bool) -> Self {
+        if !tracing_output {
+            TerminalOutPut::Ingore
+        } else {
+            TerminalOutPut::Output(Vec::new())
+        }
+    }
+    pub fn update(&mut self, output: &[u8]) {
+        if let Self::Output(content) = self {
+            content.extend(output)
+        }
+    }
+    pub fn output(&self) -> Option<&[u8]> {
+        match self {
+            TerminalOutPut::Ingore => None,
+            TerminalOutPut::Output(content) => Some(content),
+        }
+    }
+}
+
 pub struct RawTerminal {
     pub parser: ansi::Processor,
     pub term: Term<EventProxy>,
     pub scroll_delta: f64,
+    pub output: TerminalOutPut,
 }
 
 impl RawTerminal {
@@ -60,6 +87,7 @@ impl RawTerminal {
         term_id: TermId,
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
+        tracing_output: bool,
     ) -> Self {
         let config = alacritty_terminal::term::Config {
             semantic_escape_chars: ",│`|\"' ()[]{}<>\t".to_string(),
@@ -79,10 +107,12 @@ impl RawTerminal {
             parser,
             term,
             scroll_delta: 0.0,
+            output: TerminalOutPut::new(tracing_output),
         }
     }
 
     pub fn update_content(&mut self, content: Vec<u8>) {
+        self.output.update(&content);
         for byte in content {
             self.parser.advance(&mut self.term, byte);
         }

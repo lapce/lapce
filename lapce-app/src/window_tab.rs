@@ -1472,6 +1472,7 @@ impl WindowTabData {
                             prelaunch: None,
                             debug_command: None,
                             dap_id: Default::default(),
+                            tracing_output: false,
                         };
                         self.common
                             .internal_command
