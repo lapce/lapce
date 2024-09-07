@@ -255,7 +255,7 @@ fn middle(
         .on_event_stop(EventListener::PointerDown, |_| {})
         .on_click_stop(move |_| {
             if workspace.clone().path.is_some() {
-                workbench_command.send(LapceWorkbenchCommand::Palette);
+                workbench_command.send(LapceWorkbenchCommand::PaletteHelpAndFile);
             } else {
                 workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
             }

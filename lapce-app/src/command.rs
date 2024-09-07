@@ -390,6 +390,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.palette_help")]
     PaletteHelp,
 
+    #[strum(message = "List Palette Types and Files")]
+    #[strum(serialize = "palette.palette_help_and_file")]
+    PaletteHelpAndFile,
+
     #[strum(message = "Run and Debug Restart Current Running")]
     #[strum(serialize = "palette.run_and_debug_restart")]
     RunAndDebugRestart,

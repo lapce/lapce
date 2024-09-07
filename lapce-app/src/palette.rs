@@ -368,7 +368,7 @@ impl PaletteData {
             PaletteKind::File | PaletteKind::DiffFiles => {
                 self.get_files();
             }
-            PaletteKind::PaletteHelpAndFile => self.get_palette_help_and_file(),
+            PaletteKind::HelpAndFile => self.get_palette_help_and_file(),
             PaletteKind::Line => {
                 self.get_lines();
             }
@@ -455,6 +455,13 @@ impl PaletteData {
 
     fn get_palette_help_and_file(&self) {
         let help_items: Vector<PaletteItem> = self.get_palette_help_items();
+        self.get_files_and_prepend(Some(help_items));
+    }
+
+    // get the files in the current workspace
+    // and prepend items if prepend is some
+    // e.g. help_and_file
+    fn get_files_and_prepend(&self, prepend: Option<im::Vector<PaletteItem>>) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
         let send =
@@ -481,10 +488,12 @@ impl PaletteData {
                         }
                     })
                     .collect::<im::Vector<_>>();
-                set_items.update(|x| {
-                    x.append(help_items);
-                    x.append(items);
-                });
+                let mut new_items = im::Vector::new();
+                if let Some(prepend) = prepend {
+                    new_items.append(prepend);
+                }
+                new_items.append(items);
+                set_items.set(new_items);
             });
         self.common.proxy.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
@@ -495,39 +504,7 @@ impl PaletteData {
 
     /// Initialize the palette with the files in the current workspace.
     fn get_files(&self) {
-        let workspace = self.workspace.clone();
-        let set_items = self.items.write_only();
-        let send =
-            create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
-                let items = items
-                    .into_iter()
-                    .map(|full_path| {
-                        // Strip the workspace prefix off the path, to avoid clutter
-                        let path =
-                            if let Some(workspace_path) = workspace.path.as_ref() {
-                                full_path
-                                    .strip_prefix(workspace_path)
-                                    .unwrap_or(&full_path)
-                                    .to_path_buf()
-                            } else {
-                                full_path.clone()
-                            };
-                        let filter_text = path.to_string_lossy().into_owned();
-                        PaletteItem {
-                            content: PaletteItemContent::File { path, full_path },
-                            filter_text,
-                            score: 0,
-                            indices: Vec::new(),
-                        }
-                    })
-                    .collect::<im::Vector<_>>();
-                set_items.set(items);
-            });
-        self.common.proxy.get_files(move |result| {
-            if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
-                send(items);
-            }
-        });
+        self.get_files_and_prepend(None);
     }
 
     /// Initialize the palette with the lines in the current document.

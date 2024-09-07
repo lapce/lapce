@@ -23,7 +23,7 @@ pub enum PaletteKind {
     SCMReferences,
     TerminalProfile,
     DiffFiles,
-    PaletteHelpAndFile,
+    HelpAndFile,
 }
 
 impl PaletteKind {
@@ -47,7 +47,7 @@ impl PaletteKind {
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
-            | PaletteKind::PaletteHelpAndFile
+            | PaletteKind::HelpAndFile
             | PaletteKind::DiffFiles => "",
             #[cfg(windows)]
             PaletteKind::WslHost => "",
@@ -64,7 +64,6 @@ impl PaletteKind {
             _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
             _ if input.starts_with('<') => PaletteKind::TerminalProfile,
-            _ if input.is_empty() => PaletteKind::PaletteHelpAndFile,
             _ => PaletteKind::File,
         }
     }
@@ -82,8 +81,9 @@ impl PaletteKind {
             }
             PaletteKind::Workspace => Some(LapceWorkbenchCommand::PaletteWorkspace),
             PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
-            PaletteKind::File | PaletteKind::PaletteHelpAndFile => {
-                Some(LapceWorkbenchCommand::Palette)
+            PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
+            PaletteKind::HelpAndFile => {
+                Some(LapceWorkbenchCommand::PaletteHelpAndFile)
             }
             PaletteKind::Reference => None, // InternalCommand::PaletteReferences
             PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
@@ -129,7 +129,7 @@ impl PaletteKind {
             | PaletteKind::IconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
-            | PaletteKind::SCMReferences | PaletteKind::PaletteHelpAndFile
+            | PaletteKind::SCMReferences | PaletteKind::HelpAndFile
             | PaletteKind::DiffFiles => input,
             PaletteKind::PaletteHelp
             | PaletteKind::Command
@@ -146,9 +146,17 @@ impl PaletteKind {
     /// Get the palette kind that it should be considered as based on the current
     /// [`PaletteKind`] and the current input.
     pub fn get_palette_kind(&self, input: &str) -> PaletteKind {
-        if self != &PaletteKind::File && self.symbol() == "" {
+        if self == &PaletteKind::HelpAndFile && input.is_empty() {
             return *self;
         }
+
+        if self != &PaletteKind::File
+            && self != &PaletteKind::HelpAndFile
+            && self.symbol() == ""
+        {
+            return *self;
+        }
+
         PaletteKind::from_input(input)
     }
 }
