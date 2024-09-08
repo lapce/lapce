@@ -31,20 +31,22 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
-        HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
-        PrepareRenameRequest, References, RegisterCapability, Rename,
-        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-        SignatureHelpRequest, WorkDoneProgressCreate, WorkspaceSymbolRequest,
+        DocumentSymbolRequest, Formatting, GotoDefinition, GotoImplementation,
+        GotoTypeDefinition, HoverRequest, Initialize, InlayHintRequest,
+        InlineCompletionRequest, PrepareRenameRequest, References,
+        RegisterCapability, Rename, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
+        WorkspaceSymbolRequest,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    InitializeResult, LogMessageParams, MessageType, OneOf, ProgressParams,
-    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
-    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
-    ServerCapabilities, ShowMessageParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentSaveRegistrationOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    ImplementationProviderCapability, InitializeResult, LogMessageParams,
+    MessageType, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
+    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -763,6 +765,20 @@ impl PluginHostHandler {
                 .map(|r| match r {
                     OneOf::Left(is_capable) => *is_capable,
                     OneOf::Right(_) => true,
+                })
+                .unwrap_or(false),
+            GotoImplementation::METHOD => self
+                .server_capabilities
+                .implementation_provider
+                .as_ref()
+                .map(|r| match r {
+                    ImplementationProviderCapability::Simple(is_capable) => {
+                        *is_capable
+                    }
+                    ImplementationProviderCapability::Options(_) => {
+                        // todo
+                        false
+                    }
                 })
                 .unwrap_or(false),
             CodeActionRequest::METHOD => self
