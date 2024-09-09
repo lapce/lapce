@@ -1098,10 +1098,14 @@ impl WindowTabData {
             // ==== Running / Debugging ====
             RunAndDebugRestart => {
                 let active_term = self.terminal.debug.active_term.get_untracked();
-                if active_term
+                if let Some(is_debug) = active_term
                     .and_then(|term_id| self.terminal.restart_run_debug(term_id))
-                    .is_none()
                 {
+                    self.panel.show_panel(&PanelKind::Terminal);
+                    if is_debug {
+                        self.panel.show_panel(&PanelKind::Debug);
+                    }
+                } else {
                     self.palette.run(PaletteKind::RunAndDebug);
                 }
             }
@@ -2648,6 +2652,9 @@ impl WindowTabData {
                         self.terminal.debug.source_breakpoints(),
                     )
                 };
+                if !self.panel.is_panel_visible(&PanelKind::Debug) {
+                    self.panel.show_panel(&PanelKind::Debug);
+                }
             }
         }
     }
