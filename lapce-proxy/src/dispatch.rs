@@ -1122,6 +1122,22 @@ impl ProxyHandler for Dispatcher {
                     },
                 );
             }
+            GotoImplementation { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.go_to_implementation(
+                    &path,
+                    position,
+                    move |plugin_id, result| {
+                        let result = result.map(|resp| {
+                            ProxyResponse::GotoImplementationResponse {
+                                plugin_id,
+                                resp,
+                            }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
         }
     }
 }

@@ -35,11 +35,12 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
-        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
-        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
-        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
+        DocumentSymbolRequest, Formatting, GotoDefinition, GotoImplementation,
+        GotoImplementationResponse, GotoTypeDefinition, GotoTypeDefinitionParams,
+        GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
+        InlineCompletionRequest, PrepareRenameRequest, References, Rename, Request,
+        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
+        SignatureHelpRequest, WorkspaceSymbolRequest,
     },
     CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
@@ -684,6 +685,37 @@ impl PluginCatalogRpcHandler {
             context: ReferenceContext {
                 include_declaration: false,
             },
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn go_to_implementation(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<Option<GotoImplementationResponse>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = GotoImplementation::METHOD;
+        let params = GotoTypeDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
         };
 
         let language_id =

@@ -11,12 +11,12 @@ use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CallHierarchyIncomingCall,
-    CallHierarchyItem, CodeAction, CodeActionResponse, CodeLens, CompletionItem,
-    Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse, Hover, InlayHint,
-    InlineCompletionResponse, InlineCompletionTriggerKind, Location, Position,
-    PrepareRenameResponse, SelectionRange, SymbolInformation, TextDocumentItem,
-    TextEdit, WorkspaceEdit,
+    request::{GotoImplementationResponse, GotoTypeDefinitionResponse},
+    CallHierarchyIncomingCall, CallHierarchyItem, CodeAction, CodeActionResponse,
+    CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse,
+    GotoDefinitionResponse, Hover, InlayHint, InlineCompletionResponse,
+    InlineCompletionTriggerKind, Location, Position, PrepareRenameResponse,
+    SelectionRange, SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -97,6 +97,10 @@ pub enum ProxyRequest {
         file: PathBuf,
     },
     GetReferences {
+        path: PathBuf,
+        position: Position,
+    },
+    GotoImplementation {
         path: PathBuf,
         position: Position,
     },
@@ -395,6 +399,10 @@ pub enum ProxyResponse {
     GetCodeLensResolveResponse {
         plugin_id: PluginId,
         resp: CodeLens,
+    },
+    GotoImplementationResponse {
+        plugin_id: PluginId,
+        resp: Option<GotoImplementationResponse>,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -917,6 +925,15 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetReferences { path, position }, f);
+    }
+
+    pub fn go_to_implementation(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::GotoImplementation { path, position }, f);
     }
 
     pub fn get_code_actions(
