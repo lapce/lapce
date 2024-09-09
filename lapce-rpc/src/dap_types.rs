@@ -57,6 +57,8 @@ pub struct RunDebugConfig {
     pub debug_command: Option<Vec<String>>,
     #[serde(skip)]
     pub dap_id: DapId,
+    #[serde(default)]
+    pub tracing_output: bool,
 }
 
 pub trait Request {

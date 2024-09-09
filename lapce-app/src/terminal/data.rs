@@ -367,10 +367,16 @@ impl TerminalData {
         common: Rc<CommonData>,
         launch_error: RwSignal<Option<String>>,
     ) -> Arc<RwLock<RawTerminal>> {
+        let tracing_output = run_debug
+            .as_ref()
+            .map(|run_debug| run_debug.config.tracing_output)
+            .unwrap_or_default();
+
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,
             common.proxy.clone(),
             common.term_notification_tx.clone(),
+            tracing_output,
         )));
 
         let mut profile = profile.unwrap_or_default();

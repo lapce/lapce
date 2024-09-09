@@ -39,12 +39,12 @@ impl CodeLensData {
     pub fn run(&self, command: &str, args: Vec<Value>) {
         match command {
             "rust-analyzer.runSingle" | "rust-analyzer.debugSingle" => {
-                if let Some(config) = self.get_rust_command_config(&args) {
-                    let mode = if command == "rust-analyzer.runSingle" {
-                        RunDebugMode::Run
-                    } else {
-                        RunDebugMode::Debug
-                    };
+                let mode = if command == "rust-analyzer.runSingle" {
+                    RunDebugMode::Run
+                } else {
+                    RunDebugMode::Debug
+                };
+                if let Some(config) = self.get_rust_command_config(&args, mode) {
                     self.common
                         .internal_command
                         .send(InternalCommand::RunAndDebug { mode, config });
@@ -56,7 +56,11 @@ impl CodeLensData {
         }
     }
 
-    fn get_rust_command_config(&self, args: &[Value]) -> Option<RunDebugConfig> {
+    fn get_rust_command_config(
+        &self,
+        args: &[Value],
+        mode: RunDebugMode,
+    ) -> Option<RunDebugConfig> {
         if let Some(args) = args.first() {
             let Ok(mut cargo_args) =
                 serde_json::from_value::<RustArgs>(args.clone())
@@ -85,6 +89,7 @@ impl CodeLensData {
                 prelaunch: None,
                 debug_command: None,
                 dap_id: Default::default(),
+                tracing_output: mode == RunDebugMode::Debug,
             })
         } else {
             tracing::error!("no args");
