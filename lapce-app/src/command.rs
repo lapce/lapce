@@ -363,7 +363,7 @@ pub enum LapceWorkbenchCommand {
     PaletteLine,
 
     #[strum(serialize = "palette")]
-    #[strum(message = "Go to File")]
+    #[strum(message = "Palette(Go to File)")]
     Palette,
 
     #[strum(message = "Go To Symbol In File")]

@@ -1063,7 +1063,7 @@ impl WindowTabData {
                 self.palette.run(PaletteKind::Line);
             }
             Palette => {
-                self.palette.run(PaletteKind::File);
+                self.palette.run(PaletteKind::HelpAndFile);
             }
             PaletteSymbol => {
                 self.palette.run(PaletteKind::DocumentSymbol);
