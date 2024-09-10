@@ -1448,7 +1448,6 @@ impl EditorData {
                 if let Ok(ProxyResponse::GetReferencesResponse { references }) =
                     result
                 {
-                    tracing::debug!("GetReferencesResponse {}", references.len());
                     window_tab_data
                         .main_split
                         .references
