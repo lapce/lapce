@@ -55,7 +55,6 @@ pub fn references_panel(
                                 .style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
                                 .on_click_stop({
                                     move |_x| {
-                                        tracing::debug!("open = {:?} {}", SignalGet::id(&open), open.get_untracked());
                                         open.update(|x| {
                                             *x = !*x;
                                         });
@@ -129,7 +128,6 @@ pub fn references_panel(
                         move |_|
                         {
                             let range = range;
-                            tracing::info!("go to location: {:?}", range);
                             window_tab_data
                                 .common
                                 .internal_command
@@ -164,11 +162,10 @@ pub fn references_panel(
         .style(|s| s.flex_col().absolute().min_width_full()),
     )
     .style(|s| s.absolute().size_full())
-    .debug_name("references_section")
+    .debug_name("references panel")
 }
 
 pub fn init_references_root(items: Vec<Location>, scope: Scope) -> ReferencesRoot {
-    tracing::debug!("get_items {}", items.len());
     let mut refs_map = HashMap::new();
     for item in items {
         if let Ok(path) = item.uri.to_file_path() {

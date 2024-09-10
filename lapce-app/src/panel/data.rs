@@ -6,6 +6,7 @@ use floem::{
         use_context, Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
     },
 };
+use im::Vector;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -249,14 +250,26 @@ impl PanelData {
     }
 
     pub fn show_panel(&self, kind: &PanelKind) {
-        if let Some((index, position)) = self.panel_position(kind) {
-            self.styles.update(|styles| {
-                if let Some(style) = styles.get_mut(&position) {
-                    style.shown = true;
-                    style.active = index;
-                }
-            });
-        }
+        let (index, position) = match self.panel_position(kind) {
+            None => {
+                let Some((index, position)) = self.panels.try_update(|x| {
+                    let entry =
+                        x.entry(kind.default_position()).or_insert(Vector::new());
+                    entry.push_back(*kind);
+                    (entry.len() - 1, kind.default_position())
+                }) else {
+                    return;
+                };
+                (index, position)
+            }
+            Some((index, position)) => (index, position),
+        };
+        self.styles.update(|styles| {
+            if let Some(style) = styles.get_mut(&position) {
+                style.shown = true;
+                style.active = index;
+            }
+        });
     }
 
     pub fn hide_panel(&self, kind: &PanelKind) {
