@@ -378,5 +378,7 @@ fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()
         .replace('-', "_");
-    std::env::set_var("LC_ALL", locale + ".UTF-8");
+    unsafe {
+        std::env::set_var("LC_ALL", locale + ".UTF-8");
+    }
 }

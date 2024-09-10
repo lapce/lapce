@@ -147,7 +147,9 @@ pub fn register_lapce_path() -> Result<()> {
                 paths.append(
                     &mut std::env::split_paths(&current_path).collect::<Vec<_>>(),
                 );
-                std::env::set_var("PATH", std::env::join_paths(paths)?);
+                unsafe {
+                    std::env::set_var("PATH", std::env::join_paths(paths)?);
+                }
             }
         }
     }

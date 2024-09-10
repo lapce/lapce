@@ -3982,7 +3982,9 @@ fn load_shell_env() {
                     warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
                 }
             };
-            std::env::set_var(key, value);
+            unsafe {
+                std::env::set_var(key, value);
+            }
         })
 }
 
