@@ -32,6 +32,7 @@ use crate::{
     file_explorer::view::file_explorer_panel,
     panel::{
         call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,
+        references_view::references_panel,
     },
     window_tab::{DragContent, WindowTabData},
 };
@@ -496,6 +497,9 @@ fn panel_view(
                 PanelKind::DocumentSymbol => {
                     symbol_panel(window_tab_data.clone(), position).into_any()
                 }
+                PanelKind::References => {
+                    references_panel(window_tab_data.clone(), position).into_any()
+                }
             };
             view.style(|s| s.size_pct(100.0, 100.0))
         },
@@ -550,6 +554,7 @@ fn panel_picker(
                 PanelKind::Debug => "Debug",
                 PanelKind::CallHierarchy => "Call Hierarchy",
                 PanelKind::DocumentSymbol => "Document Symbol",
+                PanelKind::References => "References",
             };
             let icon = p.svg_name();
             let is_active = {

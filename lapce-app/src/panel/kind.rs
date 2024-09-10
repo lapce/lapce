@@ -17,6 +17,7 @@ pub enum PanelKind {
     Debug,
     CallHierarchy,
     DocumentSymbol,
+    References,
 }
 
 impl PanelKind {
@@ -31,6 +32,7 @@ impl PanelKind {
             PanelKind::Debug => LapceIcons::DEBUG,
             PanelKind::CallHierarchy => LapceIcons::TYPE_HIERARCHY,
             PanelKind::DocumentSymbol => LapceIcons::DOCUMENT_SYMBOL,
+            PanelKind::References => LapceIcons::REFERENCES,
         }
     }
 
