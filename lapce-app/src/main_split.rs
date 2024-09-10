@@ -50,6 +50,7 @@ use crate::{
         ThemeColorSettingsId, VoltViewId,
     },
     keypress::{EventRef, KeyPressData, KeyPressHandle},
+    panel::references_view::ReferencesRoot,
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -381,6 +382,7 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>>,
     pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
+    pub references: RwSignal<ReferencesRoot>,
     pub active_editor: Memo<Option<EditorData>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,
@@ -413,6 +415,7 @@ impl MainSplitData {
             cx.create_rw_signal(im::HashMap::new());
         let scratch_docs = cx.create_rw_signal(im::HashMap::new());
         let locations = cx.create_rw_signal(im::Vector::new());
+        let references = cx.create_rw_signal(ReferencesRoot::default());
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
         let find_editor = editors.make_local(cx, common.clone());
@@ -472,6 +475,7 @@ impl MainSplitData {
             width: cx.create_rw_signal(0.0),
             code_lens: cx.create_rw_signal(CodeLensData::new(common.clone())),
             common,
+            references,
         }
     }
 

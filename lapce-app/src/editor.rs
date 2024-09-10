@@ -76,7 +76,10 @@ use crate::{
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
-    panel::{call_hierarchy_view::CallHierarchyItemData, kind::PanelKind},
+    panel::{
+        call_hierarchy_view::CallHierarchyItemData, kind::PanelKind,
+        references_view::init_references_root,
+    },
     snippet::Snippet,
     tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
@@ -1419,6 +1422,43 @@ impl EditorData {
         );
     }
 
+    pub fn find_refenrence(&self, window_tab_data: WindowTabData) {
+        let doc = self.doc();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor().with_untracked(|c| c.offset());
+        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
+            (start_position, position)
+        });
+        let scope = window_tab_data.scope;
+        self.common.proxy.get_references(
+            path,
+            position,
+            create_ext_action(self.scope, move |result| {
+                if let Ok(ProxyResponse::GetReferencesResponse { references }) =
+                    result
+                {
+                    tracing::debug!("GetReferencesResponse {}", references.len());
+                    window_tab_data
+                        .main_split
+                        .references
+                        .update(|x| *x = init_references_root(references, scope));
+                    window_tab_data.show_panel(PanelKind::References);
+                }
+            }),
+        );
+    }
+
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
@@ -2748,6 +2788,9 @@ impl EditorData {
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::ShowCallHierarchy,
+                )),
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::FindReferences,
                 )),
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),

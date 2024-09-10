@@ -1452,6 +1452,13 @@ impl WindowTabData {
                     editor_data.call_hierarchy(self.clone());
                 }
             }
+            FindReferences => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.find_refenrence(self.clone());
+                }
+            }
             RunInTerminal => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
@@ -2537,7 +2544,8 @@ impl WindowTabData {
             | PanelKind::Problem
             | PanelKind::Debug
             | PanelKind::CallHierarchy
-            | PanelKind::DocumentSymbol => {
+            | PanelKind::DocumentSymbol
+            | PanelKind::References => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)

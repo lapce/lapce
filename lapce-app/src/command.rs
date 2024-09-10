@@ -187,6 +187,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Show Call Hierarchy")]
     ShowCallHierarchy,
 
+    #[strum(serialize = "find_references")]
+    #[strum(message = "Find References")]
+    FindReferences,
+
     #[strum(serialize = "reveal_in_panel")]
     #[strum(message = "Reveal in Panel")]
     RevealInPanel,
