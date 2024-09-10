@@ -38,7 +38,8 @@ pub fn default_panel_order() -> PanelOrder {
             PanelKind::Terminal,
             PanelKind::Search,
             PanelKind::Problem,
-            PanelKind::CallHierarchy
+            PanelKind::CallHierarchy,
+            PanelKind::References
         ],
     );
     order.insert(
