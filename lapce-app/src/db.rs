@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     app::{AppData, AppInfo},
     doc::DocInfo,
-    panel::{data::PanelOrder, kind::PanelKind, position::PanelPosition},
+    panel::{data::PanelOrder, kind::PanelKind},
     window::{WindowData, WindowInfo},
     window_tab::WindowTabData,
     workspace::{LapceWorkspace, WorkspaceInfo},
@@ -368,7 +368,8 @@ impl LapceDb {
         use strum::IntoEnumIterator;
         for kind in PanelKind::iter() {
             if kind.position(&panel_orders).is_none() {
-                let panels = panel_orders.entry(PanelPosition::LeftTop).or_default();
+                let panels =
+                    panel_orders.entry(kind.default_position()).or_default();
                 panels.push_back(kind);
             }
         }
