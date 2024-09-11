@@ -223,6 +223,7 @@ impl LspClient {
                     break;
                 }
                 if let Ok(msg) = serde_json::to_string(&msg) {
+                    tracing::debug!("write to lsp: {}", msg);
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
                     if let Err(err) = writer.write(msg.as_bytes()) {
@@ -244,6 +245,9 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
+                        if !message_str.contains("$/progress") {
+                            tracing::debug!("read from lsp: {}", message_str);
+                        }
                         if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,
                             &message_str,
@@ -358,6 +362,7 @@ impl LspClient {
             .workspace
             .clone()
             .map(|p| Url::from_directory_path(p).unwrap());
+        tracing::debug!("initialization_options {:?}", self.options);
         #[allow(deprecated)]
         let params = InitializeParams {
             process_id: Some(process::id()),

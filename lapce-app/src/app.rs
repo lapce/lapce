@@ -3012,7 +3012,16 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                             )
                     }),
                     focus_text(
-                        move || item.item.label.clone(),
+                        move || {
+                            if config.get().editor.completion_item_show_detail {
+                                item.item
+                                    .detail
+                                    .clone()
+                                    .unwrap_or(item.item.label.clone())
+                            } else {
+                                item.item.label.clone()
+                            }
+                        },
                         move || item.indices.clone(),
                         move || config.get().color(LapceColor::EDITOR_FOCUS),
                     )

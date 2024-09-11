@@ -22,6 +22,7 @@ wrap-column = 80
 wrap-width = 600                                             # px
 sticky-header = true
 completion-show-documentation = true
+completion-item-show-detail = false
 show-signature = true
 signature-label-code-block = true
 auto-closing-matching-pairs = true
