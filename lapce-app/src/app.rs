@@ -3085,7 +3085,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
         let config = config.get();
         let origin = window_tab_data.completion_origin();
         s.position(Position::Absolute)
-            .width(400.0)
+            .width(config.editor.completion_width as i32)
             .max_height(400.0)
             .margin_left(origin.x as f32)
             .margin_top(origin.y as f32)
