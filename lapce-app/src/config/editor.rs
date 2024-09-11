@@ -96,6 +96,8 @@ pub struct EditorConfig {
         desc = "Show code context like functions and classes at the top of editor when scroll"
     )]
     pub sticky_header: bool,
+    #[field_names(desc = "The number of pixels to show completion")]
+    pub completion_width: usize,
     #[field_names(
         desc = "If the editor should show the documentation of the current completion item"
     )]

@@ -21,6 +21,7 @@ wrap-style = "editor-width"
 wrap-column = 80
 wrap-width = 600                                             # px
 sticky-header = true
+completion-width = 600
 completion-show-documentation = true
 completion-item-show-detail = false
 show-signature = true
