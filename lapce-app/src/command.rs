@@ -191,6 +191,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Find References")]
     FindReferences,
 
+    #[strum(serialize = "go_to_implementation")]
+    #[strum(message = "Go to Implementation")]
+    GoToImplementation,
+
     #[strum(serialize = "reveal_in_panel")]
     #[strum(message = "Reveal in Panel")]
     RevealInPanel,
