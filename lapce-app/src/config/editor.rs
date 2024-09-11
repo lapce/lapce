@@ -101,6 +101,10 @@ pub struct EditorConfig {
     )]
     pub completion_show_documentation: bool,
     #[field_names(
+        desc = "Should the completion item use the `detail` field to replace the label `field`?"
+    )]
+    pub completion_item_show_detail: bool,
+    #[field_names(
         desc = "If the editor should show the signature of the function as the parameters are being typed"
     )]
     pub show_signature: bool,
