@@ -1458,6 +1458,44 @@ impl EditorData {
         );
     }
 
+    pub fn go_to_implementation(&self, window_tab_data: WindowTabData) {
+        let doc = self.doc();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor().with_untracked(|c| c.offset());
+        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
+            (start_position, position)
+        });
+        let _scope = window_tab_data.scope;
+        self.common.proxy.go_to_implementation(
+            path,
+            position,
+            create_ext_action(self.scope, move |result| {
+                if let Ok(ProxyResponse::GotoImplementationResponse {
+                    resp, ..
+                }) = result
+                {
+                    tracing::info!("{:?}", resp);
+                    // window_tab_data
+                    //     .main_split
+                    //     .references
+                    //     .update(|x| *x = init_references_root(references, scope));
+                    window_tab_data.show_panel(PanelKind::Implementation);
+                }
+            }),
+        );
+    }
+
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
@@ -2790,6 +2828,9 @@ impl EditorData {
                 )),
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::FindReferences,
+                )),
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::GoToImplementation,
                 )),
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),

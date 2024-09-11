@@ -500,6 +500,7 @@ fn panel_view(
                 PanelKind::References => {
                     references_panel(window_tab_data.clone(), position).into_any()
                 }
+                PanelKind::Implementation => text("Implementation").into_any(),
             };
             view.style(|s| s.size_pct(100.0, 100.0))
         },
@@ -555,6 +556,7 @@ fn panel_picker(
                 PanelKind::CallHierarchy => "Call Hierarchy",
                 PanelKind::DocumentSymbol => "Document Symbol",
                 PanelKind::References => "References",
+                PanelKind::Implementation => "Implementation",
             };
             let icon = p.svg_name();
             let is_active = {

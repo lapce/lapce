@@ -18,6 +18,7 @@ pub enum PanelKind {
     CallHierarchy,
     DocumentSymbol,
     References,
+    Implementation,
 }
 
 impl PanelKind {
@@ -33,6 +34,7 @@ impl PanelKind {
             PanelKind::CallHierarchy => LapceIcons::TYPE_HIERARCHY,
             PanelKind::DocumentSymbol => LapceIcons::DOCUMENT_SYMBOL,
             PanelKind::References => LapceIcons::REFERENCES,
+            PanelKind::Implementation => LapceIcons::IMPLEMENTATION,
         }
     }
 
@@ -58,6 +60,7 @@ impl PanelKind {
             PanelKind::CallHierarchy => PanelPosition::BottomLeft,
             PanelKind::DocumentSymbol => PanelPosition::RightTop,
             PanelKind::References => PanelPosition::BottomLeft,
+            PanelKind::Implementation => PanelPosition::BottomLeft,
         }
     }
 }
