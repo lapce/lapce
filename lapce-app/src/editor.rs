@@ -77,7 +77,8 @@ use crate::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
     panel::{
-        call_hierarchy_view::CallHierarchyItemData, kind::PanelKind,
+        call_hierarchy_view::CallHierarchyItemData,
+        implementation_view::init_implementation_root, kind::PanelKind,
         references_view::init_references_root,
     },
     snippet::Snippet,
@@ -1476,7 +1477,7 @@ impl EditorData {
             let position = buffer.offset_to_position(offset);
             (start_position, position)
         });
-        let _scope = window_tab_data.scope;
+        let scope = window_tab_data.scope;
         self.common.proxy.go_to_implementation(
             path,
             position,
@@ -1486,10 +1487,10 @@ impl EditorData {
                 }) = result
                 {
                     tracing::info!("{:?}", resp);
-                    // window_tab_data
-                    //     .main_split
-                    //     .references
-                    //     .update(|x| *x = init_references_root(references, scope));
+                    window_tab_data
+                        .main_split
+                        .implementations
+                        .update(|x| *x = init_implementation_root(resp, scope));
                     window_tab_data.show_panel(PanelKind::Implementation);
                 }
             }),

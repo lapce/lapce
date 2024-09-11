@@ -198,7 +198,7 @@ pub fn init_references_root(items: Vec<Location>, scope: Scope) -> ReferencesRoo
 
 #[derive(Clone, Default)]
 pub struct ReferencesRoot {
-    children: Vec<Reference>,
+    pub(crate) children: Vec<Reference>,
 }
 impl VirtualVector<(usize, usize, ReferenceLocation)> for ReferencesRoot {
     fn total_len(&self) -> usize {
@@ -247,7 +247,7 @@ impl ReferencesRoot {
 }
 
 #[derive(Clone)]
-enum Reference {
+pub enum Reference {
     File {
         location: ReferenceLocation,
         open: RwSignal<bool>,
