@@ -4034,8 +4034,10 @@ pub fn try_open_in_existing_process(
 fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
-    if let Err(err) = std::fs::remove_file(&local_socket) {
-        tracing::error!("{:?}", err);
+    if local_socket.exists() {
+        if let Err(err) = std::fs::remove_file(&local_socket) {
+            tracing::error!("{:?}", err);
+        }
     }
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
