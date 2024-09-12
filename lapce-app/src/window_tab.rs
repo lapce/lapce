@@ -47,6 +47,7 @@ use lsp_types::{
 use serde_json::Value;
 use tracing::{debug, error, event, Level};
 
+use crate::palette::DEFAULT_RUN_TOML;
 use crate::{
     about::AboutData,
     alert::{AlertBoxData, AlertButton},
@@ -1523,6 +1524,13 @@ impl WindowTabData {
                         ignore_unconfirmed: false,
                         same_editor_tab: false,
                     } });
+                }
+            }
+            AddRunDebugConfig => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.receive_char(DEFAULT_RUN_TOML);
                 }
             }
 
