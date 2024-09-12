@@ -47,7 +47,6 @@ use lsp_types::{
 use serde_json::Value;
 use tracing::{debug, error, event, Level};
 
-use crate::palette::DEFAULT_RUN_TOML;
 use crate::{
     about::AboutData,
     alert::{AlertBoxData, AlertButton},
@@ -73,7 +72,7 @@ use crate::{
     listener::Listener,
     lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
-    palette::{kind::PaletteKind, PaletteData, PaletteStatus},
+    palette::{kind::PaletteKind, PaletteData, PaletteStatus, DEFAULT_RUN_TOML},
     panel::{
         call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
         data::{default_panel_order, PanelData, PanelSection},
