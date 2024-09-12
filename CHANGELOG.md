@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Add Ubuntu 24.04 LTS (noble) build
+
 ### Bug Fixes
 
 ## 0.4.2

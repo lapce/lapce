@@ -166,8 +166,8 @@ jobs:
             os-version: lunar
           - os-name: ubuntu
             os-version: mantic
-          # - os-name: ubuntu
-          #   os-version: noble
+          - os-name: ubuntu
+            os-version: noble
     steps:
       - uses: actions/checkout@v4
 
