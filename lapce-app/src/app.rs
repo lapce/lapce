@@ -3942,7 +3942,7 @@ pub fn launch() {
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.
-fn load_shell_env() {
+pub fn load_shell_env() {
     use std::process::Command;
 
     use tracing::warn;
@@ -3969,7 +3969,10 @@ fn load_shell_env() {
     command.args(["--login", "-c", "printenv"]);
 
     #[cfg(windows)]
-    command.args(["{ ls env: | foreach { '{0}={1}' -f $_.Name, $_.Value } }"]);
+    command.args(&[
+        "-Command",
+        "Get-ChildItem env: | ForEach-Object { \"{0}={1}\" -f $_.Name, $_.Value }",
+    ]);
 
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
@@ -3985,7 +3988,8 @@ fn load_shell_env() {
 
     env.split('\n')
         .filter_map(|line| line.split_once('='))
-        .for_each(|(key, value)| {
+        .for_each(|(key, value)| unsafe {
+            let value = value.trim_matches('\r');
             if let Ok(v) = std::env::var(key) {
                 if v != value {
                     warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
