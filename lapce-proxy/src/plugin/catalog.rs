@@ -19,8 +19,8 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::DidOpenTextDocument, request::Request, DidOpenTextDocumentParams,
-    SemanticTokens, TextDocumentIdentifier, TextDocumentItem,
-    VersionedTextDocumentIdentifier,
+    MessageType, SemanticTokens, ShowMessageParams, TextDocumentIdentifier,
+    TextDocumentItem, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
@@ -623,6 +623,14 @@ impl PluginCatalog {
                             }
                         }
                     });
+                } else {
+                    self.plugin_rpc.core_rpc.show_message(
+                        "debug fail".to_owned(),
+                        ShowMessageParams {
+                            typ: MessageType::ERROR,
+                            message: "Debugger not found. Please install the appropriate plugin.".to_owned(),
+                        },
+                    )
                 }
             }
             DapProcessId {
