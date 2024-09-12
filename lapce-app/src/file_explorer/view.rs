@@ -401,7 +401,8 @@ fn file_explorer_view(
                                 },
                             )
                     }
-                });
+                })
+                .debug_name("file item");
 
                 // Only handle click events if we are not naming the file node
                 if let FileNodeViewKind::Path(path) = &kind {
@@ -411,13 +412,18 @@ fn file_explorer_view(
                     let aux_click_path = path.clone();
                     view.on_click_stop({
                         let kind = kind.clone();
+                        let config = config.clone();
                         move |_| {
-                            click_data.click(&click_path);
+                            click_data.click(&click_path, config);
                             select.update(|x| *x = Some(kind.clone()));
                         }
                     })
-                    .on_double_click(move |_| {
-                        double_click_data.double_click(&double_click_path)
+                    .on_double_click({
+                        let config = config.clone();
+                        move |_| {
+                            double_click_data
+                                .double_click(&double_click_path, config)
+                        }
                     })
                     .on_secondary_click_stop(move |_| {
                         secondary_click_data.secondary_click(&secondary_click_path);

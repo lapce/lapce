@@ -1556,6 +1556,21 @@ impl WindowTabData {
                     None,
                 );
             }
+            InternalCommand::OpenAndConfirmedFile { path } => {
+                self.main_split.jump_to_location(
+                    EditorLocation {
+                        path,
+                        position: None,
+                        scroll_offset: None,
+                        ignore_unconfirmed: false,
+                        same_editor_tab: false,
+                    },
+                    None,
+                );
+                if let Some(editor) = self.main_split.active_editor.get_untracked() {
+                    editor.confirmed.set(true);
+                }
+            }
             InternalCommand::OpenFileInNewTab { path } => {
                 self.main_split.jump_to_location(
                     EditorLocation {

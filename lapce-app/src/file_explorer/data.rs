@@ -4,6 +4,7 @@ use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
+    sync::Arc,
 };
 
 use floem::{
@@ -12,7 +13,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     menu::{Menu, MenuItem},
-    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;
@@ -31,6 +32,7 @@ use lapce_rpc::{
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
+    config::LapceConfig,
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
     main_split::Editors,
@@ -394,10 +396,10 @@ impl FileExplorerData {
         self.naming.set(Naming::None);
     }
 
-    pub fn click(&self, path: &Path) {
+    pub fn click(&self, path: &Path, config: ReadSignal<Arc<LapceConfig>>) {
         if self.is_dir(path) {
             self.toggle_expand(path);
-        } else {
+        } else if !config.get_untracked().core.disable_single_click {
             self.common
                 .internal_command
                 .send(InternalCommand::OpenFile {
@@ -459,9 +461,20 @@ impl FileExplorerData {
         }
     }
 
-    pub fn double_click(&self, path: &Path) -> EventPropagation {
+    pub fn double_click(
+        &self,
+        path: &Path,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> EventPropagation {
         if self.is_dir(path) {
             EventPropagation::Continue
+        } else if config.get_untracked().core.disable_single_click {
+            self.common.internal_command.send(
+                InternalCommand::OpenAndConfirmedFile {
+                    path: path.to_path_buf(),
+                },
+            );
+            EventPropagation::Stop
         } else {
             self.common
                 .internal_command

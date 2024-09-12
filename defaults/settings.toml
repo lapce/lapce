@@ -5,6 +5,7 @@ modal = false
 color-theme = "Lapce Dark"
 icon-theme = "Lapce Codicons"
 custom-titlebar = true
+disable-single-click = false
 
 [editor]
 font-family = "monospace"

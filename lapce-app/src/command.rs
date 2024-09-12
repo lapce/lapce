@@ -604,6 +604,9 @@ pub enum InternalCommand {
     OpenFile {
         path: PathBuf,
     },
+    OpenAndConfirmedFile {
+        path: PathBuf,
+    },
     OpenFileInNewTab {
         path: PathBuf,
     },
