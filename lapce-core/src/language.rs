@@ -1771,7 +1771,9 @@ impl LapceLanguage {
                     return Some(grammar);
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    if self != &LapceLanguage::PlainText {
+                        tracing::error!("{:?} {:?}", self, err);
+                    }
                 }
             }
         };
