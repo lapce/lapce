@@ -399,7 +399,7 @@ impl FileExplorerData {
     pub fn click(&self, path: &Path, config: ReadSignal<Arc<LapceConfig>>) {
         if self.is_dir(path) {
             self.toggle_expand(path);
-        } else if !config.get_untracked().core.disable_single_click {
+        } else if !config.get_untracked().core.file_exploerer_double_click {
             self.common
                 .internal_command
                 .send(InternalCommand::OpenFile {
@@ -468,7 +468,7 @@ impl FileExplorerData {
     ) -> EventPropagation {
         if self.is_dir(path) {
             EventPropagation::Continue
-        } else if config.get_untracked().core.disable_single_click {
+        } else if config.get_untracked().core.file_exploerer_double_click {
             self.common.internal_command.send(
                 InternalCommand::OpenAndConfirmedFile {
                     path: path.to_path_buf(),

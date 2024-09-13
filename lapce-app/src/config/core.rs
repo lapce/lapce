@@ -14,6 +14,8 @@ pub struct CoreConfig {
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
     pub custom_titlebar: bool,
-    #[field_names(desc = "Disable single-click to open files.")]
-    pub disable_single_click: bool,
+    #[field_names(
+        desc = "Only allow double-click to open files in the file explorer"
+    )]
+    pub file_exploerer_double_click: bool,
 }
