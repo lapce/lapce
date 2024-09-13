@@ -32,7 +32,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     core::CoreNotification,
-    dap_types::RunDebugConfig,
+    dap_types::{ConfigSource, RunDebugConfig},
     file::{Naming, PathObject},
     plugin::PluginId,
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
@@ -482,6 +482,7 @@ impl WindowTabData {
             workspace.clone(),
             common.config.get_untracked().terminal.get_default_profile(),
             common.clone(),
+            main_split.clone(),
         );
         if let Some(workspace_info) = workspace_info.as_ref() {
             terminal.debug.breakpoints.set(
@@ -1492,6 +1493,7 @@ impl WindowTabData {
                             debug_command: None,
                             dap_id: Default::default(),
                             tracing_output: false,
+                            config_source: ConfigSource::RunInTerminal,
                         };
                         self.common
                             .internal_command
