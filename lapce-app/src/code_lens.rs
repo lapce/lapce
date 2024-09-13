@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use lapce_rpc::dap_types::RunDebugConfig;
+use lapce_rpc::dap_types::{ConfigSource, RunDebugConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -90,6 +90,7 @@ impl CodeLensData {
                 debug_command: None,
                 dap_id: Default::default(),
                 tracing_output: mode == RunDebugMode::Debug,
+                config_source: ConfigSource::CodeLens,
             })
         } else {
             tracing::error!("no args");

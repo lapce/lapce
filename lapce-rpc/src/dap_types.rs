@@ -59,6 +59,21 @@ pub struct RunDebugConfig {
     pub dap_id: DapId,
     #[serde(default)]
     pub tracing_output: bool,
+    #[serde(default)]
+    pub config_source: ConfigSource,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq, Eq)]
+pub enum ConfigSource {
+    #[default]
+    Palette,
+    RunInTerminal,
+    CodeLens,
+}
+impl ConfigSource {
+    pub fn from_palette(&self) -> bool {
+        *self == Self::Palette
+    }
 }
 
 pub trait Request {

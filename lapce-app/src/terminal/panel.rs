@@ -21,6 +21,7 @@ use crate::{
     },
     id::TerminalTabId,
     keypress::{EventRef, KeyPressData, KeyPressFocus, KeyPressHandle},
+    main_split::MainSplitData,
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -39,6 +40,7 @@ pub struct TerminalPanelData {
     pub debug: RunDebugData,
     pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
+    pub main_split: MainSplitData,
 }
 
 impl TerminalPanelData {
@@ -46,6 +48,7 @@ impl TerminalPanelData {
         workspace: Arc<LapceWorkspace>,
         profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
+        main_split: MainSplitData,
     ) -> Self {
         let terminal_tab =
             TerminalTabData::new(workspace.clone(), profile, common.clone());
@@ -108,6 +111,7 @@ impl TerminalPanelData {
             debug,
             breakline,
             common,
+            main_split,
         }
     }
 
