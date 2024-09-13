@@ -2841,9 +2841,19 @@ impl EditorData {
                     Some(CommandKind::Workbench(
                         LapceWorkbenchCommand::RevealInFileExplorer,
                     )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::SourceControlOpenActiveFileRemoteUrl,
+                    )),
                     None,
+                    Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
                     Some(CommandKind::Workbench(
                         LapceWorkbenchCommand::AddRunDebugConfig,
+                    )),
+                    None,
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
                     )),
                 ]
             } else {
