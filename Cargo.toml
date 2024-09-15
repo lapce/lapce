@@ -85,7 +85,8 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "157631a49d6
 # Temporarily patch lsp-types with a version that adds message-type debug
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
-
+[patch."https://github.com/alacritty/alacritty"]
+alacritty_terminal = { git = "https://github.com/jm-observer/alacritty", rev = "7167ffe"}
 
 [workspace.dependencies.tracing]
 git     = "https://github.com/tokio-rs/tracing"

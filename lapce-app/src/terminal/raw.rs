@@ -1,8 +1,9 @@
 use alacritty_terminal::{
     event::EventListener,
-    grid::Dimensions,
+    grid::{Dimensions, Row},
     index::{Column, Direction, Line, Point},
     term::{
+        cell::{Cell, Flags, LineLength},
         search::{Match, RegexIter, RegexSearch},
         test::TermSize,
     },
@@ -49,37 +50,10 @@ impl EventListener for EventProxy {
     }
 }
 
-pub enum TerminalOutPut {
-    Ingore,
-    Output(Vec<u8>),
-}
-
-impl TerminalOutPut {
-    pub fn new(tracing_output: bool) -> Self {
-        if !tracing_output {
-            TerminalOutPut::Ingore
-        } else {
-            TerminalOutPut::Output(Vec::new())
-        }
-    }
-    pub fn update(&mut self, output: &[u8]) {
-        if let Self::Output(content) = self {
-            content.extend(output)
-        }
-    }
-    pub fn output(&self) -> Option<&[u8]> {
-        match self {
-            TerminalOutPut::Ingore => None,
-            TerminalOutPut::Output(content) => Some(content),
-        }
-    }
-}
-
 pub struct RawTerminal {
     pub parser: ansi::Processor,
     pub term: Term<EventProxy>,
     pub scroll_delta: f64,
-    pub output: TerminalOutPut,
 }
 
 impl RawTerminal {
@@ -87,7 +61,6 @@ impl RawTerminal {
         term_id: TermId,
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
-        tracing_output: bool,
     ) -> Self {
         let config = alacritty_terminal::term::Config {
             semantic_escape_chars: ",│`|\"' ()[]{}<>\t".to_string(),
@@ -107,15 +80,37 @@ impl RawTerminal {
             parser,
             term,
             scroll_delta: 0.0,
-            output: TerminalOutPut::new(tracing_output),
         }
     }
 
     pub fn update_content(&mut self, content: Vec<u8>) {
-        self.output.update(&content);
         for byte in content {
             self.parser.advance(&mut self.term, byte);
         }
+    }
+
+    pub fn output(&mut self) -> Vec<String> {
+        let row_cells: Vec<&Row<Cell>> =
+            self.term.grid_mut().raw_data().iter().rev().collect();
+        let mut lines = Vec::with_capacity(row_cells.len());
+        let mut line = String::new();
+        for row_cell in row_cells {
+            let len = row_cell.line_length();
+            if row_cell[Column(row_cell.len() - 1)]
+                .flags
+                .contains(Flags::WRAPLINE)
+            {
+                row_cell.into_iter().for_each(|x| line.push(x.c));
+            } else {
+                row_cell[Column(0)..Column(len.0)]
+                    .iter()
+                    .for_each(|x| line.push(x.c));
+                let mut new_line = String::new();
+                std::mem::swap(&mut line, &mut new_line);
+                lines.push(new_line);
+            }
+        }
+        lines
     }
 }
 
