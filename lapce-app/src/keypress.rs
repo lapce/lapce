@@ -192,7 +192,12 @@ impl KeyPressData {
         }
 
         for (_, cmd) in self.commands.iter() {
-            if !self.command_keymaps.contains_key(cmd.kind.str()) {
+            if self
+                .command_keymaps
+                .get(cmd.kind.str())
+                .map(|x| x.is_empty())
+                .unwrap_or(true)
+            {
                 commands_without_keymap.push(cmd.clone());
             }
         }
