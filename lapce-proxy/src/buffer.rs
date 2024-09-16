@@ -131,8 +131,8 @@ impl Buffer {
         self.rope.to_string()
     }
 
-    pub fn offset_of_line(&self, offset: usize) -> usize {
-        self.rope.offset_of_line(offset)
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        self.rope.offset_of_line(line)
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
@@ -161,6 +161,11 @@ impl Buffer {
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
+    }
+
+    pub fn line_to_cow(&self, line: usize) -> Cow<str> {
+        self.rope
+            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
     }
 
     /// Iterate over (utf8_offset, char) values in the given range  

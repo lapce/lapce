@@ -26,6 +26,7 @@ use crate::{
     buffer::BufferId,
     dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::{FileNodeItem, PathObject},
+    file_line::FileLine,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
     style::SemanticStyles,
@@ -212,6 +213,9 @@ pub enum ProxyRequest {
     DapGetScopes {
         dap_id: DapId,
         frame_id: usize,
+    },
+    ReferencesResolve {
+        items: Vec<Location>,
     },
 }
 
@@ -451,6 +455,9 @@ pub enum ProxyResponse {
     },
     Success {},
     SaveResponse {},
+    ReferencesResolveResponse {
+        items: Vec<FileLine>,
+    },
 }
 
 pub type ProxyMessage = RpcMessage<ProxyRequest, ProxyNotification, ProxyResponse>;
@@ -925,6 +932,14 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetReferences { path, position }, f);
+    }
+
+    pub fn references_resolve(
+        &self,
+        items: Vec<Location>,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::ReferencesResolve { items }, f);
     }
 
     pub fn go_to_implementation(

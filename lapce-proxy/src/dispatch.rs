@@ -21,8 +21,10 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
 use indexmap::IndexMap;
 use lapce_rpc::{
+    buffer::BufferId,
     core::{CoreNotification, CoreRpcHandler},
     file::FileNodeItem,
+    file_line::FileLine,
     proxy::{
         ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse,
         ProxyRpcHandler, SearchMatch,
@@ -1138,6 +1140,30 @@ impl ProxyHandler for Dispatcher {
                     },
                 );
             }
+            ReferencesResolve { items } => {
+                let items: Vec<FileLine> = items
+                    .into_iter()
+                    .filter_map(|location| {
+                        let Ok(path) = location.uri.to_file_path() else {
+                            tracing::error!(
+                                "get file path fail: {:?}",
+                                location.uri
+                            );
+                            return None;
+                        };
+                        let buffer = self.get_buffer_or_insert(path.clone());
+                        let line_num = location.range.start.line as usize;
+                        let content = buffer.line_to_cow(line_num).to_string();
+                        Some(FileLine {
+                            path,
+                            position: location.range.start,
+                            content,
+                        })
+                    })
+                    .collect();
+                let resp = ProxyResponse::ReferencesResolveResponse { items };
+                self.proxy_rpc.handle_response(id, Ok(resp));
+            }
         }
     }
 }
@@ -1164,6 +1190,12 @@ impl Dispatcher {
 
     fn respond_rpc(&self, id: RequestId, result: Result<ProxyResponse, RpcError>) {
         self.proxy_rpc.handle_response(id, result);
+    }
+
+    fn get_buffer_or_insert(&mut self, path: PathBuf) -> &mut Buffer {
+        self.buffers
+            .entry(path.clone())
+            .or_insert(Buffer::new(BufferId::next(), path))
     }
 }
 
