@@ -3,6 +3,7 @@ use alacritty_terminal::{
     grid::Dimensions,
     index::{Column, Direction, Line, Point},
     term::{
+        cell::{Flags, LineLength},
         search::{Match, RegexIter, RegexSearch},
         test::TermSize,
     },
@@ -49,37 +50,10 @@ impl EventListener for EventProxy {
     }
 }
 
-pub enum TerminalOutPut {
-    Ingore,
-    Output(Vec<u8>),
-}
-
-impl TerminalOutPut {
-    pub fn new(tracing_output: bool) -> Self {
-        if !tracing_output {
-            TerminalOutPut::Ingore
-        } else {
-            TerminalOutPut::Output(Vec::new())
-        }
-    }
-    pub fn update(&mut self, output: &[u8]) {
-        if let Self::Output(content) = self {
-            content.extend(output)
-        }
-    }
-    pub fn output(&self) -> Option<&[u8]> {
-        match self {
-            TerminalOutPut::Ingore => None,
-            TerminalOutPut::Output(content) => Some(content),
-        }
-    }
-}
-
 pub struct RawTerminal {
     pub parser: ansi::Processor,
     pub term: Term<EventProxy>,
     pub scroll_delta: f64,
-    pub output: TerminalOutPut,
 }
 
 impl RawTerminal {
@@ -87,7 +61,6 @@ impl RawTerminal {
         term_id: TermId,
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
-        tracing_output: bool,
     ) -> Self {
         let config = alacritty_terminal::term::Config {
             semantic_escape_chars: ",│`|\"' ()[]{}<>\t".to_string(),
@@ -107,15 +80,52 @@ impl RawTerminal {
             parser,
             term,
             scroll_delta: 0.0,
-            output: TerminalOutPut::new(tracing_output),
         }
     }
 
     pub fn update_content(&mut self, content: Vec<u8>) {
-        self.output.update(&content);
         for byte in content {
             self.parser.advance(&mut self.term, byte);
         }
+    }
+
+    pub fn output(&self, line_num: usize) -> Vec<String> {
+        let grid = self.term.grid();
+        let mut lines = Vec::with_capacity(5);
+        let mut rows = Vec::new();
+        for line in (grid.topmost_line().0..=grid.bottommost_line().0)
+            .map(Line)
+            .rev()
+        {
+            let row_cell = &grid[line];
+            if row_cell[Column(row_cell.len() - 1)]
+                .flags
+                .contains(Flags::WRAPLINE)
+            {
+                rows.push(row_cell);
+            } else {
+                if !rows.is_empty() {
+                    let mut new_line = Vec::new();
+                    std::mem::swap(&mut rows, &mut new_line);
+                    let line_str: String = new_line
+                        .into_iter()
+                        .rev()
+                        .flat_map(|x| {
+                            x.into_iter().take(x.line_length().0).map(|x| x.c)
+                        })
+                        .collect();
+                    lines.push(line_str);
+                    if lines.len() >= line_num {
+                        break;
+                    }
+                }
+                rows.push(row_cell);
+            }
+        }
+        for line in &lines {
+            tracing::info!("{}", line);
+        }
+        lines
     }
 }
 
