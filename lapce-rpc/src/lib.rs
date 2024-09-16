@@ -5,6 +5,7 @@ pub mod core;
 pub mod counter;
 pub mod dap_types;
 pub mod file;
+pub mod file_line;
 mod parse;
 pub mod plugin;
 pub mod proxy;
