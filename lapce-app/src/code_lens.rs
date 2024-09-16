@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use lapce_rpc::dap_types::{ConfigSource, RunDebugConfig};
+use lapce_rpc::dap_types::{ConfigSource, RunDebugConfig, RunDebugProgram};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -72,7 +72,36 @@ impl CodeLensData {
                 .args
                 .cargo_args
                 .extend(cargo_args.args.cargo_extra_args);
-            if !cargo_args.args.executable_args.is_empty() {
+
+            let mut prelaunch = None;
+            let mut program = cargo_args.kind;
+            let mut tracing_output = false;
+            let mut ty = None;
+            if mode == RunDebugMode::Debug
+                && cargo_args
+                    .args
+                    .cargo_args
+                    .first()
+                    .map(|x| x == "run")
+                    .unwrap_or_default()
+                && &program == "cargo"
+            {
+                ty = Some("lldb".to_owned());
+                cargo_args.args.cargo_args[0] = "build".to_owned();
+                let mut args = Vec::with_capacity(cargo_args.args.cargo_args.len());
+                std::mem::swap(&mut args, &mut cargo_args.args.cargo_args);
+                args.push("--message-format=json".to_owned());
+                prelaunch = Some(RunDebugProgram {
+                    program: "cargo".to_string(),
+                    args: Some(args),
+                });
+                cargo_args
+                    .args
+                    .cargo_args
+                    .extend(cargo_args.args.executable_args);
+                program = "____".to_owned();
+                tracing_output = true;
+            } else if !cargo_args.args.executable_args.is_empty() {
                 cargo_args.args.cargo_args.push("--".to_string());
                 cargo_args
                     .args
@@ -80,17 +109,17 @@ impl CodeLensData {
                     .extend(cargo_args.args.executable_args);
             }
             Some(RunDebugConfig {
-                ty: None,
+                ty,
                 name: cargo_args.label,
-                program: cargo_args.kind,
+                program,
                 args: Some(cargo_args.args.cargo_args),
                 cwd: None,
                 env: None,
-                prelaunch: None,
+                prelaunch,
                 debug_command: None,
                 dap_id: Default::default(),
-                tracing_output: mode == RunDebugMode::Debug,
-                config_source: ConfigSource::CodeLens,
+                tracing_output,
+                config_source: ConfigSource::RustCodeLens,
             })
         } else {
             tracing::error!("no args");
