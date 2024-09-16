@@ -412,7 +412,6 @@ fn file_explorer_view(
                     let aux_click_path = path.clone();
                     view.on_click_stop({
                         let kind = kind.clone();
-                        let config = config.clone();
                         move |_| {
                             click_data.click(&click_path, config);
                             select.update(|x| *x = Some(kind.clone()));

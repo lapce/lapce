@@ -383,7 +383,7 @@ pub struct MainSplitData {
     pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
     pub references: RwSignal<ReferencesRoot>,
-    pub implementations: RwSignal<ReferencesRoot>,
+    pub implementations: RwSignal<crate::panel::implementation_view::ReferencesRoot>,
     pub active_editor: Memo<Option<EditorData>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,
@@ -417,7 +417,9 @@ impl MainSplitData {
         let scratch_docs = cx.create_rw_signal(im::HashMap::new());
         let locations = cx.create_rw_signal(im::Vector::new());
         let references = cx.create_rw_signal(ReferencesRoot::default());
-        let implementations = cx.create_rw_signal(ReferencesRoot::default());
+        let implementations = cx.create_rw_signal(
+            crate::panel::implementation_view::ReferencesRoot::default(),
+        );
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
         let find_editor = editors.make_local(cx, common.clone());
