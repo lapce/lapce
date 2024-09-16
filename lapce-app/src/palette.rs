@@ -59,7 +59,7 @@ use crate::{
 pub mod item;
 pub mod kind;
 
-const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
+pub const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum PaletteStatus {

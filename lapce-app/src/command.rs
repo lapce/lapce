@@ -596,6 +596,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "go_to_location")]
     #[strum(message = "Go to Location")]
     GoToLocation,
+
+    #[strum(serialize = "add_run_debug_config")]
+    #[strum(message = "Add Run Debug Config")]
+    AddRunDebugConfig,
 }
 
 #[derive(Clone, Debug)]

@@ -72,7 +72,7 @@ use crate::{
     listener::Listener,
     lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
-    palette::{kind::PaletteKind, PaletteData, PaletteStatus},
+    palette::{kind::PaletteKind, PaletteData, PaletteStatus, DEFAULT_RUN_TOML},
     panel::{
         call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
         data::{default_panel_order, PanelData, PanelSection},
@@ -1525,6 +1525,13 @@ impl WindowTabData {
                         ignore_unconfirmed: false,
                         same_editor_tab: false,
                     } });
+                }
+            }
+            AddRunDebugConfig => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.receive_char(DEFAULT_RUN_TOML);
                 }
             }
 

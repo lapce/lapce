@@ -2818,40 +2818,81 @@ impl EditorData {
             self.single_click(pointer_event);
         }
 
-        let is_file = doc.content.with_untracked(|content| content.is_file());
+        let (path, is_file) = doc.content.with_untracked(|content| match content {
+            DocContent::File { path, .. } => {
+                (Some(path.to_path_buf()), path.is_file())
+            }
+            DocContent::Local
+            | DocContent::History(_)
+            | DocContent::Scratch { .. } => (None, false),
+        });
         let mut menu = Menu::new("");
         let mut cmds = if is_file {
-            vec![
-                Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
-                Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::ShowCallHierarchy,
-                )),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::FindReferences,
-                )),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::GoToImplementation,
-                )),
-                Some(CommandKind::Focus(FocusCommand::Rename)),
-                Some(CommandKind::Workbench(LapceWorkbenchCommand::RunInTerminal)),
-                None,
-                Some(CommandKind::Workbench(LapceWorkbenchCommand::RevealInPanel)),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::RevealInFileExplorer,
-                )),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::SourceControlOpenActiveFileRemoteUrl,
-                )),
-                None,
-                Some(CommandKind::Edit(EditCommand::ClipboardCut)),
-                Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
-                Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
-                None,
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::PaletteCommand,
-                )),
-            ]
+            if path
+                .as_ref()
+                .and_then(|x| x.file_name().and_then(|x| x.to_str()))
+                .map(|x| x == "run.toml")
+                .unwrap_or_default()
+            {
+                vec![
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RevealInPanel,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RevealInFileExplorer,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::SourceControlOpenActiveFileRemoteUrl,
+                    )),
+                    None,
+                    Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::AddRunDebugConfig,
+                    )),
+                    None,
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
+                    )),
+                ]
+            } else {
+                vec![
+                    Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
+                    Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::ShowCallHierarchy,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::FindReferences,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::GoToImplementation,
+                    )),
+                    Some(CommandKind::Focus(FocusCommand::Rename)),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RunInTerminal,
+                    )),
+                    None,
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RevealInPanel,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RevealInFileExplorer,
+                    )),
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::SourceControlOpenActiveFileRemoteUrl,
+                    )),
+                    None,
+                    Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+                    Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+                    None,
+                    Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
+                    )),
+                ]
+            }
         } else {
             vec![
                 Some(CommandKind::Edit(EditCommand::ClipboardCut)),
