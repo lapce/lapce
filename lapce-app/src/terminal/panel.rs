@@ -16,8 +16,8 @@ use lapce_rpc::{
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
     debug::{
-        DapData, DapVariable, RunDebugData, RunDebugMode, RunDebugProcess,
-        ScopeOrVar,
+        DapData, DapVariable, RunDebugConfigs, RunDebugData, RunDebugMode,
+        RunDebugProcess, ScopeOrVar,
     },
     id::TerminalTabId,
     keypress::{EventRef, KeyPressData, KeyPressFocus, KeyPressHandle},
@@ -468,7 +468,14 @@ impl TerminalPanelData {
     pub fn restart_run_debug(&self, term_id: TermId) -> Option<bool> {
         let (_, terminal_tab, index, terminal) =
             self.get_terminal_in_tab(&term_id)?;
-        let run_debug = terminal.run_debug.get_untracked()?;
+        let mut run_debug = terminal.run_debug.get_untracked()?;
+        if run_debug.config.config_source.from_palette() {
+            if let Some(new_config) =
+                self.get_run_config_by_name(&run_debug.config.name)
+            {
+                run_debug.config = new_config;
+            }
+        }
         let mut is_debug = false;
         let new_term_id = match run_debug.mode {
             RunDebugMode::Run => {
@@ -507,6 +514,26 @@ impl TerminalPanelData {
         self.focus_terminal(new_term_id);
 
         Some(is_debug)
+    }
+
+    fn get_run_config_by_name(&self, name: &str) -> Option<RunDebugConfig> {
+        if let Some(workspace) = self.common.workspace.path.as_deref() {
+            let run_toml = workspace.join(".lapce").join("run.toml");
+            let (doc, new_doc) = self.main_split.get_doc(run_toml.clone(), None);
+            if !new_doc {
+                let content = doc.buffer.with_untracked(|b| b.to_string());
+                match toml::from_str::<RunDebugConfigs>(&content) {
+                    Ok(configs) => {
+                        return configs.configs.into_iter().find(|x| x.name == name);
+                    }
+                    Err(err) => {
+                        // todo show message window
+                        tracing::error!("deser fail {:?}", err);
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn focus_terminal(&self, term_id: TermId) {
