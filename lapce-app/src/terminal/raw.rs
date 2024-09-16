@@ -89,26 +89,43 @@ impl RawTerminal {
         }
     }
 
-    pub fn output(&mut self) -> Vec<String> {
-        let row_cells: Vec<&Row<Cell>> =
-            self.term.grid_mut().raw_data().iter().rev().collect();
-        let mut lines = Vec::with_capacity(row_cells.len());
-        let mut line = String::new();
-        for row_cell in row_cells {
-            let len = row_cell.line_length();
+    pub fn output(&self, line_num: usize) -> Vec<String> {
+        let grid = self.term.grid();
+        let to_str = |x: Line| grid[x].into_iter().map(|x| x.c).collect::<String>();
+
+        let mut lines = Vec::with_capacity(5);
+        let mut rows = Vec::new();
+        for line in (grid.topmost_line().0..=grid.bottommost_line().0)
+            .map(Line)
+            .rev()
+        {
+            let row_cell = &grid[line];
             if row_cell[Column(row_cell.len() - 1)]
                 .flags
                 .contains(Flags::WRAPLINE)
             {
-                row_cell.into_iter().for_each(|x| line.push(x.c));
+                rows.push(row_cell);
             } else {
-                row_cell[Column(0)..Column(len.0)]
-                    .iter()
-                    .for_each(|x| line.push(x.c));
-                let mut new_line = String::new();
-                std::mem::swap(&mut line, &mut new_line);
-                lines.push(new_line);
+                if !rows.is_empty() {
+                    let mut new_line = Vec::new();
+                    std::mem::swap(&mut rows, &mut new_line);
+                    let line_str: String = new_line
+                        .into_iter()
+                        .rev()
+                        .flat_map(|x| {
+                            x.into_iter().take(x.line_length().0).map(|x| x.c)
+                        })
+                        .collect();
+                    lines.push(line_str);
+                    if lines.len() >= line_num {
+                        break;
+                    }
+                }
+                rows.push(row_cell);
             }
+        }
+        for line in &lines {
+            tracing::info!("{}", line);
         }
         lines
     }
