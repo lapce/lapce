@@ -63,53 +63,57 @@ impl LapceDb {
             folder,
         };
         let local_db = db.clone();
-        std::thread::spawn(move || -> Result<()> {
-            loop {
-                let event = save_rx.recv()?;
-                match event {
-                    SaveEvent::App(info) => {
-                        if let Err(err) = local_db.insert_app_info(info) {
-                            tracing::error!("{:?}", err);
+        std::thread::Builder::new()
+            .name("SaveEventHandler".to_owned())
+            .spawn(move || -> Result<()> {
+                loop {
+                    let event = save_rx.recv()?;
+                    match event {
+                        SaveEvent::App(info) => {
+                            if let Err(err) = local_db.insert_app_info(info) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::Workspace(workspace, info) => {
-                        if let Err(err) =
-                            local_db.insert_workspace(&workspace, &info)
-                        {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::Workspace(workspace, info) => {
+                            if let Err(err) =
+                                local_db.insert_workspace(&workspace, &info)
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::RecentWorkspace(workspace) => {
-                        if let Err(err) = local_db.insert_recent_workspace(workspace)
-                        {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::RecentWorkspace(workspace) => {
+                            if let Err(err) =
+                                local_db.insert_recent_workspace(workspace)
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::Doc(info) => {
-                        if let Err(err) = local_db.insert_doc(&info) {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::Doc(info) => {
+                            if let Err(err) = local_db.insert_doc(&info) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::DisabledVolts(volts) => {
-                        if let Err(err) = local_db.insert_disabled_volts(volts) {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::DisabledVolts(volts) => {
+                            if let Err(err) = local_db.insert_disabled_volts(volts) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
-                        if let Err(err) = local_db
-                            .insert_workspace_disabled_volts(workspace, volts)
-                        {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
+                            if let Err(err) = local_db
+                                .insert_workspace_disabled_volts(workspace, volts)
+                            {
+                                tracing::error!("{:?}", err);
+                            }
                         }
-                    }
-                    SaveEvent::PanelOrder(order) => {
-                        if let Err(err) = local_db.insert_panel_orders(&order) {
-                            tracing::error!("{:?}", err);
+                        SaveEvent::PanelOrder(order) => {
+                            if let Err(err) = local_db.insert_panel_orders(&order) {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     }
                 }
-            }
-        });
+            })
+            .unwrap();
         Ok(db)
     }
 

@@ -318,9 +318,12 @@ impl WindowTabData {
             crossbeam_channel::unbounded();
         {
             let term_notification_tx = term_notification_tx.clone();
-            std::thread::spawn(move || {
-                terminal_update_process(term_rx, term_notification_tx);
-            });
+            std::thread::Builder::new()
+                .name("terminal update process".to_owned())
+                .spawn(move || {
+                    terminal_update_process(term_rx, term_notification_tx);
+                })
+                .unwrap();
         }
 
         let proxy = new_proxy(
@@ -1326,7 +1329,7 @@ impl WindowTabData {
                                     update_in_progress.set(false);
                                 },
                             );
-                            std::thread::spawn(move || {
+                            std::thread::Builder::new().name("RestartToUpdate".to_owned()).spawn(move || {
                                 let do_update = || -> anyhow::Result<()> {
                                     let src =
                                         crate::update::download_release(&release)?;
@@ -1344,7 +1347,7 @@ impl WindowTabData {
                                 }
 
                                 send(false);
-                            });
+                            }).unwrap();
                         }
                     }
                 }

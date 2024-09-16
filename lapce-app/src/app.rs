@@ -3844,38 +3844,44 @@ pub fn launch() {
                 }
             }
         });
-        std::thread::spawn(move || {
-            use self::grammars::*;
-            let updated = match find_grammar_release() {
-                Ok(release) => {
-                    let mut updated = false;
-                    match fetch_grammars(&release) {
-                        Err(e) => {
-                            trace!(
-                                TraceLevel::ERROR,
-                                "failed to fetch grammars: {e}"
-                            );
+        std::thread::Builder::new()
+            .name("FindGrammar".to_owned())
+            .spawn(move || {
+                use self::grammars::*;
+                let updated = match find_grammar_release() {
+                    Ok(release) => {
+                        let mut updated = false;
+                        match fetch_grammars(&release) {
+                            Err(e) => {
+                                trace!(
+                                    TraceLevel::ERROR,
+                                    "failed to fetch grammars: {e}"
+                                );
+                            }
+                            Ok(u) => updated |= u,
                         }
-                        Ok(u) => updated |= u,
-                    }
-                    match fetch_queries(&release) {
-                        Err(e) => {
-                            trace!(
-                                TraceLevel::ERROR,
-                                "failed to fetch grammars: {e}"
-                            );
+                        match fetch_queries(&release) {
+                            Err(e) => {
+                                trace!(
+                                    TraceLevel::ERROR,
+                                    "failed to fetch grammars: {e}"
+                                );
+                            }
+                            Ok(u) => updated |= u,
                         }
-                        Ok(u) => updated |= u,
+                        updated
                     }
-                    updated
-                }
-                Err(e) => {
-                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
-                    false
-                }
-            };
-            send(updated);
-        });
+                    Err(e) => {
+                        trace!(
+                            TraceLevel::ERROR,
+                            "failed to obtain release info: {e}"
+                        );
+                        false
+                    }
+                };
+                send(updated);
+            })
+            .unwrap();
     }
 
     #[cfg(feature = "updater")]
@@ -3888,14 +3894,17 @@ pub fn launch() {
                 latest_release.set(Arc::new(Some(release)));
             }
         });
-        std::thread::spawn(move || loop {
-            if let Ok(release) = crate::update::get_latest_release() {
-                if let Err(err) = tx.send(release) {
-                    tracing::error!("{:?}", err);
+        std::thread::Builder::new()
+            .name("LapceUpdater".to_owned())
+            .spawn(move || loop {
+                if let Ok(release) = crate::update::get_latest_release() {
+                    if let Err(err) = tx.send(release) {
+                        tracing::error!("{:?}", err);
+                    }
                 }
-            }
-            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
-        });
+                std::thread::sleep(std::time::Duration::from_secs(60 * 60));
+            })
+            .unwrap();
     }
 
     {
@@ -3909,11 +3918,14 @@ pub fn launch() {
                 }
             }
         });
-        std::thread::spawn(move || {
-            if let Err(err) = listen_local_socket(tx) {
-                tracing::error!("{:?}", err);
-            }
-        });
+        std::thread::Builder::new()
+            .name("ListenLocalSocket".to_owned())
+            .spawn(move || {
+                if let Err(err) = listen_local_socket(tx) {
+                    tracing::error!("{:?}", err);
+                }
+            })
+            .unwrap();
     }
 
     {

@@ -180,9 +180,12 @@ impl PaletteData {
         let (resp_tx, resp_rx) = crossbeam_channel::unbounded();
         {
             let run_id = run_id_counter.clone();
-            std::thread::spawn(move || {
-                Self::update_process(run_id, run_rx, resp_tx);
-            });
+            std::thread::Builder::new()
+                .name("PaletteUpdateProcess".to_owned())
+                .spawn(move || {
+                    Self::update_process(run_id, run_rx, resp_tx);
+                })
+                .unwrap();
         }
         let (filtered_items, set_filtered_items) =
             cx.create_signal(im::Vector::new());
