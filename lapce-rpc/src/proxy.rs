@@ -289,6 +289,9 @@ pub enum ProxyNotification {
     },
     GitDiscardWorkspaceChanges {},
     GitInit {},
+    LspCancel {
+        id: i32,
+    },
     TerminalWrite {
         term_id: TermId,
         content: String,
@@ -581,6 +584,10 @@ impl ProxyRpcHandler {
         if let Err(err) = self.tx.send(ProxyRpc::Notification(notification)) {
             tracing::error!("{:?}", err);
         }
+    }
+
+    pub fn lsp_cancel(&self, id: i32) {
+        self.notification(ProxyNotification::LspCancel { id });
     }
 
     pub fn git_init(&self) {

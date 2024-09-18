@@ -36,7 +36,9 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::Rope;
 use lsp_types::{
-    MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
+    notification::{Cancel, Notification},
+    CancelParams, MessageType, NumberOrString, Position, Range, ShowMessageParams,
+    TextDocumentItem, Url,
 };
 use parking_lot::Mutex;
 
@@ -372,6 +374,18 @@ impl ProxyHandler for Dispatcher {
                         Err(e) => eprintln!("{e:?}"),
                     }
                 }
+            }
+            LspCancel { id } => {
+                self.catalog_rpc.send_notification(
+                    None,
+                    Cancel::METHOD,
+                    CancelParams {
+                        id: NumberOrString::Number(id),
+                    },
+                    None,
+                    None,
+                    false,
+                );
             }
         }
     }
