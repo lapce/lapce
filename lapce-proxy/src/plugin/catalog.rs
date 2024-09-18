@@ -207,6 +207,7 @@ impl PluginCatalog {
             if let Some(meta) = self.unactivated_volts.remove(id) {
                 let configurations =
                     self.plugin_configurations.get(&meta.name).cloned();
+                tracing::debug!("{:?} {:?}", id, configurations);
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
                     if let Err(err) =
@@ -480,6 +481,7 @@ impl PluginCatalog {
         use PluginCatalogNotification::*;
         match notification {
             UnactivatedVolts(volts) => {
+                tracing::debug!("UnactivatedVolts {:?}", volts);
                 for volt in volts {
                     let id = volt.id();
                     self.unactivated_volts.insert(id, volt);
@@ -487,6 +489,7 @@ impl PluginCatalog {
                 self.check_unactivated_volts();
             }
             UpdatePluginConfigs(configs) => {
+                tracing::debug!("UpdatePluginConfigs {:?}", configs);
                 self.plugin_configurations = configs;
             }
             PluginServerLoaded(plugin) => {
@@ -529,6 +532,7 @@ impl PluginCatalog {
                 }
             }
             InstallVolt(volt) => {
+                tracing::debug!("InstallVolt {:?}", volt);
                 let workspace = self.workspace.clone();
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
@@ -543,6 +547,7 @@ impl PluginCatalog {
                 });
             }
             ReloadVolt(volt) => {
+                tracing::debug!("ReloadVolt {:?}", volt);
                 let volt_id = volt.id();
                 let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
                 for id in ids {
@@ -556,6 +561,7 @@ impl PluginCatalog {
                 }
             }
             StopVolt(volt) => {
+                tracing::debug!("StopVolt {:?}", volt);
                 let volt_id = volt.id();
                 let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
                 for id in ids {
@@ -566,6 +572,7 @@ impl PluginCatalog {
                 }
             }
             EnableVolt(volt) => {
+                tracing::debug!("EnableVolt {:?}", volt);
                 let volt_id = volt.id();
                 for (_, volt) in self.plugins.iter() {
                     if volt.volt_id == volt_id {
