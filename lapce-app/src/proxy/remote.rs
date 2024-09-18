@@ -177,71 +177,77 @@ pub fn start_remote(
 
     let local_proxy_rpc = proxy_rpc.clone();
     let local_writer_tx = writer_tx.clone();
-    std::thread::spawn(move || {
-        for msg in local_proxy_rpc.rx() {
-            match msg {
-                ProxyRpc::Request(id, rpc) => {
-                    if let Err(err) =
-                        local_writer_tx.send(RpcMessage::Request(id, rpc))
-                    {
-                        tracing::error!("{:?}", err);
+    std::thread::Builder::new()
+        .name("ProxyRpcHandler".to_owned())
+        .spawn(move || {
+            for msg in local_proxy_rpc.rx() {
+                match msg {
+                    ProxyRpc::Request(id, rpc) => {
+                        if let Err(err) =
+                            local_writer_tx.send(RpcMessage::Request(id, rpc))
+                        {
+                            tracing::error!("{:?}", err);
+                        }
                     }
-                }
-                ProxyRpc::Notification(rpc) => {
-                    if let Err(err) =
-                        local_writer_tx.send(RpcMessage::Notification(rpc))
-                    {
-                        tracing::error!("{:?}", err);
+                    ProxyRpc::Notification(rpc) => {
+                        if let Err(err) =
+                            local_writer_tx.send(RpcMessage::Notification(rpc))
+                        {
+                            tracing::error!("{:?}", err);
+                        }
                     }
-                }
-                ProxyRpc::Shutdown => {
-                    if let Err(err) = child.kill() {
-                        tracing::error!("{:?}", err);
+                    ProxyRpc::Shutdown => {
+                        if let Err(err) = child.kill() {
+                            tracing::error!("{:?}", err);
+                        }
+                        if let Err(err) = child.wait() {
+                            tracing::error!("{:?}", err);
+                        }
+                        return;
                     }
-                    if let Err(err) = child.wait() {
-                        tracing::error!("{:?}", err);
-                    }
-                    return;
                 }
             }
-        }
-    });
+        })
+        .unwrap();
 
-    std::thread::spawn(move || {
-        for msg in reader_rx {
-            match msg {
-                RpcMessage::Request(id, req) => {
-                    let writer_tx = writer_tx.clone();
-                    let core_rpc = core_rpc.clone();
-                    std::thread::spawn(move || match core_rpc.request(req) {
-                        Ok(resp) => {
-                            if let Err(err) =
-                                writer_tx.send(RpcMessage::Response(id, resp))
-                            {
-                                tracing::error!("{:?}", err);
+    std::thread::Builder::new()
+        .name("RpcMessageHandler".to_owned())
+        .spawn(move || {
+            for msg in reader_rx {
+                match msg {
+                    RpcMessage::Request(id, req) => {
+                        let writer_tx = writer_tx.clone();
+                        let core_rpc = core_rpc.clone();
+                        std::thread::spawn(move || match core_rpc.request(req) {
+                            Ok(resp) => {
+                                if let Err(err) =
+                                    writer_tx.send(RpcMessage::Response(id, resp))
+                                {
+                                    tracing::error!("{:?}", err);
+                                }
                             }
-                        }
-                        Err(e) => {
-                            if let Err(err) =
-                                writer_tx.send(RpcMessage::Error(id, e))
-                            {
-                                tracing::error!("{:?}", err);
+                            Err(e) => {
+                                if let Err(err) =
+                                    writer_tx.send(RpcMessage::Error(id, e))
+                                {
+                                    tracing::error!("{:?}", err);
+                                }
                             }
-                        }
-                    });
-                }
-                RpcMessage::Notification(n) => {
-                    core_rpc.notification(n);
-                }
-                RpcMessage::Response(id, resp) => {
-                    proxy_rpc.handle_response(id, Ok(resp));
-                }
-                RpcMessage::Error(id, err) => {
-                    proxy_rpc.handle_response(id, Err(err));
+                        });
+                    }
+                    RpcMessage::Notification(n) => {
+                        core_rpc.notification(n);
+                    }
+                    RpcMessage::Response(id, resp) => {
+                        proxy_rpc.handle_response(id, Ok(resp));
+                    }
+                    RpcMessage::Error(id, err) => {
+                        proxy_rpc.handle_response(id, Err(err));
+                    }
                 }
             }
-        }
-    });
+        })
+        .unwrap();
 
     Ok(())
 }

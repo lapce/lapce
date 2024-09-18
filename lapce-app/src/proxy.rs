@@ -54,66 +54,76 @@ pub fn new_proxy(
     {
         let core_rpc = core_rpc.clone();
         let proxy_rpc = proxy_rpc.clone();
-        std::thread::spawn(move || {
-            core_rpc.notification(CoreNotification::ProxyStatus {
-                status: ProxyStatus::Connecting,
-            });
-            proxy_rpc.initialize(
-                workspace.path.clone(),
-                disabled_volts,
-                extra_plugin_paths,
-                plugin_configurations,
-                1,
-                1,
-            );
+        std::thread::Builder::new()
+            .name("ProxyRpcHandler".to_owned())
+            .spawn(move || {
+                core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: ProxyStatus::Connecting,
+                });
+                proxy_rpc.initialize(
+                    workspace.path.clone(),
+                    disabled_volts,
+                    extra_plugin_paths,
+                    plugin_configurations,
+                    1,
+                    1,
+                );
 
-            match &workspace.kind {
-                LapceWorkspaceType::Local => {
-                    let core_rpc = core_rpc.clone();
-                    let proxy_rpc = proxy_rpc.clone();
-                    std::thread::spawn(move || {
-                        let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
-                        let proxy_rpc = dispatcher.proxy_rpc.clone();
-                        proxy_rpc.mainloop(&mut dispatcher);
-                    });
-                }
-                LapceWorkspaceType::RemoteSSH(remote) => {
-                    if let Err(e) = start_remote(
-                        SshRemote {
-                            ssh: remote.clone(),
-                        },
-                        core_rpc.clone(),
-                        proxy_rpc.clone(),
-                    ) {
-                        error!("Failed to start SSH remote: {e}");
+                match &workspace.kind {
+                    LapceWorkspaceType::Local => {
+                        let core_rpc = core_rpc.clone();
+                        let proxy_rpc = proxy_rpc.clone();
+                        std::thread::Builder::new()
+                            .name("Dispatcher".to_owned())
+                            .spawn(move || {
+                                let mut dispatcher =
+                                    Dispatcher::new(core_rpc, proxy_rpc);
+                                let proxy_rpc = dispatcher.proxy_rpc.clone();
+                                proxy_rpc.mainloop(&mut dispatcher);
+                            })
+                            .unwrap();
+                    }
+                    LapceWorkspaceType::RemoteSSH(remote) => {
+                        if let Err(e) = start_remote(
+                            SshRemote {
+                                ssh: remote.clone(),
+                            },
+                            core_rpc.clone(),
+                            proxy_rpc.clone(),
+                        ) {
+                            error!("Failed to start SSH remote: {e}");
+                        }
+                    }
+                    #[cfg(windows)]
+                    LapceWorkspaceType::RemoteWSL(remote) => {
+                        if let Err(e) = start_remote(
+                            wsl::WslRemote {
+                                wsl: remote.clone(),
+                            },
+                            core_rpc.clone(),
+                            proxy_rpc.clone(),
+                        ) {
+                            error!("Failed to start SSH remote: {e}");
+                        }
                     }
                 }
-                #[cfg(windows)]
-                LapceWorkspaceType::RemoteWSL(remote) => {
-                    if let Err(e) = start_remote(
-                        wsl::WslRemote {
-                            wsl: remote.clone(),
-                        },
-                        core_rpc.clone(),
-                        proxy_rpc.clone(),
-                    ) {
-                        error!("Failed to start SSH remote: {e}");
-                    }
-                }
-            }
-        });
+            })
+            .unwrap();
     }
 
     let (tx, rx) = crossbeam_channel::unbounded();
     {
         let core_rpc = core_rpc.clone();
-        std::thread::spawn(move || {
-            let mut proxy = Proxy { tx, term_tx };
-            core_rpc.mainloop(&mut proxy);
-            core_rpc.notification(CoreNotification::ProxyStatus {
-                status: ProxyStatus::Connected,
-            });
-        })
+        std::thread::Builder::new()
+            .name("CoreRpcHandler".to_owned())
+            .spawn(move || {
+                let mut proxy = Proxy { tx, term_tx };
+                core_rpc.mainloop(&mut proxy);
+                core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: ProxyStatus::Connected,
+                });
+            })
+            .unwrap()
     };
 
     let notification = create_signal_from_channel(rx);

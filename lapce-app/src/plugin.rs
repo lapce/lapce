@@ -198,20 +198,23 @@ impl PluginData {
                     }
                 },
             );
-            std::thread::spawn(move || {
-                let volts = find_all_volts(&extra_plugin_paths);
-                let volts = volts
-                    .into_iter()
-                    .filter_map(|meta| {
-                        if meta.wasm.is_none() {
-                            Some((volt_icon(&meta), meta))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                send(volts);
-            });
+            std::thread::Builder::new()
+                .name("FindAllVolts".to_owned())
+                .spawn(move || {
+                    let volts = find_all_volts(&extra_plugin_paths);
+                    let volts = volts
+                        .into_iter()
+                        .filter_map(|meta| {
+                            if meta.wasm.is_none() {
+                                Some((volt_icon(&meta), meta))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    send(volts);
+                })
+                .unwrap();
         }
 
         {
