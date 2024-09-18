@@ -26,13 +26,13 @@ use super::{
     source_control_view::source_control_panel,
     terminal_view::terminal_panel,
 };
+use crate::panel::implementation_view::implementation_panel;
 use crate::{
     app::{clickable_icon, clickable_icon_base},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     file_explorer::view::file_explorer_panel,
     panel::{
         call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,
-        implementation_view::implementation_panel,
         references_view::references_panel,
     },
     window_tab::{DragContent, WindowTabData},

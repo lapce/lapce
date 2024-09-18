@@ -418,7 +418,6 @@ fn file_explorer_view(
                         }
                     })
                     .on_double_click({
-                        let config = config.clone();
                         move |_| {
                             double_click_data
                                 .double_click(&double_click_path, config)
