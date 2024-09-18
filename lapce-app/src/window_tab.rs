@@ -641,6 +641,11 @@ impl WindowTabData {
         self.common.keypress.update(|keypress| {
             keypress.update_keymaps(&config);
         });
+        if self.common.config.get_untracked().plugins != config.plugins {
+            self.common
+                .proxy
+                .update_plugin_configs(config.plugins.clone());
+        }
         self.set_config.set(Arc::new(config));
     }
 

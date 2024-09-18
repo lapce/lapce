@@ -3817,6 +3817,7 @@ pub fn launch() {
         let notification = create_signal_from_channel(rx);
         create_effect(move |_| {
             if notification.get().is_some() {
+                tracing::debug!("notification reload_config");
                 app_data.reload_config();
             }
         });
