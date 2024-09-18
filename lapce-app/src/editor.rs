@@ -78,7 +78,8 @@ use crate::{
     },
     panel::{
         call_hierarchy_view::CallHierarchyItemData,
-        implementation_view::init_implementation_root, kind::PanelKind,
+        implementation_view::{init_implementation_root, map_to_location},
+        kind::PanelKind,
         references_view::init_references_root,
     },
     snippet::Snippet,
@@ -1478,20 +1479,41 @@ impl EditorData {
             (start_position, position)
         });
         let scope = window_tab_data.scope;
-        self.common.proxy.go_to_implementation(
-            path,
-            position,
-            create_ext_action(self.scope, move |result| {
-                if let Ok(ProxyResponse::GotoImplementationResponse {
-                    resp, ..
-                }) = result
+        let update_implementation = create_ext_action(self.scope, {
+            let window_tab_data = window_tab_data.clone();
+            move |result| {
+                if let Ok(ProxyResponse::ReferencesResolveResponse { items }) =
+                    result
                 {
-                    tracing::info!("{:?}", resp);
                     window_tab_data
                         .main_split
                         .implementations
-                        .update(|x| *x = init_implementation_root(resp, scope));
+                        .update(|x| *x = init_implementation_root(items, scope));
                     window_tab_data.show_panel(PanelKind::Implementation);
+                }
+            }
+        });
+        let proxy = self.common.proxy.clone();
+        self.common.proxy.go_to_implementation(
+            path,
+            position,
+            create_ext_action(self.scope, {
+                move |result| {
+                    if let Ok(ProxyResponse::GotoImplementationResponse {
+                        resp,
+                        ..
+                    }) = result
+                    {
+                        let locations = map_to_location(resp);
+                        if !locations.is_empty() {
+                            proxy.references_resolve(
+                                locations,
+                                update_implementation,
+                            );
+                        } else {
+                            window_tab_data.show_panel(PanelKind::Implementation);
+                        }
+                    }
                 }
             }),
         );
