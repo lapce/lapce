@@ -278,6 +278,7 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
     } else {
         container(text_input_view)
     }
+    .style(move |s| s.width_full())
 }
 
 fn file_explorer_view(
