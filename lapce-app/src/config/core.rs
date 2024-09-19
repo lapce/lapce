@@ -17,7 +17,7 @@ pub struct CoreConfig {
     #[field_names(
         desc = "Only allow double-click to open files in the file explorer"
     )]
-    pub file_exploerer_double_click: bool,
+    pub file_explorer_double_click: bool,
     #[field_names(
         desc = "Enable auto-reload for the plugin when its configuration changes."
     )]
