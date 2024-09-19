@@ -25,14 +25,23 @@ pub fn implementation_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelPosition,
 ) -> impl View {
-    let main_split = window_tab_data.main_split.clone();
+    common_reference_panel(window_tab_data.clone(), _position, move || {
+        window_tab_data.main_split.implementations.get()
+    })
+    .debug_name("references panel")
+}
+pub fn common_reference_panel(
+    window_tab_data: Rc<WindowTabData>,
+    _position: PanelPosition,
+    each_fn: impl Fn() -> ReferencesRoot + 'static,
+) -> impl View {
     let config = window_tab_data.common.config;
     let ui_line_height = window_tab_data.common.ui_line_height;
     scroll(
         virtual_stack(
             VirtualDirection::Vertical,
             VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
-            move || main_split.implementations.get(),
+            each_fn,
             move |(_, _, data)| data.view_id(),
             move |(_, level, rw_data)| {
                 match rw_data {
@@ -169,7 +178,6 @@ pub fn implementation_panel(
         .style(|s| s.flex_col().absolute().min_width_full()),
     )
     .style(|s| s.absolute().size_full())
-    .debug_name("references panel")
 }
 
 pub fn map_to_location(resp: Option<GotoImplementationResponse>) -> Vec<Location> {
@@ -220,7 +228,6 @@ pub fn init_implementation_root(
         };
         refs.push(ref_item);
     }
-    tracing::debug!("children {}", refs.len());
     ReferencesRoot { children: refs }
 }
 

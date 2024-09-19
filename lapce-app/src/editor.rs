@@ -80,7 +80,6 @@ use crate::{
         call_hierarchy_view::CallHierarchyItemData,
         implementation_view::{init_implementation_root, map_to_location},
         kind::PanelKind,
-        references_view::init_references_root,
     },
     snippet::Snippet,
     tracing::*,
@@ -1443,6 +1442,21 @@ impl EditorData {
             (start_position, position)
         });
         let scope = window_tab_data.scope;
+        let update_implementation = create_ext_action(self.scope, {
+            let window_tab_data = window_tab_data.clone();
+            move |result| {
+                if let Ok(ProxyResponse::ReferencesResolveResponse { items }) =
+                    result
+                {
+                    window_tab_data
+                        .main_split
+                        .references
+                        .update(|x| *x = init_implementation_root(items, scope));
+                    window_tab_data.show_panel(PanelKind::References);
+                }
+            }
+        });
+        let proxy = self.common.proxy.clone();
         self.common.proxy.get_references(
             path,
             position,
@@ -1450,11 +1464,16 @@ impl EditorData {
                 if let Ok(ProxyResponse::GetReferencesResponse { references }) =
                     result
                 {
-                    window_tab_data
-                        .main_split
-                        .references
-                        .update(|x| *x = init_references_root(references, scope));
-                    window_tab_data.show_panel(PanelKind::References);
+                    {
+                        if !references.is_empty() {
+                            proxy.references_resolve(
+                                references,
+                                update_implementation,
+                            );
+                        } else {
+                            window_tab_data.show_panel(PanelKind::References);
+                        }
+                    }
                 }
             }),
         );

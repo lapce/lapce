@@ -50,7 +50,7 @@ use crate::{
         ThemeColorSettingsId, VoltViewId,
     },
     keypress::{EventRef, KeyPressData, KeyPressHandle},
-    panel::references_view::ReferencesRoot,
+    panel::implementation_view::ReferencesRoot,
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
