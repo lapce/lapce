@@ -24,7 +24,7 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
+        Cancel, DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
         Initialized, LogMessage, Notification, Progress, PublishDiagnostics,
         ShowMessage,
     },
@@ -38,7 +38,7 @@ use lsp_types::{
         SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
         WorkspaceSymbolRequest,
     },
-    CodeActionProviderCapability, DidChangeTextDocumentParams,
+    CancelParams, CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
     ImplementationProviderCapability, InitializeResult, LogMessageParams,
     MessageType, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
@@ -1138,6 +1138,11 @@ impl PluginHostHandler {
                         self.volt_id.author, self.volt_id.name
                     ),
                 );
+            }
+            Cancel::METHOD => {
+                let params: CancelParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.cancel(params);
             }
             "experimental/serverStatus" => {
                 let param: ServerStatusParams =
