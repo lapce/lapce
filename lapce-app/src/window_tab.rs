@@ -24,6 +24,7 @@ use floem::{
     views::editor::core::buffer::rope_text::RopeText,
     ViewId,
 };
+use im::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
@@ -644,12 +645,47 @@ impl WindowTabData {
         self.common.keypress.update(|keypress| {
             keypress.update_keymaps(&config);
         });
-        if self.common.config.get_untracked().plugins != config.plugins {
+
+        let mut change_plugins = Vec::new();
+        for (key, configs) in self.common.config.get_untracked().plugins.iter() {
+            if config
+                .plugins
+                .get(key)
+                .map(|x| x != configs)
+                .unwrap_or_default()
+            {
+                change_plugins.push(key.clone());
+            }
+        }
+        self.set_config.set(Arc::new(config.clone()));
+        if !change_plugins.is_empty() {
             self.common
                 .proxy
                 .update_plugin_configs(config.plugins.clone());
+            if config.core.auto_reload_plugin {
+                let mut plugin_metas: HashMap<
+                    String,
+                    lapce_rpc::plugin::VoltMetadata,
+                > = self
+                    .plugin
+                    .installed
+                    .get_untracked()
+                    .values()
+                    .into_iter()
+                    .map(|x| {
+                        let meta = x.meta.get_untracked();
+                        (meta.name.clone(), meta)
+                    })
+                    .collect();
+                for name in change_plugins {
+                    if let Some(meta) = plugin_metas.remove(&name) {
+                        self.common.proxy.reload_volt(meta);
+                    } else {
+                        tracing::error!("not found volt metadata of {}", name);
+                    }
+                }
+            }
         }
-        self.set_config.set(Arc::new(config));
     }
 
     pub fn run_lapce_command(&self, cmd: LapceCommand) {
