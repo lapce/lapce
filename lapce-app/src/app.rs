@@ -37,6 +37,7 @@ use floem::{
     unit::PxPctAuto,
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
+        editor::{core::register::Clipboard, text::SystemClipboard},
         empty, label, rich_text,
         scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
         stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
@@ -2828,6 +2829,20 @@ fn window_message_view(
                 )
                 .style(|s| s.margin_left(6.0)),
             ))
+            .on_double_click_stop(move |_| {
+                messages.update(|messages| {
+                    messages.remove(i);
+                });
+            })
+            .on_secondary_click_stop({
+                let message = message.message.clone();
+                move |_| {
+                    let mut clipboard = SystemClipboard::new();
+                    if !message.is_empty() {
+                        clipboard.put_string(&message);
+                    }
+                }
+            })
             .on_event_stop(EventListener::PointerDown, |_| {})
             .style(move |s| {
                 let config = config.get();
