@@ -703,6 +703,7 @@ impl Doc {
             let doc = self.clone();
             let scope = self.scope;
             let proxy = self.common.proxy.clone();
+            let format = config.editor.format_on_save;
             exec_after(
                 Duration::from_millis(config.editor.autosave_interval),
                 move |_| {
@@ -717,22 +718,25 @@ impl Doc {
                     if current_rev != rev || doc.is_pristine() {
                         return;
                     }
-
-                    let send = create_ext_action(scope, move |result| {
-                        if let Ok(ProxyResponse::GetDocumentFormatting { edits }) =
-                            result
-                        {
-                            let current_rev = doc.rev();
-                            if current_rev == rev {
-                                doc.do_text_edit(&edits);
+                    if format {
+                        let send = create_ext_action(scope, move |result| {
+                            if let Ok(ProxyResponse::GetDocumentFormatting {
+                                edits,
+                            }) = result
+                            {
+                                let current_rev = doc.rev();
+                                if current_rev == rev {
+                                    doc.do_text_edit(&edits);
+                                }
                             }
-                        }
+                            doc.save(|| {});
+                        });
+                        proxy.get_document_formatting(path, move |result| {
+                            send(result);
+                        });
+                    } else {
                         doc.save(|| {});
-                    });
-
-                    proxy.get_document_formatting(path, move |result| {
-                        send(result);
-                    });
+                    }
                 },
             );
         }
