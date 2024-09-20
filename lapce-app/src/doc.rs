@@ -67,7 +67,7 @@ use lapce_xi_rope::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity,
-    DocumentSymbolResponse, InlayHint, InlayHintLabel,
+    DocumentSymbolResponse, InlayHint, InlayHintLabel, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -674,14 +674,35 @@ impl Doc {
         }
     }
 
+    pub fn do_text_edit(&self, edits: &[TextEdit]) {
+        let edits = self.buffer.with_untracked(|buffer| {
+            let edits = edits
+                .iter()
+                .map(|edit| {
+                    let selection = lapce_core::selection::Selection::region(
+                        buffer.offset_of_position(&edit.range.start),
+                        buffer.offset_of_position(&edit.range.end),
+                    );
+                    (selection, edit.new_text.as_str())
+                })
+                .collect::<Vec<_>>();
+            edits
+        });
+        self.do_raw_edit(&edits, EditType::Completion);
+    }
+
     fn check_auto_save(&self) {
         let config = self.common.config.get_untracked();
         if config.editor.autosave_interval > 0 {
-            if !self.content.with_untracked(|c| c.is_file()) {
+            let Some(path) =
+                self.content.with_untracked(|c| c.path().map(|x| x.clone()))
+            else {
                 return;
             };
             let rev = self.rev();
             let doc = self.clone();
+            let scope = self.scope;
+            let proxy = self.common.proxy.clone();
             exec_after(
                 Duration::from_millis(config.editor.autosave_interval),
                 move |_| {
@@ -697,7 +718,21 @@ impl Doc {
                         return;
                     }
 
-                    doc.save(|| {});
+                    let send = create_ext_action(scope, move |result| {
+                        if let Ok(ProxyResponse::GetDocumentFormatting { edits }) =
+                            result
+                        {
+                            let current_rev = doc.rev();
+                            if current_rev == rev {
+                                doc.do_text_edit(&edits);
+                            }
+                        }
+                        doc.save(|| {});
+                    });
+
+                    proxy.get_document_formatting(path, move |result| {
+                        send(result);
+                    });
                 },
             );
         }
