@@ -75,12 +75,12 @@ pub fn plugin_panel(
 
     PanelBuilder::new(config, position)
         .add(
-            "Installed",
+            || "Installed",
             installed_view(plugin.clone()),
             window_tab_data.panel.section_open(PanelSection::Installed),
         )
         .add(
-            "Available",
+            || "Available",
             available_view(plugin.clone(), core_rpc),
             window_tab_data.panel.section_open(PanelSection::Available),
         )

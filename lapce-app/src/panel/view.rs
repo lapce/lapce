@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Arc};
+use std::{fmt::Display, rc::Rc, sync::Arc};
 
 use floem::{
     event::{Event, EventListener, EventPropagation},
@@ -11,7 +11,7 @@ use floem::{
     unit::PxPctAuto,
     views::{
         container, dyn_stack, empty, h_stack, label, stack, stack_from_iter, tab,
-        text, Decorators,
+        Decorators,
     },
     AnyView, IntoView, View,
 };
@@ -92,10 +92,9 @@ impl PanelBuilder {
             position,
         }
     }
-
-    fn add_general(
+    fn add_general<S: Display + 'static>(
         mut self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         height: Option<PxPctAuto>,
         view: impl View + 'static,
         open: RwSignal<bool>,
@@ -103,7 +102,7 @@ impl PanelBuilder {
     ) -> Self {
         let position = self.position;
         let view = foldable_panel_section(
-            text(name).style(move |s| s.selectable(false)),
+            label(name).style(move |s| s.selectable(false)),
             view,
             open,
             self.config,
@@ -131,9 +130,9 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel
-    pub fn add(
+    pub fn add<S: Display + 'static>(
         self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         view: impl View + 'static,
         open: RwSignal<bool>,
     ) -> Self {
@@ -141,9 +140,9 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel with a custom style applied to the overall header+section-content
-    pub fn add_style(
+    pub fn add_style<S: Display + 'static>(
         self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         view: impl View + 'static,
         open: RwSignal<bool>,
         style: impl Fn(Style) -> Style + 'static,
@@ -152,9 +151,9 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
-    pub fn add_height(
+    pub fn add_height<S: Display + 'static>(
         self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         height: impl Into<PxPctAuto>,
         view: impl View + 'static,
         open: RwSignal<bool>,
@@ -170,9 +169,9 @@ impl PanelBuilder {
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
     /// and a custom style applied to the overall header+section-content
-    pub fn add_height_style(
+    pub fn add_height_style<S: Display + 'static>(
         self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         height: impl Into<PxPctAuto>,
         view: impl View + 'static,
         open: RwSignal<bool>,
@@ -182,9 +181,9 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
-    pub fn add_height_pct(
+    pub fn add_height_pct<S: Display + 'static>(
         self,
-        name: &'static str,
+        name: impl Fn() -> S + 'static,
         height: f64,
         view: impl View + 'static,
         open: RwSignal<bool>,

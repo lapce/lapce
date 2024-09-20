@@ -42,23 +42,23 @@ pub fn debug_panel(
 
     PanelBuilder::new(config, position)
         .add_height(
-            "Processes",
+            || "Processes",
             150.0,
             debug_processes(terminal.clone(), config),
             window_tab_data.panel.section_open(PanelSection::Process),
         )
         .add(
-            "Variables",
+            || "Variables",
             variables_view(window_tab_data.clone()),
             window_tab_data.panel.section_open(PanelSection::Variable),
         )
         .add(
-            "Stack Frames",
+            || "Stack Frames",
             debug_stack_traces(terminal.clone(), internal_command, config),
             window_tab_data.panel.section_open(PanelSection::StackFrame),
         )
         .add_height(
-            "Breakpoints",
+            || "Breakpoints",
             150.0,
             breakpoints_view(window_tab_data.clone()),
             window_tab_data.panel.section_open(PanelSection::Breakpoint),

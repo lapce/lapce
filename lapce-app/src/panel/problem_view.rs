@@ -32,7 +32,7 @@ pub fn problem_panel(
     let is_bottom = position.is_bottom();
     PanelBuilder::new(config, position)
         .add_style(
-            "Errors",
+            || "Errors",
             problem_section(window_tab_data.clone(), DiagnosticSeverity::ERROR),
             window_tab_data.panel.section_open(PanelSection::Error),
             move |s| {
@@ -42,7 +42,7 @@ pub fn problem_panel(
             },
         )
         .add(
-            "Warnings",
+            || "Warnings",
             problem_section(window_tab_data.clone(), DiagnosticSeverity::WARNING),
             window_tab_data.panel.section_open(PanelSection::Warn),
         )
