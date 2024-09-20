@@ -189,7 +189,7 @@ pub fn start_remote(
                             tracing::error!("{:?}", err);
                         }
                     }
-                    ProxyRpc::Notification(rpc) => {
+                    ProxyRpc::Notification(_id, rpc) => {
                         if let Err(err) =
                             local_writer_tx.send(RpcMessage::Notification(rpc))
                         {

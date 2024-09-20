@@ -2,10 +2,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+    sync::Arc,
     thread,
 };
 
@@ -106,7 +103,7 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 }
 
 pub enum PluginHandlerNotification {
-    Initialize,
+    Initialize(u64),
     InitializeResult(InitializeResult),
     Shutdown,
 
@@ -175,7 +172,6 @@ pub struct PluginServerRpcHandler {
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<JsonRpc>,
-    id: Arc<AtomicU64>,
     server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
 }
 
@@ -273,6 +269,7 @@ impl PluginServerRpcHandler {
         spawned_by: Option<PluginId>,
         plugin_id: Option<PluginId>,
         io_tx: Sender<JsonRpc>,
+        id: u64,
     ) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
@@ -283,17 +280,16 @@ impl PluginServerRpcHandler {
             rpc_tx,
             rpc_rx,
             io_tx,
-            id: Arc::new(AtomicU64::new(0)),
             server_pending: Arc::new(Mutex::new(HashMap::new())),
         };
 
-        rpc.initialize();
+        rpc.initialize(id);
         rpc
     }
 
-    fn initialize(&self) {
+    fn initialize(&self, id: u64) {
         self.handle_rpc(PluginServerRpc::Handler(
-            PluginHandlerNotification::Initialize,
+            PluginHandlerNotification::Initialize(id),
         ));
     }
 
@@ -369,6 +365,7 @@ impl PluginServerRpcHandler {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
+        id: u64,
     ) -> Result<Value, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.server_request_common(
@@ -377,6 +374,7 @@ impl PluginServerRpcHandler {
             language_id,
             path,
             check,
+            id,
             ResponseHandler::Chan(tx),
         );
         rx.recv().unwrap_or_else(|_| {
@@ -386,7 +384,7 @@ impl PluginServerRpcHandler {
             })
         })
     }
-
+    #[allow(clippy::too_many_arguments)]
     pub fn server_request_async<P: Serialize>(
         &self,
         method: impl Into<Cow<'static, str>>,
@@ -394,6 +392,7 @@ impl PluginServerRpcHandler {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
+        id: u64,
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
         self.server_request_common(
@@ -402,10 +401,12 @@ impl PluginServerRpcHandler {
             language_id,
             path,
             check,
+            id,
             ResponseHandler::Callback(Box::new(f)),
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn server_request_common<P: Serialize>(
         &self,
         method: Cow<'static, str>,
@@ -413,9 +414,9 @@ impl PluginServerRpcHandler {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
+        id: u64,
         rh: ResponseHandler<Value, RpcError>,
     ) {
-        let id = self.id.fetch_add(1, Ordering::Relaxed);
         let params = Params::from(serde_json::to_value(params).unwrap());
         if check {
             if let Err(err) = self.rpc_tx.send(PluginServerRpc::ServerRequest {
@@ -998,6 +999,7 @@ impl PluginHostHandler {
                         params.server_uri,
                         params.server_args,
                         params.options,
+                        0,
                     ) {
                         tracing::error!("{:?}", err);
                     }
@@ -1050,6 +1052,7 @@ impl PluginHostHandler {
                     None,
                     None,
                     false,
+                    lsp_id,
                     move |_, res| {
                         // We just directly send it back to the plugin that requested this
                         match res {
@@ -1107,6 +1110,7 @@ impl PluginHostHandler {
                         params.server_uri,
                         params.server_args,
                         params.options,
+                        0,
                     ) {
                         tracing::error!("{:?}", err);
                     }

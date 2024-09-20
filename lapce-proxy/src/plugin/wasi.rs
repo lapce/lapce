@@ -108,8 +108,8 @@ impl PluginServerHandler for Plugin {
     ) {
         use PluginHandlerNotification::*;
         match notification {
-            Initialize => {
-                self.initialize();
+            Initialize(id) => {
+                self.initialize(id);
             }
             InitializeResult(result) => {
                 self.host.server_capabilities = result.capabilities;
@@ -194,7 +194,7 @@ impl PluginServerHandler for Plugin {
 }
 
 impl Plugin {
-    fn initialize(&mut self) {
+    fn initialize(&mut self, id: u64) {
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
         let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
@@ -222,6 +222,7 @@ impl Plugin {
             None,
             None,
             false,
+            id,
             move |value| match value {
                 Ok(value) => {
                     if let Ok(result) = serde_json::from_value(value) {
@@ -250,7 +251,7 @@ impl Plugin {
 pub fn load_all_volts(
     plugin_rpc: PluginCatalogRpcHandler,
     extra_plugin_paths: &[PathBuf],
-    disabled_volts: Vec<VoltID>,
+    disabled_volts: Vec<VoltID>, id: u64
 ) {
     let all_volts = find_all_volts(extra_plugin_paths);
     let volts = all_volts
@@ -265,7 +266,7 @@ pub fn load_all_volts(
             Some(meta)
         })
         .collect();
-    if let Err(err) = plugin_rpc.unactivated_volts(volts) {
+    if let Err(err) = plugin_rpc.unactivated_volts(volts, id) {
         tracing::error!("{:?}", err);
     }
 }
@@ -406,13 +407,13 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
 
 pub fn enable_volt(
     plugin_rpc: PluginCatalogRpcHandler,
-    volt: VoltInfo,
+    volt: VoltInfo, id:u64
 ) -> Result<()> {
     let path = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
         .join(volt.id().to_string());
     let meta = load_volt(&path)?;
-    plugin_rpc.unactivated_volts(vec![meta])?;
+    plugin_rpc.unactivated_volts(vec![meta], id)?;
     Ok(())
 }
 
@@ -420,7 +421,7 @@ pub fn start_volt(
     workspace: Option<PathBuf>,
     configurations: Option<HashMap<String, serde_json::Value>>,
     plugin_rpc: PluginCatalogRpcHandler,
-    meta: VoltMetadata,
+    meta: VoltMetadata, id: u64
 ) -> Result<()> {
     let engine = wasmtime::Engine::default();
     let module = wasmtime::Module::from_file(
@@ -498,7 +499,7 @@ pub fn start_volt(
     let mut store = wasmtime::Store::new(&engine, wasi);
 
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
-    let rpc = PluginServerRpcHandler::new(meta.id(), None, None, io_tx);
+    let rpc = PluginServerRpcHandler::new(meta.id(), None, None, io_tx, id);
 
     let local_rpc = rpc.clone();
     let local_stdin = stdin.clone();

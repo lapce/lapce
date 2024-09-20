@@ -53,7 +53,7 @@ impl PluginCatalog {
         disabled_volts: Vec<VoltID>,
         extra_plugin_paths: Vec<PathBuf>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
-        plugin_rpc: PluginCatalogRpcHandler,
+        plugin_rpc: PluginCatalogRpcHandler, id: u64
     ) -> Self {
         let plugin = Self {
             workspace,
@@ -67,7 +67,7 @@ impl PluginCatalog {
         };
 
         thread::spawn(move || {
-            load_all_volts(plugin_rpc, &extra_plugin_paths, disabled_volts);
+            load_all_volts(plugin_rpc, &extra_plugin_paths, disabled_volts, id);
         });
 
         plugin
@@ -83,6 +83,7 @@ impl PluginCatalog {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
+        id: u64,
         f: Box<dyn ClonableCallback<Value, RpcError>>,
     ) {
         if let Some(plugin_id) = plugin_id {
@@ -93,6 +94,7 @@ impl PluginCatalog {
                     language_id,
                     path,
                     check,
+                    id,
                     move |result| {
                         f(plugin_id, result);
                     },
@@ -138,6 +140,7 @@ impl PluginCatalog {
                 language_id.clone(),
                 path.clone(),
                 check,
+                id,
                 move |result| {
                     f(plugin_id, result);
                 },
@@ -180,6 +183,7 @@ impl PluginCatalog {
         &mut self,
         volt: VoltInfo,
         f: Box<dyn ClonableCallback<Value, RpcError>>,
+        request_id: u64,
     ) {
         let id = volt.id();
         for (plugin_id, plugin) in self.plugins.iter() {
@@ -192,6 +196,7 @@ impl PluginCatalog {
                     None,
                     None,
                     false,
+                    request_id,
                     move |result| {
                         f(plugin_id, result);
                     },
@@ -201,7 +206,7 @@ impl PluginCatalog {
         }
     }
 
-    fn start_unactivated_volts(&mut self, to_be_activated: Vec<VoltID>) {
+    fn start_unactivated_volts(&mut self, to_be_activated: Vec<VoltID>, request_id: u64) {
         for id in to_be_activated.iter() {
             let workspace = self.workspace.clone();
             if let Some(meta) = self.unactivated_volts.remove(id) {
@@ -211,7 +216,7 @@ impl PluginCatalog {
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
                     if let Err(err) =
-                        start_volt(workspace, configurations, plugin_rpc, meta)
+                        start_volt(workspace, configurations, plugin_rpc, meta, request_id)
                     {
                         tracing::error!("{:?}", err);
                     }
@@ -220,7 +225,7 @@ impl PluginCatalog {
         }
     }
 
-    fn check_unactivated_volts(&mut self) {
+    fn check_unactivated_volts(&mut self, id: u64) {
         let to_be_activated: Vec<VoltID> = self
             .unactivated_volts
             .iter()
@@ -279,10 +284,10 @@ impl PluginCatalog {
                 None
             })
             .collect();
-        self.start_unactivated_volts(to_be_activated);
+        self.start_unactivated_volts(to_be_activated, id);
     }
 
-    pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
+    pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem, id: u64) {
         match document.uri.to_file_path() {
             Ok(path) => {
                 self.open_files.insert(path, document.language_id.clone());
@@ -308,7 +313,7 @@ impl PluginCatalog {
                 }
             })
             .collect();
-        self.start_unactivated_volts(to_be_activated);
+        self.start_unactivated_volts(to_be_activated, id);
 
         let path = document.uri.to_file_path().ok();
         for (_, plugin) in self.plugins.iter() {
@@ -480,13 +485,13 @@ impl PluginCatalog {
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {
         use PluginCatalogNotification::*;
         match notification {
-            UnactivatedVolts(volts) => {
+            UnactivatedVolts(volts, id) => {
                 tracing::debug!("UnactivatedVolts {:?}", volts);
                 for volt in volts {
                     let id = volt.id();
                     self.unactivated_volts.insert(id, volt);
                 }
-                self.check_unactivated_volts();
+                self.check_unactivated_volts(id);
             }
             UpdatePluginConfigs(configs) => {
                 tracing::debug!("UpdatePluginConfigs {:?}", configs);
@@ -531,22 +536,22 @@ impl PluginCatalog {
                     }
                 }
             }
-            InstallVolt(volt) => {
+            InstallVolt(volt, id) => {
                 tracing::debug!("InstallVolt {:?}", volt);
                 let workspace = self.workspace.clone();
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
                 let catalog_rpc = self.plugin_rpc.clone();
-                catalog_rpc.stop_volt(volt.clone());
+                catalog_rpc.stop_volt(volt.clone(), id);
                 thread::spawn(move || {
                     if let Err(err) =
-                        install_volt(catalog_rpc, workspace, configurations, volt)
+                        install_volt(catalog_rpc, workspace, configurations, volt, id)
                     {
                         tracing::error!("{:?}", err);
                     }
                 });
             }
-            ReloadVolt(volt) => {
+            ReloadVolt(volt, id) => {
                 tracing::debug!("ReloadVolt {:?}", volt);
                 let volt_id = volt.id();
                 let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
@@ -556,7 +561,7 @@ impl PluginCatalog {
                         plugin.shutdown();
                     }
                 }
-                if let Err(err) = self.plugin_rpc.unactivated_volts(vec![volt]) {
+                if let Err(err) = self.plugin_rpc.unactivated_volts(vec![volt], id) {
                     tracing::error!("{:?}", err);
                 }
             }
@@ -571,7 +576,7 @@ impl PluginCatalog {
                     }
                 }
             }
-            EnableVolt(volt) => {
+            EnableVolt(volt, id) => {
                 tracing::debug!("EnableVolt {:?}", volt);
                 let volt_id = volt.id();
                 for (_, volt) in self.plugins.iter() {
@@ -581,7 +586,7 @@ impl PluginCatalog {
                 }
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
-                    if let Err(err) = enable_volt(plugin_rpc, volt) {
+                    if let Err(err) = enable_volt(plugin_rpc, volt, id) {
                         tracing::error!("{:?}", err);
                     }
                 });
