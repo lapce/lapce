@@ -13,6 +13,7 @@ use floem::{
     },
     View, ViewId,
 };
+use lapce_rpc::terminal::TermId;
 
 use super::kind::PanelKind;
 use crate::{
@@ -294,17 +295,21 @@ fn terminal_tab_split(
                     workspace.clone(),
                 );
                 let view_id = terminal_view.id();
+                let have_task = terminal.run_debug.get_untracked().is_some();
                 terminal_view
                     .on_event_cont(EventListener::PointerDown, move |_| {
                         active.set(index.get_untracked());
                     })
                     .on_secondary_click_stop(move |_| {
-                        tab_secondary_click(
-                            internal_command,
-                            view_id,
-                            tab_index,
-                            index.get_untracked(),
-                        );
+                        if have_task {
+                            tab_secondary_click(
+                                internal_command,
+                                view_id,
+                                tab_index,
+                                index.get_untracked(),
+                                terminal.term_id,
+                            );
+                        }
                     })
                     .on_event(EventListener::PointerWheel, move |event| {
                         if let Event::PointerWheel(pointer_event) = event {
@@ -355,14 +360,22 @@ fn tab_secondary_click(
     view_id: ViewId,
     tab_index: usize,
     terminal_index: usize,
+    term_id: TermId,
 ) {
     let mut menu = Menu::new("");
-    menu = menu.entry(MenuItem::new("Clear All").action(move || {
-        internal_command.send(InternalCommand::ClearTerminalBuffer {
-            view_id,
-            tab_index,
-            terminal_index,
-        });
-    }));
+    menu = menu
+        .entry(MenuItem::new("Stop").action(move || {
+            internal_command.send(InternalCommand::StopTerminal { term_id });
+        }))
+        .entry(MenuItem::new("Restart").action(move || {
+            internal_command.send(InternalCommand::RestartTerminal { term_id });
+        }))
+        .entry(MenuItem::new("Clear All").action(move || {
+            internal_command.send(InternalCommand::ClearTerminalBuffer {
+                view_id,
+                tab_index,
+                terminal_index,
+            });
+        }));
     show_context_menu(menu, None);
 }
