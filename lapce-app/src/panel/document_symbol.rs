@@ -288,7 +288,7 @@ pub fn symbol_panel(
                             window_tab_data
                                 .common
                                 .internal_command
-                                .send(InternalCommand::GoToLocation { location: EditorLocation {
+                                .send(InternalCommand::JumpToLocation { location: EditorLocation {
                                     path: path.to_path_buf(),
                                     position: Some(crate::editor::location::EditorPosition::Position(data.item.selection_range.start)),
                                     scroll_offset: None,

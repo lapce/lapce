@@ -142,7 +142,7 @@ pub fn common_reference_panel(
                         let position = file_line.position;
                         move |_| {
                             window_tab_data.common.internal_command.send(
-                                InternalCommand::GoToLocation {
+                                InternalCommand::JumpToLocation {
                                     location: EditorLocation {
                                         path: file_line.path.clone(),
                                         position: Some(
