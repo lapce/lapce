@@ -72,6 +72,8 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::command::InternalCommand;
+use crate::editor::location::{EditorLocation, EditorPosition};
 use crate::{
     command::{CommandKind, LapceCommand},
     config::{color::LapceColor, LapceConfig},
@@ -1183,7 +1185,26 @@ impl Doc {
             .set(FindProgress::InProgress(Selection::new()));
 
         let find_result = self.find_result.clone();
-        let send = create_ext_action(self.scope, move |occurrences| {
+
+        let path = self.content.get_untracked().path().map(|x| x.clone());
+        let common = self.common.clone();
+        let send = create_ext_action(self.scope, move |occurrences: Selection| {
+            match (occurrences.regions().is_empty(), &path) {
+                (false, Some(path)) => {
+                    common.internal_command.send(InternalCommand::GoToLocation {
+                        location: EditorLocation {
+                            path: path.clone(),
+                            position: Some(EditorPosition::Offset(
+                                occurrences.regions()[0].start,
+                            )),
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                    });
+                }
+                _ => {}
+            }
             find_result.occurrences.set(occurrences);
             find_result.progress.set(FindProgress::Ready);
         });
