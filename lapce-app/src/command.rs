@@ -791,6 +791,12 @@ pub enum InternalCommand {
     CallHierarchyIncoming {
         item_id: ViewId,
     },
+    StopTerminal {
+        term_id: TermId,
+    },
+    RestartTerminal {
+        term_id: TermId,
+    },
 }
 
 #[derive(Clone)]

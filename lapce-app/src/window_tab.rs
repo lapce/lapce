@@ -2059,6 +2059,19 @@ impl WindowTabData {
                 raw.write().term.reset_state();
                 view_id.request_paint();
             }
+            InternalCommand::StopTerminal { term_id } => {
+                self.terminal.stop_run_debug(term_id);
+            }
+            InternalCommand::RestartTerminal { term_id } => {
+                if let Some(is_debug) = self.terminal.restart_run_debug(term_id) {
+                    self.panel.show_panel(&PanelKind::Terminal);
+                    if is_debug {
+                        self.panel.show_panel(&PanelKind::Debug);
+                    }
+                } else {
+                    self.palette.run(PaletteKind::RunAndDebug);
+                }
+            }
             InternalCommand::CallHierarchyIncoming { item_id } => {
                 self.call_hierarchy_incoming(item_id);
             }
