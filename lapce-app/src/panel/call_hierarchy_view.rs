@@ -227,7 +227,7 @@ pub fn show_hierarchy_panel(
                             window_tab_data
                                 .common
                                 .internal_command
-                                .send(InternalCommand::GoToLocation { location: EditorLocation {
+                                .send(InternalCommand::JumpToLocation { location: EditorLocation {
                                     path,
                                     position: Some(crate::editor::location::EditorPosition::Position(data.from_range.start)),
                                     scroll_offset: None,
