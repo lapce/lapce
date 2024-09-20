@@ -74,6 +74,8 @@ pub struct Find {
     pub replace_active: RwSignal<bool>,
     /// replace editor is focused
     pub replace_focus: RwSignal<bool>,
+    /// Triggered by changes in the search string
+    pub triggered_by_changes: RwSignal<bool>,
 }
 
 impl Find {
@@ -87,6 +89,7 @@ impl Find {
             is_regex: cx.create_rw_signal(false),
             replace_active: cx.create_rw_signal(false),
             replace_focus: cx.create_rw_signal(false),
+            triggered_by_changes: cx.create_rw_signal(false),
         };
 
         {
@@ -180,11 +183,11 @@ impl Find {
                 .build()
                 .ok(),
         };
-
+        self.triggered_by_changes.set(true);
         self.search_string.set(Some(FindSearchString {
             content: search_string.to_string(),
             regex,
-        }))
+        }));
     }
 
     pub fn next(

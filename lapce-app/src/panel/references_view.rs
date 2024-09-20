@@ -3,8 +3,9 @@ use std::rc::Rc;
 use floem::{reactive::SignalGet, views::Decorators, View};
 
 use super::position::PanelPosition;
-use crate::panel::implementation_view::common_reference_panel;
-use crate::window_tab::WindowTabData;
+use crate::{
+    panel::implementation_view::common_reference_panel, window_tab::WindowTabData,
+};
 
 pub fn references_panel(
     window_tab_data: Rc<WindowTabData>,
