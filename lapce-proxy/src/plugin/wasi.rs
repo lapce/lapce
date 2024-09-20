@@ -251,7 +251,8 @@ impl Plugin {
 pub fn load_all_volts(
     plugin_rpc: PluginCatalogRpcHandler,
     extra_plugin_paths: &[PathBuf],
-    disabled_volts: Vec<VoltID>, id: u64
+    disabled_volts: Vec<VoltID>,
+    id: u64,
 ) {
     let all_volts = find_all_volts(extra_plugin_paths);
     let volts = all_volts
@@ -407,7 +408,8 @@ pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
 
 pub fn enable_volt(
     plugin_rpc: PluginCatalogRpcHandler,
-    volt: VoltInfo, id:u64
+    volt: VoltInfo,
+    id: u64,
 ) -> Result<()> {
     let path = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
@@ -421,7 +423,8 @@ pub fn start_volt(
     workspace: Option<PathBuf>,
     configurations: Option<HashMap<String, serde_json::Value>>,
     plugin_rpc: PluginCatalogRpcHandler,
-    meta: VoltMetadata, id: u64
+    meta: VoltMetadata,
+    id: u64,
 ) -> Result<()> {
     let engine = wasmtime::Engine::default();
     let module = wasmtime::Module::from_file(

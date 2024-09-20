@@ -97,7 +97,8 @@ impl ProxyHandler for Dispatcher {
                         disabled_volts,
                         extra_plugin_paths,
                         plugin_configurations,
-                        plugin_rpc.clone(), id
+                        plugin_rpc.clone(),
+                        id,
                     );
                     plugin_rpc.mainloop(&mut plugin);
                 });
@@ -402,7 +403,8 @@ impl ProxyHandler for Dispatcher {
                     &path,
                     buffer.language_id.to_string(),
                     buffer.rev as i32,
-                    content.clone(), id
+                    content.clone(),
+                    id,
                 );
                 self.file_watcher.watch(&path, false, OPEN_FILE_EVENT_TOKEN);
                 self.buffers.insert(path, buffer);

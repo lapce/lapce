@@ -112,7 +112,7 @@ impl PluginServerHandler for LspClient {
         &mut self,
         method: String,
         params: Params,
-        from: String
+        from: String,
     ) {
         if let Err(err) = self.host.handle_notification(method, params, from) {
             tracing::error!("{:?}", err);
@@ -181,7 +181,8 @@ impl LspClient {
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
-        options: Option<Value>, id: u64
+        options: Option<Value>,
+        id: u64,
     ) -> Result<Self> {
         let server = match server_uri.scheme() {
             "file" => {
@@ -211,7 +212,8 @@ impl LspClient {
             volt_id.clone(),
             spawned_by,
             plugin_id,
-            io_tx.clone(), id
+            io_tx.clone(),
+            id,
         );
         thread::spawn(move || {
             for msg in io_rx {
@@ -333,7 +335,8 @@ impl LspClient {
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
-        options: Option<Value>, id: u64
+        options: Option<Value>,
+        id: u64,
     ) -> Result<PluginId> {
         let mut lsp = Self::new(
             plugin_rpc,
@@ -346,7 +349,8 @@ impl LspClient {
             pwd,
             server_uri,
             args,
-            options, id
+            options,
+            id,
         )?;
         let plugin_id = lsp.server_rpc.plugin_id;
 

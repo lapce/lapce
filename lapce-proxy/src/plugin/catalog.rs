@@ -53,7 +53,8 @@ impl PluginCatalog {
         disabled_volts: Vec<VoltID>,
         extra_plugin_paths: Vec<PathBuf>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
-        plugin_rpc: PluginCatalogRpcHandler, id: u64
+        plugin_rpc: PluginCatalogRpcHandler,
+        id: u64,
     ) -> Self {
         let plugin = Self {
             workspace,
@@ -206,7 +207,11 @@ impl PluginCatalog {
         }
     }
 
-    fn start_unactivated_volts(&mut self, to_be_activated: Vec<VoltID>, request_id: u64) {
+    fn start_unactivated_volts(
+        &mut self,
+        to_be_activated: Vec<VoltID>,
+        request_id: u64,
+    ) {
         for id in to_be_activated.iter() {
             let workspace = self.workspace.clone();
             if let Some(meta) = self.unactivated_volts.remove(id) {
@@ -215,9 +220,13 @@ impl PluginCatalog {
                 tracing::debug!("{:?} {:?}", id, configurations);
                 let plugin_rpc = self.plugin_rpc.clone();
                 thread::spawn(move || {
-                    if let Err(err) =
-                        start_volt(workspace, configurations, plugin_rpc, meta, request_id)
-                    {
+                    if let Err(err) = start_volt(
+                        workspace,
+                        configurations,
+                        plugin_rpc,
+                        meta,
+                        request_id,
+                    ) {
                         tracing::error!("{:?}", err);
                     }
                 });
@@ -287,7 +296,11 @@ impl PluginCatalog {
         self.start_unactivated_volts(to_be_activated, id);
     }
 
-    pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem, id: u64) {
+    pub fn handle_did_open_text_document(
+        &mut self,
+        document: TextDocumentItem,
+        id: u64,
+    ) {
         match document.uri.to_file_path() {
             Ok(path) => {
                 self.open_files.insert(path, document.language_id.clone());
@@ -544,9 +557,13 @@ impl PluginCatalog {
                 let catalog_rpc = self.plugin_rpc.clone();
                 catalog_rpc.stop_volt(volt.clone(), id);
                 thread::spawn(move || {
-                    if let Err(err) =
-                        install_volt(catalog_rpc, workspace, configurations, volt, id)
-                    {
+                    if let Err(err) = install_volt(
+                        catalog_rpc,
+                        workspace,
+                        configurations,
+                        volt,
+                        id,
+                    ) {
                         tracing::error!("{:?}", err);
                     }
                 });
