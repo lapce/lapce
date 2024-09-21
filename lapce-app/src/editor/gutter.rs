@@ -83,8 +83,7 @@ impl EditorGutterView {
         if !config.editor.sticky_header {
             return;
         }
-        let sticky_header_height = self.editor.sticky_header_height;
-        let sticky_header_height = sticky_header_height.get_untracked();
+        let sticky_header_height = self.editor.sticky_header_height.get_untracked();
         if sticky_header_height == 0.0 {
             return;
         }

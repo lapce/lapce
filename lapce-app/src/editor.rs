@@ -56,6 +56,7 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
+use view::StickyHeaderInfo;
 
 use self::{
     diff::DiffInfo,
@@ -220,6 +221,7 @@ pub struct EditorData {
     pub kind: RwSignal<EditorViewKind>,
     pub sticky_header_height: RwSignal<f64>,
     pub common: Rc<CommonData>,
+    pub sticky_header_info: RwSignal<StickyHeaderInfo>,
 }
 
 impl PartialEq for EditorData {
@@ -258,6 +260,7 @@ impl EditorData {
             kind: cx.create_rw_signal(EditorViewKind::Normal),
             sticky_header_height: cx.create_rw_signal(0.0),
             common,
+            sticky_header_info: cx.create_rw_signal(StickyHeaderInfo::default()),
         }
     }
 
@@ -2652,7 +2655,6 @@ impl EditorData {
         self.common.find.replace_focus.set(false);
     }
 
-    #[instrument]
     pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
         self.cancel_completion();
         self.cancel_inline_completion();
@@ -2673,6 +2675,33 @@ impl EditorData {
             PointerButton::Primary => {
                 self.active().set(true);
                 self.left_click(pointer_event);
+
+                let y =
+                    pointer_event.pos.y - self.editor.viewport.get_untracked().y0;
+                if self.sticky_header_height.get_untracked() > y {
+                    let index = y as usize
+                        / self.common.config.get_untracked().editor.line_height();
+                    if let (Some(path), Some(line)) = (
+                        self.doc().content.get_untracked().path(),
+                        self.sticky_header_info
+                            .get_untracked()
+                            .sticky_lines
+                            .get(index),
+                    ) {
+                        self.common.internal_command.send(
+                            InternalCommand::GoToLocation {
+                                location: EditorLocation {
+                                    path: path.clone(),
+                                    position: Some(EditorPosition::Line(*line)),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: true,
+                                    same_editor_tab: false,
+                                },
+                            },
+                        );
+                        return;
+                    }
+                }
 
                 if (cfg!(target_os = "macos") && pointer_event.modifiers.meta())
                     || (cfg!(not(target_os = "macos"))
