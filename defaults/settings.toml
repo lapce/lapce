@@ -69,6 +69,7 @@ files-exclude = "**/{.git,.svn,.hg,CVS,.DS_Store,Thumbs.db}" # Glob patterns
 font-family = ""
 font-size = 0
 line-height = 0
+default-program = ""
 
 [terminal.default-profile]
 macos = "default"

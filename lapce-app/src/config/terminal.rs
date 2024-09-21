@@ -20,6 +20,9 @@ pub struct TerminalConfig {
     )]
     pub line_height: f64,
 
+    #[field_names(desc = "Set the default program when creating a new terminal.")]
+    pub default_program: String,
+
     #[field_names(skip)]
     pub profiles: HashMap<String, TerminalProfile>,
     #[field_names(skip)]
@@ -88,7 +91,11 @@ impl TerminalConfig {
             None
         };
 
-        let profile = profile.clone();
+        let mut profile = profile.clone();
+
+        if !self.default_program.is_empty() {
+            profile.command = Some(self.default_program.clone());
+        }
 
         Some(lapce_rpc::terminal::TerminalProfile {
             name: std::env::consts::OS.to_string(),
