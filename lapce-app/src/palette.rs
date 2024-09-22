@@ -76,9 +76,11 @@ pub struct PaletteInput {
 
 impl PaletteInput {
     /// Update the current input in the palette, and the kind of palette it is
-    pub fn update_input(&mut self, input: String, kind: PaletteKind) {
-        self.kind = kind.get_palette_kind(&input);
-        self.input = self.kind.get_input(&input).to_string();
+    pub fn update_input(&mut self, input: String, kind: Option<PaletteKind>) {
+        if let Some(kind) = kind {
+            self.kind = kind.get_palette_kind(&input);
+            self.input = self.kind.get_input(&input).to_string();
+        }
     }
 }
 
@@ -93,7 +95,7 @@ pub struct PaletteData {
     pub items: RwSignal<im::Vector<PaletteItem>>,
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub input: RwSignal<PaletteInput>,
-    kind: RwSignal<PaletteKind>,
+    pub kind: RwSignal<Option<PaletteKind>>,
     pub input_editor: EditorData,
     pub preview_editor: EditorData,
     pub has_preview: RwSignal<bool>,
@@ -133,7 +135,7 @@ impl PaletteData {
             input: "".to_string(),
             kind: PaletteKind::File,
         });
-        let kind = cx.create_rw_signal(PaletteKind::File);
+        let kind = cx.create_rw_signal(None);
         let input_editor = main_split.editors.make_local(cx, common.clone());
         let preview_editor = main_split.editors.make_local(cx, common.clone());
         let has_preview = cx.create_rw_signal(false);
@@ -257,7 +259,7 @@ impl PaletteData {
             let doc = palette.input_editor.doc();
             let input = palette.input;
             let status = palette.status.read_only();
-            let preset_kind = palette.kind.read_only();
+            let preset_kind = palette.kind.clone();
             // Monitors when the palette's input changes, so that it can update the stored input
             // and kind of palette.
             cx.create_effect(move |last_input| {
@@ -294,7 +296,7 @@ impl PaletteData {
                         })
                         .unwrap();
                     if let Some(new_kind) = new_kind {
-                        palette.run_inner(new_kind);
+                        preset_kind.set(Some(new_kind))
                     } else if input
                         .with_untracked(|i| i.kind == PaletteKind::WorkspaceSymbol)
                     {
@@ -302,6 +304,25 @@ impl PaletteData {
                     }
                 }
                 Some(new_input)
+            });
+        }
+
+        {
+            let palette = palette.clone();
+            let preset_kind = palette.kind.read_only();
+            cx.create_effect(move |last_kind| {
+                let new_kind = preset_kind.get();
+                if let Some(new_kind) = new_kind {
+                    if !last_kind
+                        .flatten()
+                        .map(|x| x == new_kind)
+                        .unwrap_or_default()
+                    {
+                        palette.run_inner(new_kind);
+                    }
+                } else {
+                }
+                new_kind
             });
         }
 
@@ -333,7 +354,7 @@ impl PaletteData {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
-        self.kind.set(kind);
+        self.kind.set(Some(kind));
         // Refresh the palette input with only the symbol prefix, losing old content.
         self.input_editor.doc().reload(Rope::from(symbol), true);
         self.input_editor
@@ -344,10 +365,10 @@ impl PaletteData {
     /// Get the placeholder text to use in the palette input field.
     pub fn placeholder_text(&self) -> &'static str {
         match self.kind.get() {
-            PaletteKind::SshHost => {
+            Some(PaletteKind::SshHost) => {
                 "Type [user@]host or select a previously connected workspace below"
             }
-            PaletteKind::DiffFiles => {
+            Some(PaletteKind::DiffFiles) => {
                 if self.left_diff_path.with(Option::is_some) {
                     "Select right file"
                 } else {
@@ -365,7 +386,7 @@ impl PaletteData {
 
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
-
+        tracing::debug!("run_inner {} {:?}", run_id, kind);
         match kind {
             PaletteKind::PaletteHelp => self.get_palette_help(),
             PaletteKind::File | PaletteKind::DiffFiles => {
@@ -1136,7 +1157,7 @@ impl PaletteData {
                     self.common.lapce_command.send(cmd);
                 }
                 PaletteItemContent::File { full_path, .. } => {
-                    if self.kind.get_untracked() == PaletteKind::DiffFiles {
+                    if self.kind.get_untracked() == Some(PaletteKind::DiffFiles) {
                         if let Some(left_path) =
                             self.left_diff_path.try_update(Option::take).flatten()
                         {
@@ -1330,7 +1351,7 @@ impl PaletteData {
                         profile: Some(profile.to_owned()),
                     }),
             }
-        } else if self.kind.get_untracked() == PaletteKind::SshHost {
+        } else if self.kind.get_untracked() == Some(PaletteKind::SshHost) {
             let input = self.input.with_untracked(|input| input.input.clone());
             let ssh = SshHost::from_string(&input);
             self.common.window_common.window_command.send(
@@ -1467,7 +1488,7 @@ impl PaletteData {
 
     /// Cancel the palette, doing cleanup specific to the palette kind.
     fn cancel(&self) {
-        if let PaletteKind::ColorTheme | PaletteKind::IconTheme =
+        if let Some(PaletteKind::ColorTheme | PaletteKind::IconTheme) =
             self.kind.get_untracked()
         {
             // TODO(minor): We don't really need to reload the *entire config* here!

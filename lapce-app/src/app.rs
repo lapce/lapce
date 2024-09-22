@@ -2547,9 +2547,16 @@ fn palette_item(
 
 fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     let editor = window_tab_data.palette.input_editor.clone();
+    let pallete_kind = window_tab_data.palette.kind.write_only();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
-    let is_focused = move || focus.get() == Focus::Palette;
+    let is_focused = move || {
+        let focus = focus.get() == Focus::Palette;
+        if !focus {
+            pallete_kind.set(None);
+        }
+        focus
+    };
 
     let input = TextInputBuilder::new()
         .is_focused(is_focused)
