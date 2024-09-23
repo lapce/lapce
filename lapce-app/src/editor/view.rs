@@ -1324,7 +1324,8 @@ pub fn editor_container_view(
                 replace_active,
                 replace_focus,
                 is_active,
-            ),
+            )
+            .debug_name("find view"),
         ))
         .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
