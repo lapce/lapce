@@ -718,16 +718,18 @@ impl Doc {
                     if current_rev != rev || doc.is_pristine() {
                         return;
                     }
+
                     if format {
                         let send = create_ext_action(scope, move |result| {
+                            let current_rev = doc.rev();
+                            if current_rev != rev {
+                                return;
+                            }
                             if let Ok(ProxyResponse::GetDocumentFormatting {
                                 edits,
                             }) = result
                             {
-                                let current_rev = doc.rev();
-                                if current_rev == rev {
-                                    doc.do_text_edit(&edits);
-                                }
+                                doc.do_text_edit(&edits);
                             }
                             doc.save(|| {});
                         });
