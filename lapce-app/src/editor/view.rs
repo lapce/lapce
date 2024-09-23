@@ -61,10 +61,11 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-struct StickyHeaderInfo {
-    sticky_lines: Vec<usize>,
-    last_sticky_should_scroll: bool,
-    y_diff: f64,
+#[derive(Clone, Debug, Default)]
+pub struct StickyHeaderInfo {
+    pub sticky_lines: Vec<usize>,
+    pub last_sticky_should_scroll: bool,
+    pub y_diff: f64,
 }
 
 fn editor_wrap(config: &LapceConfig) -> WrapMethod {
@@ -137,7 +138,6 @@ pub struct EditorView {
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
-    sticky_header_info: StickyHeaderInfo,
 }
 
 pub fn editor_view(
@@ -256,11 +256,6 @@ pub fn editor_view(
         inner_node: None,
         viewport,
         debug_breakline,
-        sticky_header_info: StickyHeaderInfo {
-            sticky_lines: Vec::new(),
-            last_sticky_should_scroll: false,
-            y_diff: 0.0,
-        },
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -627,13 +622,14 @@ impl EditorView {
         let start_info = screen_lines.vline_info(*start_vline).unwrap();
         let start_line = start_info.rvline.line;
 
-        let total_sticky_lines = self.sticky_header_info.sticky_lines.len();
+        let sticky_header_info = self.editor.sticky_header_info.get_untracked();
+        let total_sticky_lines = sticky_header_info.sticky_lines.len();
 
         let paint_last_line = total_sticky_lines > 0
-            && (self.sticky_header_info.last_sticky_should_scroll
-                || self.sticky_header_info.y_diff != 0.0
+            && (sticky_header_info.last_sticky_should_scroll
+                || sticky_header_info.y_diff != 0.0
                 || start_line + total_sticky_lines - 1
-                    != *self.sticky_header_info.sticky_lines.last().unwrap());
+                    != *sticky_header_info.sticky_lines.last().unwrap());
 
         let total_sticky_lines = if paint_last_line {
             total_sticky_lines
@@ -645,16 +641,15 @@ impl EditorView {
             return;
         }
 
-        let scroll_offset = if self.sticky_header_info.last_sticky_should_scroll {
-            self.sticky_header_info.y_diff
+        let scroll_offset = if sticky_header_info.last_sticky_should_scroll {
+            sticky_header_info.y_diff
         } else {
             0.0
         };
 
         // Clear background
 
-        let area_height = self
-            .sticky_header_info
+        let area_height = sticky_header_info
             .sticky_lines
             .iter()
             .copied()
@@ -680,15 +675,10 @@ impl EditorView {
             config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
-
+        self.editor.sticky_header_info.get_untracked();
         // Paint lines
         let mut y_accum = 0.0;
-        for (i, line) in self
-            .sticky_header_info
-            .sticky_lines
-            .iter()
-            .copied()
-            .enumerate()
+        for (i, line) in sticky_header_info.sticky_lines.iter().copied().enumerate()
         {
             let y_diff = if i == total_sticky_lines - 1 {
                 scroll_offset
@@ -1039,7 +1029,7 @@ impl View for EditorView {
         state: Box<dyn std::any::Any>,
     ) {
         if let Ok(state) = state.downcast() {
-            self.sticky_header_info = *state;
+            self.editor.sticky_header_info.set(*state);
             self.id.request_layout();
         }
     }
