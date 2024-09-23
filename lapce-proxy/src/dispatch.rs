@@ -41,6 +41,7 @@ use lsp_types::{
     TextDocumentItem, Url,
 };
 use parking_lot::Mutex;
+use tracing::debug;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -67,6 +68,7 @@ pub struct Dispatcher {
 impl ProxyHandler for Dispatcher {
     fn handle_notification(&mut self, rpc: ProxyNotification) {
         use ProxyNotification::*;
+        debug!("Dispatcher handle_notification {:?}", rpc);
         match rpc {
             Initialize {
                 workspace,
@@ -392,6 +394,7 @@ impl ProxyHandler for Dispatcher {
 
     fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest) {
         use ProxyRequest::*;
+        tracing::debug!("dispatcher handle_request {:?}", rpc);
         match rpc {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());

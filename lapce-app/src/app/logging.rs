@@ -25,18 +25,17 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
         None => (None, None),
     };
 
-    let log_file_filter_targets = filter::Targets::new()
-        .with_target("lapce_app", LevelFilter::DEBUG)
-        .with_target("lapce_proxy", LevelFilter::DEBUG)
-        .with_target("lapce_core", LevelFilter::DEBUG)
-        .with_default(LevelFilter::from_level(TraceLevel::INFO));
+    let log_filter_targets = if let Ok(log) = std::env::var("LAPCE_LOG") {
+        log.parse::<filter::Targets>().unwrap_or_default()
+    } else {
+        filter::Targets::new()
+            .with_target("lapce_app", LevelFilter::DEBUG)
+            .with_target("lapce_proxy", LevelFilter::DEBUG)
+            .with_target("lapce_core", LevelFilter::DEBUG)
+            .with_default(LevelFilter::from_level(TraceLevel::INFO))
+    };
     let (log_file_filter, reload_handle) =
-        reload::Subscriber::new(log_file_filter_targets);
-
-    let console_filter_targets = std::env::var("LAPCE_LOG")
-        .unwrap_or_default()
-        .parse::<filter::Targets>()
-        .unwrap_or_default();
+        reload::Subscriber::new(log_filter_targets.clone());
 
     let registry = tracing_subscriber::registry();
     if let Some(log_file) = log_file {
@@ -51,12 +50,12 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
                     .with_line_number(true)
                     .with_target(true)
                     .with_thread_names(true)
-                    .with_filter(console_filter_targets),
+                    .with_filter(log_filter_targets),
             )
             .init();
     } else {
         registry
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
+            .with(fmt::Subscriber::default().with_filter(log_filter_targets))
             .init();
     };
 

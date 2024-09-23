@@ -101,13 +101,13 @@ pub struct EditorDiagnostic {
     pub diagnostic: Diagnostic,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 pub struct DocHistory {
     pub path: PathBuf,
     pub version: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File { path: PathBuf, read_only: bool },
