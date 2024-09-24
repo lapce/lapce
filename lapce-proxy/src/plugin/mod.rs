@@ -1131,10 +1131,10 @@ impl PluginCatalogRpcHandler {
     pub fn completion(
         &self,
         request_id: usize,
+        id: u64,
         path: &Path,
         input: String,
         position: Position,
-        id: u64,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Completion::METHOD;
@@ -1216,9 +1216,9 @@ impl PluginCatalogRpcHandler {
     pub fn signature_help(
         &self,
         request_id: usize,
+        id: u64,
         path: &Path,
         position: Position,
-        id: u64,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = SignatureHelpRequest::METHOD;
@@ -1355,11 +1355,11 @@ impl PluginCatalogRpcHandler {
         ))
     }
 
-    pub fn install_volt(&self, volt: VoltInfo, id: u64) -> Result<()> {
+    pub fn install_volt(&self, id: u64, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt, id))
     }
 
-    pub fn stop_volt(&self, volt: VoltInfo, id: u64) {
+    pub fn stop_volt(&self, id: u64, volt: VoltInfo) {
         let rpc = PluginCatalogRpc::RemoveVolt {
             volt,
             f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
@@ -1375,7 +1375,7 @@ impl PluginCatalogRpcHandler {
         }
     }
 
-    pub fn remove_volt(&self, volt: VoltMetadata, id: u64) {
+    pub fn remove_volt(&self, id: u64, volt: VoltMetadata) {
         let catalog_rpc = self.clone();
         let volt_clone = volt.clone();
         let rpc = PluginCatalogRpc::RemoveVolt {
@@ -1395,11 +1395,11 @@ impl PluginCatalogRpcHandler {
         }
     }
 
-    pub fn reload_volt(&self, volt: VoltMetadata, id: u64) -> Result<()> {
+    pub fn reload_volt(&self, id: u64, volt: VoltMetadata) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::ReloadVolt(volt, id))
     }
 
-    pub fn enable_volt(&self, volt: VoltInfo, id: u64) -> Result<()> {
+    pub fn enable_volt(&self, id: u64, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::EnableVolt(volt, id))
     }
 

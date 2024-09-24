@@ -49,12 +49,12 @@ pub struct PluginCatalog {
 
 impl PluginCatalog {
     pub fn new(
+        id: u64,
         workspace: Option<PathBuf>,
         disabled_volts: Vec<VoltID>,
         extra_plugin_paths: Vec<PathBuf>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
-        id: u64,
     ) -> Self {
         let plugin = Self {
             workspace,
@@ -555,7 +555,7 @@ impl PluginCatalog {
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
                 let catalog_rpc = self.plugin_rpc.clone();
-                catalog_rpc.stop_volt(volt.clone(), id);
+                catalog_rpc.stop_volt(id, volt.clone());
                 thread::spawn(move || {
                     if let Err(err) = install_volt(
                         catalog_rpc,

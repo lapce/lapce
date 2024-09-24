@@ -65,54 +65,9 @@ pub struct Dispatcher {
 }
 
 impl ProxyHandler for Dispatcher {
-    fn handle_notification(&mut self, id: RequestId, rpc: ProxyNotification) {
+    fn handle_notification(&mut self, rpc: ProxyNotification) {
         use ProxyNotification::*;
         match rpc {
-            Initialize {
-                workspace,
-                disabled_volts,
-                extra_plugin_paths,
-                plugin_configurations,
-                window_id,
-                tab_id,
-            } => {
-                self.window_id = window_id;
-                self.tab_id = tab_id;
-                self.workspace = workspace;
-                self.file_watcher.notify(FileWatchNotifier::new(
-                    self.workspace.clone(),
-                    self.core_rpc.clone(),
-                    self.proxy_rpc.clone(),
-                ));
-                if let Some(workspace) = self.workspace.as_ref() {
-                    self.file_watcher
-                        .watch(workspace, true, WORKSPACE_EVENT_TOKEN);
-                }
-
-                let plugin_rpc = self.catalog_rpc.clone();
-                let workspace = self.workspace.clone();
-                thread::spawn(move || {
-                    let mut plugin = PluginCatalog::new(
-                        workspace,
-                        disabled_volts,
-                        extra_plugin_paths,
-                        plugin_configurations,
-                        plugin_rpc.clone(),
-                        id,
-                    );
-                    plugin_rpc.mainloop(&mut plugin);
-                });
-                self.core_rpc.notification(CoreNotification::ProxyStatus {
-                    status: lapce_rpc::proxy::ProxyStatus::Connected,
-                });
-
-                // send home directory for initinal filepicker dir
-                let dirs = directories::UserDirs::new();
-
-                if let Some(dirs) = dirs {
-                    self.core_rpc.home_dir(dirs.home_dir().into());
-                }
-            }
             OpenPaths { paths } => {
                 self.core_rpc
                     .notification(CoreNotification::OpenPaths { paths });
@@ -131,23 +86,6 @@ impl ProxyHandler for Dispatcher {
                         }
                     }
                 }
-            }
-            Completion {
-                request_id,
-                path,
-                input,
-                position,
-            } => {
-                self.catalog_rpc
-                    .completion(request_id, &path, input, position, id);
-            }
-            SignatureHelp {
-                request_id,
-                path,
-                position,
-            } => {
-                self.catalog_rpc
-                    .signature_help(request_id, &path, position, id);
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
@@ -301,28 +239,6 @@ impl ProxyHandler for Dispatcher {
                     self.catalog_rpc
                         .dap_set_breakpoints(dap_id, path, breakpoints)
                 {
-                    tracing::error!("{:?}", err);
-                }
-            }
-            InstallVolt { volt } => {
-                let catalog_rpc = self.catalog_rpc.clone();
-                if let Err(err) = catalog_rpc.install_volt(volt, id) {
-                    tracing::error!("{:?}", err);
-                }
-            }
-            ReloadVolt { volt } => {
-                if let Err(err) = self.catalog_rpc.reload_volt(volt, id) {
-                    tracing::error!("{:?}", err);
-                }
-            }
-            RemoveVolt { volt } => {
-                self.catalog_rpc.remove_volt(volt, id);
-            }
-            DisableVolt { volt } => {
-                self.catalog_rpc.stop_volt(volt, id);
-            }
-            EnableVolt { volt } => {
-                if let Err(err) = self.catalog_rpc.enable_volt(volt, id) {
                     tracing::error!("{:?}", err);
                 }
             }
@@ -1215,6 +1131,90 @@ impl ProxyHandler for Dispatcher {
                     .collect();
                 let resp = ProxyResponse::ReferencesResolveResponse { items };
                 self.proxy_rpc.handle_response(id, Ok(resp));
+            }
+            InstallVolt { volt } => {
+                let catalog_rpc = self.catalog_rpc.clone();
+                if let Err(err) = catalog_rpc.install_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            ReloadVolt { volt } => {
+                if let Err(err) = self.catalog_rpc.reload_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            RemoveVolt { volt } => {
+                self.catalog_rpc.remove_volt(id, volt);
+            }
+            DisableVolt { volt } => {
+                self.catalog_rpc.stop_volt(id, volt);
+            }
+            EnableVolt { volt } => {
+                if let Err(err) = self.catalog_rpc.enable_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            Completion {
+                request_id,
+                path,
+                input,
+                position,
+            } => {
+                self.catalog_rpc
+                    .completion(request_id, id, &path, input, position);
+            }
+            SignatureHelp {
+                request_id,
+                path,
+                position,
+            } => {
+                self.catalog_rpc
+                    .signature_help(request_id, id, &path, position);
+            }
+            Initialize {
+                workspace,
+                disabled_volts,
+                extra_plugin_paths,
+                plugin_configurations,
+                window_id,
+                tab_id,
+            } => {
+                self.window_id = window_id;
+                self.tab_id = tab_id;
+                self.workspace = workspace;
+                self.file_watcher.notify(FileWatchNotifier::new(
+                    self.workspace.clone(),
+                    self.core_rpc.clone(),
+                    self.proxy_rpc.clone(),
+                ));
+                if let Some(workspace) = self.workspace.as_ref() {
+                    self.file_watcher
+                        .watch(workspace, true, WORKSPACE_EVENT_TOKEN);
+                }
+
+                let plugin_rpc = self.catalog_rpc.clone();
+                let workspace = self.workspace.clone();
+                thread::spawn(move || {
+                    let mut plugin = PluginCatalog::new(
+                        id,
+                        workspace,
+                        disabled_volts,
+                        extra_plugin_paths,
+                        plugin_configurations,
+                        plugin_rpc.clone(),
+                    );
+                    plugin_rpc.mainloop(&mut plugin);
+                });
+                self.core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: lapce_rpc::proxy::ProxyStatus::Connected,
+                });
+
+                // send home directory for initinal filepicker dir
+                let dirs = directories::UserDirs::new();
+
+                if let Some(dirs) = dirs {
+                    self.core_rpc.home_dir(dirs.home_dir().into());
+                }
             }
         }
     }
