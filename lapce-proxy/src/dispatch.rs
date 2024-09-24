@@ -1266,8 +1266,19 @@ impl FileWatchNotifier {
     }
 
     fn handle_open_file_fs_event(&self, event: notify::Event) {
+        const PREFIX: &str = r"\\?\";
         if event.kind.is_modify() {
             for path in event.paths {
+                #[cfg(windows)]
+                if let Some(path_str) = path.to_str() {
+                    if path_str.starts_with(PREFIX) {
+                        let path = PathBuf::from(&path_str[PREFIX.len()..]);
+                        self.proxy_rpc.notification(
+                            ProxyNotification::OpenFileChanged { path },
+                        );
+                        continue;
+                    }
+                }
                 self.proxy_rpc
                     .notification(ProxyNotification::OpenFileChanged { path });
             }
