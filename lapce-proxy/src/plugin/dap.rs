@@ -624,6 +624,7 @@ impl DapRpcHandler {
             "args": config.args,
             "cwd": config.cwd,
             "runInTerminal": true,
+            "env": config.env
         });
         let _resp = self
             .request::<Launch>(params)
