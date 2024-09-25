@@ -20,6 +20,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    core::FileChanged,
     plugin::{PluginId, VoltID},
     proxy::ProxyResponse,
 };
@@ -339,6 +340,23 @@ impl Editors {
 
     pub fn remove(&self, id: EditorId) -> Option<EditorData> {
         self.0.try_update(|editors| editors.remove(&id)).unwrap()
+    }
+
+    pub fn get_editor_id_by_path(&self, path: &Path) -> Option<EditorId> {
+        self.0.with_untracked(|x| {
+            for (id, data) in x {
+                if data.doc().content.with_untracked(|x| {
+                    if let Some(doc_path) = x.path() {
+                        doc_path == path
+                    } else {
+                        false
+                    }
+                }) {
+                    return Some(*id);
+                }
+            }
+            None
+        })
     }
 
     pub fn contains_untracked(&self, id: EditorId) -> bool {
@@ -2335,14 +2353,47 @@ impl MainSplitData {
         }
     }
 
-    pub fn open_file_changed(&self, path: &Path, content: &str) {
-        let doc = self.docs.with_untracked(|docs| docs.get(path).cloned());
-        let doc = match doc {
-            Some(doc) => doc,
-            None => return,
-        };
-
-        doc.handle_file_changed(Rope::from(content));
+    pub fn open_file_changed(&self, path: &Path, content: &FileChanged) {
+        tracing::debug!("open_file_changed {:?}", path);
+        match content {
+            FileChanged::Change(content) => {
+                let doc = self.docs.with_untracked(|docs| docs.get(path).cloned());
+                let doc = match doc {
+                    Some(doc) => doc,
+                    None => return,
+                };
+                doc.handle_file_changed(Rope::from(content));
+            }
+            FileChanged::Delete => {
+                if self.docs.with_untracked(|x| x.get(path).is_none()) {
+                    return;
+                }
+                let Some(editor_id) = self.editors.get_editor_id_by_path(path)
+                else {
+                    return;
+                };
+                let id = editor_id.to_raw();
+                if let Some(tab_id) = self.editor_tabs.with_untracked(|x| {
+                    for (tab_id, tab_data) in x {
+                        if tab_data.with_untracked(|x| {
+                            x.children
+                                .iter()
+                                .find(|(_, _, child)| child.id() == id)
+                                .is_some()
+                        }) {
+                            return Some(*tab_id);
+                        }
+                    }
+                    None
+                }) {
+                    self.editor_tab_close(tab_id);
+                }
+                self.editors.remove(editor_id);
+                self.docs.update(|x| {
+                    x.remove(path);
+                });
+            }
+        }
     }
 
     pub fn set_find_pattern(&self, pattern: Option<String>) {
