@@ -35,6 +35,13 @@ pub enum CoreRpc {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum FileChanged {
+    Change(String),
+    Delete,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum CoreNotification {
     ProxyStatus {
@@ -42,7 +49,7 @@ pub enum CoreNotification {
     },
     OpenFileChanged {
         path: PathBuf,
-        content: String,
+        content: FileChanged,
     },
     CompletionResponse {
         request_id: usize,
@@ -251,7 +258,7 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::DiffInfo { diff });
     }
 
-    pub fn open_file_changed(&self, path: PathBuf, content: String) {
+    pub fn open_file_changed(&self, path: PathBuf, content: FileChanged) {
         self.notification(CoreNotification::OpenFileChanged { path, content });
     }
 
