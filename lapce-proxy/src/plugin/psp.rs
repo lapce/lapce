@@ -31,18 +31,18 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, Formatting, GotoDefinition, GotoImplementation,
-        GotoTypeDefinition, HoverRequest, Initialize, InlayHintRequest,
-        InlineCompletionRequest, PrepareRenameRequest, References,
+        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
+        GotoImplementation, GotoTypeDefinition, HoverRequest, Initialize,
+        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
         RegisterCapability, Rename, ResolveCompletionItem, SelectionRangeRequest,
         SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
         WorkspaceSymbolRequest,
     },
     CancelParams, CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeResult, LogMessageParams,
-    MessageType, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    DidSaveTextDocumentParams, DocumentSelector, FoldingRangeProviderCapability,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeResult,
+    LogMessageParams, MessageType, OneOf, ProgressParams, PublishDiagnosticsParams,
+    Range, Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
     SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
@@ -778,6 +778,22 @@ impl PluginHostHandler {
                     ImplementationProviderCapability::Options(_) => {
                         // todo
                         false
+                    }
+                })
+                .unwrap_or(false),
+            FoldingRangeRequest::METHOD => self
+                .server_capabilities
+                .folding_range_provider
+                .as_ref()
+                .map(|r| match r {
+                    FoldingRangeProviderCapability::Simple(support) => *support,
+                    FoldingRangeProviderCapability::FoldingProvider(_) => {
+                        // todo
+                        true
+                    }
+                    FoldingRangeProviderCapability::Options(_) => {
+                        // todo
+                        true
                     }
                 })
                 .unwrap_or(false),
