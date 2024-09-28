@@ -1709,68 +1709,58 @@ impl DocumentPhantom for Doc {
 
         let mut diag_text: SmallVec<[PhantomText; 6]> =
             self.buffer.with_untracked(|buffer| {
-                config
-                    .editor
-                    .enable_error_lens
-                    .then_some(())
-                    .map(|_| self.diagnostics.diagnostics_span.get_untracked())
-                    .map(|diags| {
-                        diags
-                            .iter_chunks(start_offset..end_offset)
-                            .filter_map(|(iv, diag)| {
-                                let end = iv.end();
-                                let end_line = buffer.line_of_offset(end);
-                                if end_line == line
-                                    && diag.severity < Some(DiagnosticSeverity::HINT)
+                self.diagnostics
+                    .diagnostics_span
+                    .get_untracked()
+                    .iter_chunks(start_offset..end_offset)
+                    .filter_map(|(iv, diag)| {
+                        let end = iv.end();
+                        let end_line = buffer.line_of_offset(end);
+                        if end_line == line
+                            && diag.severity < Some(DiagnosticSeverity::HINT)
+                        {
+                            let fg = {
+                                let severity = diag
+                                    .severity
+                                    .unwrap_or(DiagnosticSeverity::WARNING);
+                                let theme_prop = if severity
+                                    == DiagnosticSeverity::ERROR
                                 {
-                                    let fg = {
-                                        let severity = diag
-                                            .severity
-                                            .unwrap_or(DiagnosticSeverity::WARNING);
-                                        let theme_prop = if severity
-                                            == DiagnosticSeverity::ERROR
-                                        {
-                                            LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                                        } else if severity
-                                            == DiagnosticSeverity::WARNING
-                                        {
-                                            LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                                        } else {
-                                            // information + hint (if we keep that) + things without a severity
-                                            LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                                        };
-
-                                        config.color(theme_prop)
-                                    };
-
-                                    let text = if config.editor.error_lens_multiline
-                                    {
-                                        format!("    {}", diag.message)
-                                    } else {
-                                        format!(
-                                            "    {}",
-                                            diag.message.lines().join(" ")
-                                        )
-                                    };
-                                    Some(PhantomText {
-                                        kind: PhantomTextKind::Diagnostic,
-                                        col: end_offset - start_offset,
-                                        affinity: Some(CursorAffinity::Backward),
-                                        text,
-                                        fg: Some(fg),
-                                        font_size: Some(
-                                            config.editor.error_lens_font_size(),
-                                        ),
-                                        bg: None,
-                                        under_line: None,
-                                    })
+                                    LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                                } else if severity == DiagnosticSeverity::WARNING {
+                                    LapceColor::ERROR_LENS_WARNING_FOREGROUND
                                 } else {
-                                    None
-                                }
+                                    // information + hint (if we keep that) + things without a severity
+                                    LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                                };
+
+                                config.color(theme_prop)
+                            };
+
+                            let text = if config.editor.enable_error_lens {
+                                "".to_string()
+                            } else if config.editor.error_lens_multiline {
+                                format!("    {}", diag.message)
+                            } else {
+                                format!("    {}", diag.message.lines().join(" "))
+                            };
+                            Some(PhantomText {
+                                kind: PhantomTextKind::Diagnostic,
+                                col: end_offset - start_offset,
+                                affinity: Some(CursorAffinity::Backward),
+                                text,
+                                fg: Some(fg),
+                                font_size: Some(
+                                    config.editor.error_lens_font_size(),
+                                ),
+                                bg: None,
+                                under_line: None,
                             })
-                            .collect::<SmallVec<[PhantomText; 6]>>()
+                        } else {
+                            None
+                        }
                     })
-                    .unwrap_or_default()
+                    .collect::<SmallVec<[PhantomText; 6]>>()
             });
 
         text.append(&mut diag_text);
