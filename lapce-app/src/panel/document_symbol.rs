@@ -10,7 +10,7 @@ use floem::{
     },
     View,
 };
-use lsp_types::DocumentSymbol;
+use lsp_types::{DocumentSymbol, SymbolKind};
 
 use super::position::PanelPosition;
 use crate::{
@@ -22,11 +22,42 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct SymbolData {
-    pub items: Vec<RwSignal<SymbolInformationItemData>>,
     pub path: PathBuf,
+    pub file: RwSignal<SymbolInformationItemData>,
 }
 
 impl SymbolData {
+    pub fn new(
+        items: Vec<RwSignal<SymbolInformationItemData>>,
+        path: PathBuf,
+        cx: Scope,
+    ) -> Self {
+        let name = path
+            .file_name()
+            .and_then(|x| x.to_str())
+            .map(|x| x.to_string())
+            .unwrap_or_default();
+        #[allow(deprecated)]
+        let file_ds = DocumentSymbol {
+            name: name.clone(),
+            detail: None,
+            kind: SymbolKind::FILE,
+            tags: None,
+            deprecated: None,
+            range: Default::default(),
+            selection_range: Default::default(),
+            children: None,
+        };
+        let file = cx.create_rw_signal(SymbolInformationItemData {
+            id: Id::next(),
+            name,
+            detail: None,
+            item: file_ds,
+            open: cx.create_rw_signal(true),
+            children: items,
+        });
+        Self { path, file }
+    }
     fn get_children(
         &self,
         min: usize,
@@ -37,19 +68,10 @@ impl SymbolData {
         Rc<PathBuf>,
         RwSignal<SymbolInformationItemData>,
     )> {
-        let mut children = Vec::new();
         let path = Rc::new(self.path.clone());
         let level: usize = 0;
         let mut next = 0;
-        for item in &self.items {
-            if next >= max {
-                return children;
-            }
-            let child_children =
-                get_children(*item, &mut next, min, max, level, path.clone());
-            children.extend(child_children);
-        }
-        children
+        get_children(self.file, &mut next, min, max, level, path.clone())
     }
 }
 
@@ -149,11 +171,7 @@ impl
 {
     fn total_len(&self) -> usize {
         if let Some(root) = self.root.as_ref().and_then(|x| x.get()) {
-            let len = root.items.iter().fold(0, |mut x, item| {
-                x += item.get_untracked().child_count();
-                x
-            });
-            len
+            root.file.get_untracked().child_count()
         } else {
             0
         }
