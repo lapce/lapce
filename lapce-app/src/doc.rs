@@ -989,7 +989,7 @@ impl Doc {
                                     })
                                     .collect(),
                             };
-                        let symbol_new = Some(SymbolData { items, path });
+                        let symbol_new = Some(SymbolData::new(items, path, cx));
                         doc.document_symbol_data.update(|symbol| {
                             *symbol = symbol_new;
                         });
