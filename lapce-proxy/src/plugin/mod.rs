@@ -35,12 +35,12 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, Formatting, GotoDefinition, GotoImplementation,
-        GotoImplementationResponse, GotoTypeDefinition, GotoTypeDefinitionParams,
-        GotoTypeDefinitionResponse, HoverRequest, InlayHintRequest,
-        InlineCompletionRequest, PrepareRenameRequest, References, Rename, Request,
-        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-        SignatureHelpRequest, WorkspaceSymbolRequest,
+        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
+        GotoImplementation, GotoImplementationResponse, GotoTypeDefinition,
+        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
+        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
+        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
     CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
@@ -51,10 +51,11 @@ use lsp_types::{
     CompletionItem, CompletionItemCapability,
     CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
     Diagnostic, DocumentFormattingParams, DocumentSymbolClientCapabilities,
-    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
-    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
-    InlineCompletionClientCapabilities, InlineCompletionParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeClientCapabilities, FoldingRangeParams, FormattingOptions,
+    GotoCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverClientCapabilities, HoverParams, InlayHint, InlayHintClientCapabilities,
+    InlayHintParams, InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
     PartialResultParams, Position, PrepareRenameResponse,
@@ -685,6 +686,35 @@ impl PluginCatalogRpcHandler {
             context: ReferenceContext {
                 include_declaration: false,
             },
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_lsp_folding_range(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(
+                PluginId,
+                std::result::Result<Option<Vec<FoldingRange>>, RpcError>,
+            ) + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = FoldingRangeRequest::METHOD;
+        let params = FoldingRangeParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
         };
 
         let language_id =
@@ -1726,6 +1756,13 @@ fn client_capabilities() -> ClientCapabilities {
             document_symbol: Some(DocumentSymbolClientCapabilities {
                 hierarchical_document_symbol_support: Some(true),
                 ..Default::default()
+            }),
+            folding_range: Some(FoldingRangeClientCapabilities {
+                dynamic_registration: Some(false),
+                range_limit: None,
+                line_folding_only: Some(false),
+                folding_range_kind: None,
+                folding_range: None,
             }),
             ..Default::default()
         }),

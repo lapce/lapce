@@ -13,7 +13,7 @@ use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::{GotoImplementationResponse, GotoTypeDefinitionResponse},
     CallHierarchyIncomingCall, CallHierarchyItem, CodeAction, CodeActionResponse,
-    CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse,
+    CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse, FoldingRange,
     GotoDefinitionResponse, Hover, InlayHint, InlineCompletionResponse,
     InlineCompletionTriggerKind, Location, Position, PrepareRenameResponse,
     SelectionRange, SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
@@ -132,6 +132,9 @@ pub enum ProxyRequest {
         trigger_kind: InlineCompletionTriggerKind,
     },
     GetSemanticTokens {
+        path: PathBuf,
+    },
+    LspFoldingRange {
         path: PathBuf,
     },
     PrepareRename {
@@ -398,6 +401,10 @@ pub enum ProxyResponse {
     GetCodeActionsResponse {
         plugin_id: PluginId,
         resp: CodeActionResponse,
+    },
+    LspFoldingRangeResponse {
+        plugin_id: PluginId,
+        resp: Option<Vec<FoldingRange>>,
     },
     GetCodeLensResponse {
         plugin_id: PluginId,
@@ -930,6 +937,14 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn get_lsp_folding_range(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::LspFoldingRange { path }, f);
     }
 
     pub fn get_references(
