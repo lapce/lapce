@@ -77,6 +77,7 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     editor::{
         compute_screen_lines,
+        gutter::FoldingRanges,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
@@ -195,6 +196,8 @@ pub struct Doc {
 
     pub code_lens: RwSignal<AllCodeLens>,
 
+    pub folding_ranges: RwSignal<FoldingRanges>,
+
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
@@ -261,6 +264,7 @@ impl Doc {
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
+            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
 
@@ -311,6 +315,7 @@ impl Doc {
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
+            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
 
@@ -361,6 +366,7 @@ impl Doc {
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
+            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
 
@@ -655,6 +661,7 @@ impl Doc {
             self.clear_style_cache();
             self.get_code_lens();
             self.get_document_symbol();
+            self.get_folding_range();
         });
     }
 
@@ -1086,6 +1093,43 @@ impl Doc {
 
         self.clear_text_cache();
         self.clear_code_actions();
+    }
+
+    pub fn get_folding_range(&self) {
+        let cx = self.scope;
+        let doc = self.clone();
+        let rev = self.rev();
+        if let DocContent::File { path, .. } = doc.content.get_untracked() {
+            let send = create_ext_action(cx, {
+                move |result| {
+                    if rev != doc.rev() {
+                        return;
+                    }
+                    if let Ok(ProxyResponse::LspFoldingRangeResponse {
+                        resp, ..
+                    }) = result
+                    {
+                        let folding = resp
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|x| {
+                                crate::editor::gutter::FoldingRange::from_lsp(x)
+                            })
+                            .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
+                            .collect();
+                        doc.folding_ranges.update(|symbol| {
+                            symbol.0 = folding;
+                        });
+                    }
+                }
+            });
+
+            self.common
+                .proxy
+                .get_lsp_folding_range(path, move |result| {
+                    send(result);
+                });
+        }
     }
 
     /// Get the current completion lens text

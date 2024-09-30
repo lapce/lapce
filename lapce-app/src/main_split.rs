@@ -667,6 +667,7 @@ impl MainSplitData {
                     });
             }
             doc.get_code_lens();
+            doc.get_folding_range();
             doc.get_document_symbol();
             (doc, true)
         }
