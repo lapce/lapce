@@ -2689,7 +2689,7 @@ impl EditorData {
                             .get(index),
                     ) {
                         self.common.internal_command.send(
-                            InternalCommand::GoToLocation {
+                            InternalCommand::JumpToLocation {
                                 location: EditorLocation {
                                     path: path.clone(),
                                     position: Some(EditorPosition::Line(*line)),
@@ -2724,7 +2724,7 @@ impl EditorData {
                                 return;
                             };
                             self.common.internal_command.send(
-                                InternalCommand::GoToLocation {
+                                InternalCommand::JumpToLocation {
                                     location: EditorLocation {
                                         path,
                                         position: Some(EditorPosition::Position(
