@@ -85,7 +85,9 @@ use crate::{
     keypress::KeyPressFocus,
     main_split::Editors,
     panel::{
-        document_symbol::{SymbolData, SymbolInformationItemData},
+        document_symbol::{
+            DocumentSymbolViewData, SymbolData, SymbolInformationItemData,
+        },
         kind::PanelKind,
     },
     window_tab::{CommonData, Focus},
@@ -215,7 +217,7 @@ pub struct Doc {
     editors: Editors,
     pub common: Rc<CommonData>,
 
-    pub document_symbol_data: RwSignal<Option<SymbolData>>,
+    pub document_symbol_data: DocumentSymbolViewData,
 }
 impl Doc {
     pub fn new(
@@ -260,7 +262,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
         }
     }
 
@@ -310,7 +312,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
         }
     }
 
@@ -360,7 +362,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
         }
     }
 
@@ -990,8 +992,8 @@ impl Doc {
                                     .collect(),
                             };
                         let symbol_new = Some(SymbolData::new(items, path, cx));
-                        doc.document_symbol_data.update(|symbol| {
-                            *symbol = symbol_new;
+                        doc.document_symbol_data.virtual_list.update(|symbol| {
+                            symbol.update(symbol_new);
                         });
                     }
                 }

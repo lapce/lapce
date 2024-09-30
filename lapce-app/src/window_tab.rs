@@ -190,6 +190,7 @@ pub struct WindowTabData {
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
+    pub document_symbol_scroll_to: RwSignal<Option<f64>>,
 }
 
 impl std::fmt::Debug for WindowTabData {
@@ -572,6 +573,7 @@ impl WindowTabData {
             progresses: cx.create_rw_signal(IndexMap::new()),
             messages: cx.create_rw_signal(Vec::new()),
             common,
+            document_symbol_scroll_to: cx.create_rw_signal(None),
         };
 
         {

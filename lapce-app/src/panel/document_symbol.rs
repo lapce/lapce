@@ -1,6 +1,7 @@
 use std::{ops::AddAssign, path::PathBuf, rc::Rc};
 
 use floem::{
+    kurbo::Rect,
     peniko::Color,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
@@ -100,7 +101,7 @@ impl From<(DocumentSymbol, Scope)> for SymbolInformationItemData {
             name: item.name.clone(),
             detail: item.detail.clone(),
             item,
-            open: cx.create_rw_signal(true),
+            open: cx.create_rw_signal(false),
             children,
         }
     }
@@ -151,13 +152,35 @@ fn get_children(
     children
 }
 
+#[derive(Default, Clone)]
 pub struct VirtualList {
-    root: Option<RwSignal<Option<SymbolData>>>,
+    pub root: Option<SymbolData>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DocumentSymbolViewData {
+    pub virtual_list: RwSignal<VirtualList>,
+    pub scroll_to: RwSignal<Option<f64>>,
+    pub select: RwSignal<Option<Id>>,
+}
+
+impl DocumentSymbolViewData {
+    pub fn new(cx: Scope) -> Self {
+        Self {
+            virtual_list: cx.create_rw_signal(
+                crate::panel::document_symbol::VirtualList::default(),
+            ),
+            scroll_to: cx.create_rw_signal(None),
+            select: cx.create_rw_signal(None),
+        }
+    }
+}
 impl VirtualList {
-    pub fn new(root: Option<RwSignal<Option<SymbolData>>>) -> Self {
+    pub fn new(root: Option<SymbolData>) -> Self {
         Self { root }
+    }
+    pub fn update(&mut self, root: Option<SymbolData>) {
+        self.root = root;
     }
 }
 
@@ -170,7 +193,7 @@ impl
     )> for VirtualList
 {
     fn total_len(&self) -> usize {
-        if let Some(root) = self.root.as_ref().and_then(|x| x.get()) {
+        if let Some(root) = self.root.as_ref() {
             root.file.get_untracked().child_count()
         } else {
             0
@@ -188,7 +211,7 @@ impl
             RwSignal<SymbolInformationItemData>,
         ),
     > {
-        if let Some(root) = self.root.as_ref().and_then(|x| x.get()) {
+        if let Some(root) = self.root.as_ref() {
             let min = range.start;
             let max = range.end;
             let children = root.get_children(min, max);
@@ -205,6 +228,8 @@ pub fn symbol_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let ui_line_height = window_tab_data.common.ui_line_height;
+    let scroll_rect = window_tab_data.scope.create_rw_signal(Rect::ZERO);
+    let window_tab_data_clone = window_tab_data.clone();
     scroll(
         virtual_stack(
             VirtualDirection::Vertical,
@@ -213,7 +238,7 @@ pub fn symbol_panel(
                 let window_tab_data = window_tab_data.clone();
                 move || {
                     let editor = window_tab_data.main_split.get_active_editor();
-                    VirtualList::new(editor.map(|x| x.doc().document_symbol_data))
+                    editor.map(|x| x.doc().document_symbol_data.virtual_list.get()).unwrap_or_default()
                 }
             },
             move |(_, _, _, item)| item.get_untracked().id,
@@ -222,6 +247,7 @@ pub fn symbol_panel(
                 let open = data.open;
                 let has_child = !data.children.is_empty();
                 let kind = data.item.kind;
+                let id = rw_data.get_untracked().id;
                 stack((
                     container(
                         svg(move || {
@@ -244,7 +270,7 @@ pub fn symbol_panel(
                                  .color(color)
                         })
                     ).style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
-                    .on_click_stop({
+                    .on_click_cont({
                         move |_x| {
                             if has_child {
                                 open.update(|x| {
@@ -284,24 +310,41 @@ pub fn symbol_panel(
                                                  |s| s.hide())
                     ),
                 ))
-                .style(move |s| {
-                    s.padding_right(5.0)
-                        .padding_left((level * 10) as f32)
-                        .items_center()
-                        .height(ui_line_height.get())
-                        .hover(|s| {
-                            s.background(
-                                config
-                                    .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                            .cursor(CursorStyle::Pointer)
-                        })
+                .style({
+                    let value = window_tab_data.clone();
+                    move |s| {
+                        s.padding_right(5.0)
+                            .padding_left((level * 10) as f32)
+                            .items_center()
+                            .height(ui_line_height.get())
+                            .hover(|s| {
+                                s.background(
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                                    .cursor(CursorStyle::Pointer)
+                            }).apply_if(
+                            {
+                                let editor = value.main_split.get_active_editor();
+                                editor.map(|x| x.doc().document_symbol_data.select.get().map(|x| x == id)).flatten().unwrap_or_default()
+                            },
+                            |x| {
+                                x.background(
+                                    config.get().color(
+                                        LapceColor::PANEL_CURRENT_BACKGROUND,
+                                    ),
+                                )
+                            },
+                        )
+                    }
                 })
                 .on_click_stop({
                     let window_tab_data = window_tab_data.clone();
                     let data = rw_data;
                     move |_| {
+                        let editor = window_tab_data.main_split.get_active_editor();
+                        editor.map(|x| x.doc().document_symbol_data.select.set(Some(id)));
                         let data = data.get_untracked();
                             window_tab_data
                                 .common
@@ -315,9 +358,31 @@ pub fn symbol_panel(
                                 } });
                     }
                 })
-            },
+            }
+            ,
         )
         .style(|s| s.flex_col().absolute().min_width_full()),
+    ).on_resize(move |rect| {
+        scroll_rect.set(rect);
+    })
+    .style(
+        |s| s.absolute().size_full()
     )
-    .style(|s| s.absolute().size_full())
+        .scroll_to({
+            move || {
+                let editor = window_tab_data_clone.main_split.get_active_editor();
+                if let Some(line) = editor.and_then(|x| x.doc().document_symbol_data.scroll_to.get( )) {
+                    let line_height = ui_line_height.get_untracked();
+                    Some(
+                        (
+                            0.0,
+                            line * line_height - scroll_rect.get_untracked().height() / 2.0,
+                        )
+                            .into(),
+                    )
+                } else {
+                    None
+                }
+            }
+        })
 }
