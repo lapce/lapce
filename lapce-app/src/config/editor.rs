@@ -159,6 +159,11 @@ pub struct EditorConfig {
     pub inlay_hint_font_size: usize,
     #[field_names(desc = "If diagnostics should be displayed inline")]
     pub enable_error_lens: bool,
+
+    #[field_names(
+        desc = "Only render the styling without displaying messages, provided that `Enable ErrorLens` is enabled"
+    )]
+    pub only_render_error_styling: bool,
     #[field_names(
         desc = "Whether error lens should go to the end of view line, or only to the end of the diagnostic"
     )]

@@ -43,6 +43,7 @@ enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0
 enable-error-lens = true
+only-render-error-styling = true
 error-lens-end-of-line = true
 error-lens-font-family = ""
 error-lens-font-size = 0

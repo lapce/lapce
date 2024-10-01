@@ -1787,15 +1787,18 @@ impl DocumentPhantom for Doc {
                                         config.color(theme_prop)
                                     };
 
-                                    let text = if config.editor.error_lens_multiline
-                                    {
-                                        format!("    {}", diag.message)
-                                    } else {
-                                        format!(
-                                            "    {}",
-                                            diag.message.lines().join(" ")
-                                        )
-                                    };
+                                    let text =
+                                        if config.editor.only_render_error_styling {
+                                            "".to_string()
+                                        } else if config.editor.error_lens_multiline
+                                        {
+                                            format!("    {}", diag.message)
+                                        } else {
+                                            format!(
+                                                "    {}",
+                                                diag.message.lines().join(" ")
+                                            )
+                                        };
                                     Some(PhantomText {
                                         kind: PhantomTextKind::Diagnostic,
                                         col: end_offset - start_offset,
