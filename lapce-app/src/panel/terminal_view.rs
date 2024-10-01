@@ -254,6 +254,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         let config = config.get();
         s.width_pct(100.0)
             .items_center()
+            .background(*config.get_color(LapceColor::TERMINAL_BACKGROUND))
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
     })
@@ -325,14 +326,16 @@ fn terminal_tab_split(
                     .style(|s| s.size_pct(100.0, 100.0))
             })
             .style(move |s| {
-                s.size_pct(100.0, 100.0).padding_horiz(10.0).apply_if(
-                    index.get() > 0,
-                    |s| {
+                s.size_pct(100.0, 100.0)
+                    .padding_horiz(10.0)
+                    .apply_if(index.get() > 0, |s| {
                         s.border_left(1.0).border_color(
                             config.get().color(LapceColor::LAPCE_BORDER),
                         )
-                    },
-                )
+                    })
+                    .background(
+                        *config.get().get_color(LapceColor::TERMINAL_BACKGROUND),
+                    )
             })
         },
     )
