@@ -1724,12 +1724,15 @@ impl DocumentPhantom for Doc {
                     let (_, col) = b.offset_to_line_col(interval.start);
                     (col, affinity)
                 });
-                let text = match &inlay_hint.label {
+                let mut text = match &inlay_hint.label {
                     InlayHintLabel::String(label) => label.to_string(),
                     InlayHintLabel::LabelParts(parts) => {
                         parts.iter().map(|p| &p.value).join("")
                     }
                 };
+                if text.ends_with(':') {
+                    text.push(' ');
+                }
                 PhantomText {
                     kind: PhantomTextKind::InlayHint,
                     col,
