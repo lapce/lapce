@@ -28,7 +28,7 @@ pub fn implementation_panel(
     common_reference_panel(window_tab_data.clone(), _position, move || {
         window_tab_data.main_split.implementations.get()
     })
-    .debug_name("references panel")
+    .debug_name("implementation panel")
 }
 pub fn common_reference_panel(
     window_tab_data: Rc<WindowTabData>,
