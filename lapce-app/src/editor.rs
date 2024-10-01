@@ -3560,20 +3560,31 @@ pub(crate) fn compute_screen_lines(
             // TODO: the original was min_line..max_line + 1, are we iterating too little now?
             // the iterator is from min_vline..max_vline
             let count = max_vline.get() - min_vline.get();
-            let iter = lines
-                .iter_rvlines_init(
-                    text_prov,
-                    cache_rev,
-                    config_id,
-                    min_info.rvline,
-                    false,
-                )
-                .take(count);
+            let iter = lines.iter_rvlines_init(
+                text_prov,
+                cache_rev,
+                config_id,
+                min_info.rvline,
+                false,
+            );
 
-            for (i, vline_info) in iter.enumerate() {
+            let range = doc.folding_ranges.get().get_folded_range();
+            let mut init_index = 0;
+
+            for vline_info in iter {
+                if rvlines.len() >= count {
+                    break;
+                }
+
+                let (folded, next_index) =
+                    range.contain_line(init_index, vline_info.rvline.line as u32);
+                init_index = next_index;
+                if folded {
+                    continue;
+                }
                 rvlines.push(vline_info.rvline);
 
-                let y_idx = min_vline.get() + i;
+                let y_idx = min_vline.get() + rvlines.len();
                 let vline_y = y_idx * line_height;
                 let line_y = vline_y - vline_info.rvline.line_index * line_height;
 

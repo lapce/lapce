@@ -1,4 +1,6 @@
-use std::{cmp, collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    cmp, collections::BTreeMap, ops::DerefMut, path::PathBuf, rc::Rc, sync::Arc,
+};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -56,6 +58,7 @@ use crate::{
     config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::{DapData, LapceBreakpoint},
     doc::DocContent,
+    editor::gutter::FoldingDisplayItem,
     text_input::TextInputBuilder,
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -1264,14 +1267,16 @@ pub fn editor_container_view(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
-        .with_untracked(|editor| {
+    let (editor_id, find_focus, sticky_header_height, editor_view, config, doc, ed) =
+        editor.with_untracked(|editor| {
             (
                 editor.id(),
                 editor.find_focus,
                 editor.sticky_header_height,
                 editor.kind,
                 editor.common.config,
+                editor.doc_signal(),
+                editor.editor.clone(),
             )
         });
 
@@ -1284,10 +1289,19 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
+    let viewport = ed.viewport;
+    let screen_lines = ed.screen_lines;
+
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
         stack((
             editor_gutter(window_tab_data.clone(), editor),
+            editor_gutter_folding_range(
+                window_tab_data.clone(),
+                doc,
+                screen_lines,
+                viewport,
+            ),
             editor_content(editor, debug_breakline, is_active),
             empty().style(move |s| {
                 let config = config.get();
@@ -1614,6 +1628,60 @@ fn editor_gutter_code_lens_view(
     })
 }
 
+fn editor_gutter_folding_view(
+    window_tab_data: Rc<WindowTabData>,
+    screen_lines: RwSignal<ScreenLines>,
+    viewport: RwSignal<Rect>,
+    folding_display_item: FoldingDisplayItem,
+) -> impl View {
+    let config = window_tab_data.common.config;
+    let view = container(
+        svg(move || {
+            let icon_str = match folding_display_item {
+                FoldingDisplayItem::UnfoldStart(_) => LapceIcons::FOLD_DOWN,
+                FoldingDisplayItem::Folded(_) => LapceIcons::FOLD,
+                FoldingDisplayItem::UnfoldEnd(_) => LapceIcons::FOLD_UP,
+            };
+            config.get().ui_svg(icon_str)
+        })
+        .style(move |s| {
+            let config = config.get();
+            let size = config.ui.icon_size() as f32;
+            s.size(size, size)
+                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+        }),
+    )
+    .style(move |s| {
+        let config = config.get();
+        s.padding(4.0)
+            .border_radius(6.0)
+            .hover(|s| {
+                s.cursor(CursorStyle::Pointer)
+                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+            })
+            .active(|s| {
+                s.background(
+                    config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                )
+            })
+    });
+    container(view).style(move |s| {
+        let line = folding_display_item.position().line;
+        let line_info = screen_lines.with(|s| s.info_for_line(line as usize));
+        let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
+        let rect = viewport.get();
+        let config = config.get();
+        let icon_size = config.ui.icon_size();
+        let width = icon_size as f32 + 4.0;
+        s.absolute()
+            .width(width / 2.0)
+            .height(config.editor.line_height() as f32)
+            .justify_center()
+            .items_center()
+            .margin_top(line_y as f32 - rect.y0 as f32)
+    })
+}
+
 fn editor_gutter_code_lens(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
@@ -1649,6 +1717,64 @@ fn editor_gutter_code_lens(
             .margin_left(width - 8.0)
     })
     .debug_name("CodeLens Stack")
+}
+
+fn editor_gutter_folding_range(
+    window_tab_data: Rc<WindowTabData>,
+    doc: DocSignal,
+    screen_lines: RwSignal<ScreenLines>,
+    viewport: RwSignal<Rect>,
+) -> impl View {
+    let config = window_tab_data.common.config;
+    let doc_clone = doc.clone();
+    dyn_stack(
+        move || doc.get().folding_ranges.get().to_display_items(),
+        move |item| *item,
+        move |item| {
+            editor_gutter_folding_view(
+                window_tab_data.clone(),
+                screen_lines,
+                viewport,
+                item,
+            )
+            .on_click_stop({
+                let value = doc_clone.clone();
+                move |_| {
+                    value.get_untracked().folding_ranges.update(|x| match item {
+                        FoldingDisplayItem::UnfoldStart(pos)
+                        | FoldingDisplayItem::Folded(pos) => {
+                            x.0.iter_mut().find_map(|mut range| {
+                                let range = range.deref_mut();
+                                if range.start == pos {
+                                    range.status.click();
+                                    Some(())
+                                } else {
+                                    None
+                                }
+                            });
+                        }
+                        FoldingDisplayItem::UnfoldEnd(pos) => {
+                            x.0.iter_mut().find_map(|mut range| {
+                                let range = range.deref_mut();
+                                if range.end == pos {
+                                    range.status.click();
+                                    Some(())
+                                } else {
+                                    None
+                                }
+                            });
+                        }
+                    })
+                }
+            })
+        },
+    )
+    .style(move |s| {
+        let config = config.get();
+        let width = config.ui.icon_size() as f32;
+        s.width(width).height_full().margin_left(-width / 2.0)
+    })
+    .debug_name("Folding Range Stack")
 }
 
 fn editor_gutter_code_actions(
