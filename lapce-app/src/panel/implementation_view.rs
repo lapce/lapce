@@ -10,6 +10,7 @@ use floem::{
     IntoView, View, ViewId,
 };
 use im::HashMap;
+use itertools::Itertools;
 use lapce_rpc::file_line::FileLine;
 use lsp_types::{request::GotoImplementationResponse, Location, SymbolKind};
 
@@ -203,27 +204,35 @@ pub fn init_implementation_root(
     items: Vec<FileLine>,
     scope: Scope,
 ) -> ReferencesRoot {
-    let mut refs_map = HashMap::new();
+    let mut refs_map: HashMap<PathBuf, HashMap<u32, Reference>> = HashMap::new();
     for item in items {
-        let entry = refs_map.entry(item.path.clone()).or_insert(Vec::new());
-        (*entry).push(Reference::Line {
-            location: ReferenceLocation::Line {
-                file_line: item,
-                view_id: ViewId::new(),
+        let entry = refs_map.entry(item.path.clone()).or_default();
+        (*entry).insert(
+            item.position.line,
+            Reference::Line {
+                location: ReferenceLocation::Line {
+                    file_line: item,
+                    view_id: ViewId::new(),
+                },
             },
-        })
+        );
     }
 
     let mut refs = Vec::new();
     for (path, items) in refs_map {
         let open = scope.create_rw_signal(true);
+        let children = items
+            .into_iter()
+            .sorted_by(|x, y| x.0.cmp(&y.0))
+            .map(|x| x.1)
+            .collect();
         let ref_item = Reference::File {
             location: ReferenceLocation::File {
                 open,
                 path,
                 view_id: ViewId::new(),
             },
-            children: items,
+            children,
             open,
         };
         refs.push(ref_item);
