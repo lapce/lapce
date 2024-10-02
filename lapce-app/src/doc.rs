@@ -1011,7 +1011,7 @@ impl Doc {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(&self) {
+    pub fn get_inlay_hints(&self) {
         if !self.loaded() {
             return;
         }

@@ -2164,6 +2164,7 @@ impl WindowTabData {
                             doc.get_document_symbol();
                             doc.get_semantic_styles();
                             doc.get_folding_range();
+                            doc.get_inlay_hints();
                         }
                     });
                 }
