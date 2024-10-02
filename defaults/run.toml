@@ -1,3 +1,4 @@
+
 # The run config is used for both run mode and debug mode
 
 [[configs]]
@@ -7,7 +8,7 @@ name = "task"
 # the type of the debugger. If not set, it can't be debugged but can still be run
 # type = "lldb"
 
-# the program to run
+# the program to run, e.g. "${workspace}\\target\\debug\\check.exe"
 program = ""
 
 # the program arguments, e.g. args = ["arg1", "arg2"], optional
