@@ -37,7 +37,7 @@ pub struct ThemeColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ThemeBaseConfig(BTreeMap<String, String>);
+pub struct ThemeBaseConfig(pub BTreeMap<String, String>);
 
 impl ThemeBaseConfig {
     /// Resolve the variables in this theme base config into the actual colors.  
