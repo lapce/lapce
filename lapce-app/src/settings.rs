@@ -21,7 +21,7 @@ use floem::{
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
-use lapce_core::mode::Mode;
+use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
@@ -1054,12 +1054,48 @@ pub fn theme_color_settings_view(
         max_width
     });
 
+    let cx = Scope::current();
+    let search_editor = editors.make_local(cx, common.clone());
+    let buffer = search_editor.doc_signal().get_untracked().buffer;
+
     scroll(
         stack((
+            container({
+                TextInputBuilder::new()
+                    .build_editor(search_editor)
+                    .placeholder(|| "Search Settings".to_string())
+                    .keyboard_navigatable()
+                    .style(move |s| {
+                        s.width_pct(100.0)
+                            .border_radius(6.0)
+                            .border(1.0)
+                            .border_color(
+                                config.get().color(LapceColor::LAPCE_BORDER),
+                            )
+                    })
+                    .request_focus(|| {})
+            })
+            .style(|s| s.padding_vert(20.0).padding_horiz(20.0)),
             color_section_list(
                 "base",
                 "Base Colors",
-                move || config.with(|c| c.color_theme.base.key_values()),
+                move || {
+                    let filter = buffer.get().text().to_string();
+                    config.with(|c| {
+                        c.color_theme
+                            .base
+                            .0
+                            .iter()
+                            .filter_map(|x| {
+                                if x.0.contains(&filter) {
+                                    Some((x.0.clone(), x.1.clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<BTreeMap<String, String>>()
+                    })
+                },
                 max_width,
                 text_height,
                 editors,
@@ -1068,7 +1104,22 @@ pub fn theme_color_settings_view(
             color_section_list(
                 "syntax",
                 "Syntax Colors",
-                move || config.with(|c| c.color_theme.syntax.clone()),
+                move || {
+                    let filter = buffer.get().text().to_string();
+                    config.with(|c| {
+                        c.color_theme
+                            .syntax
+                            .iter()
+                            .filter_map(|x| {
+                                if x.0.contains(&filter) {
+                                    Some((x.0.clone(), x.1.clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<BTreeMap<String, String>>()
+                    })
+                },
                 max_width,
                 text_height,
                 editors,
@@ -1077,7 +1128,22 @@ pub fn theme_color_settings_view(
             color_section_list(
                 "ui",
                 "UI Colors",
-                move || config.with(|c| c.color_theme.ui.clone()),
+                move || {
+                    let filter = buffer.get().text().to_string();
+                    config.with(|c| {
+                        c.color_theme
+                            .ui
+                            .iter()
+                            .filter_map(|x| {
+                                if x.0.contains(&filter) {
+                                    Some((x.0.clone(), x.1.clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<BTreeMap<String, String>>()
+                    })
+                },
                 max_width,
                 text_height,
                 editors,
