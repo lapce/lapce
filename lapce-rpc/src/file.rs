@@ -232,6 +232,7 @@ impl Naming {
                     err: n.state.err().map(ToString::to_string),
                 },
                 is_dir: n.is_dir,
+                is_root: false,
                 open: false,
                 level: level + 1,
             }),
@@ -241,6 +242,7 @@ impl Naming {
                     err: d.state.err().map(ToString::to_string),
                 },
                 is_dir,
+                is_root: false,
                 open: false,
                 level: level + 1,
             }),
@@ -253,6 +255,7 @@ impl Naming {
 pub struct FileNodeViewData {
     pub kind: FileNodeViewKind,
     pub is_dir: bool,
+    pub is_root: bool,
     pub open: bool,
     pub level: usize,
 }
@@ -472,6 +475,7 @@ impl FileNodeItem {
             view_items.push(FileNodeViewData {
                 kind,
                 is_dir: self.is_dir,
+                is_root: level == 1,
                 open: self.open,
                 level,
             });

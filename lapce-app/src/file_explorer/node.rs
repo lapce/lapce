@@ -17,7 +17,7 @@ impl FileNodeVirtualList {
 
 impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
     fn total_len(&self) -> usize {
-        self.file_node_item.children_open_count
+        self.file_node_item.children_open_count + 1
     }
 
     fn slice(
@@ -31,7 +31,7 @@ impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
         let max = range.end;
         let mut view_items = Vec::new();
 
-        root.append_children_view_slice(&mut view_items, naming, min, max, 0, 0);
+        root.append_view_slice(&mut view_items, naming, min, max, 0, 1);
 
         view_items.into_iter()
     }
