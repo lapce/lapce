@@ -801,14 +801,20 @@ impl ExpandedRunDebug {
             } else {
                 (run_debug.program.clone(), run_debug.args.clone())
             };
-
-        let program = if program == "${lapce}" {
+        let mut program = if program == "${lapce}" {
             std::env::current_exe().map_err(|e| {
                 anyhow!("Failed to get current exe for ${{lapce}} run and debug: {e}")
             })?.to_str().ok_or_else(|| anyhow!("Failed to convert ${{lapce}} path to str"))?.to_string()
         } else {
             program
         };
+
+        if program.contains("${workspace}") {
+            if let Some(workspace) = workspace.path.as_ref().and_then(|x| x.to_str())
+            {
+                program = program.replace("${workspace}", workspace);
+            }
+        }
 
         if let Some(args) = &mut args {
             for arg in args {
