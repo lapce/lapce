@@ -25,6 +25,7 @@ use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::{
     command::CommandExecuted,
@@ -74,6 +75,7 @@ struct SettingsItem {
     description: String,
     filter_text: String,
     value: SettingsValue,
+    serde_value: Value,
     pos: RwSignal<Point>,
     size: RwSignal<Size>,
     // this is only the header that give an visual sepeartion between different type of settings
@@ -82,8 +84,8 @@ struct SettingsItem {
 
 #[derive(Clone, Debug)]
 struct SettingsData {
-    items: im::Vector<SettingsItem>,
-    kinds: im::Vector<(String, RwSignal<Point>)>,
+    items: RwSignal<im::Vector<SettingsItem>>,
+    kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
     plugin_items: RwSignal<im::Vector<SettingsItem>>,
     plugin_kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
     filtered_items: RwSignal<im::Vector<SettingsItem>>,
@@ -142,91 +144,104 @@ impl SettingsData {
             }
         }
 
-        let config = common.config.get_untracked();
-        let mut items = im::Vector::new();
-        let mut kinds = im::Vector::new();
-        let mut item_height_accum = 0.0;
-
-        for (kind, fields, descs, mut settings_map) in [
-            (
-                "Core",
-                &CoreConfig::FIELDS[..],
-                &CoreConfig::DESCS[..],
-                into_settings_map(&config.core),
-            ),
-            (
-                "Editor",
-                &EditorConfig::FIELDS[..],
-                &EditorConfig::DESCS[..],
-                into_settings_map(&config.editor),
-            ),
-            (
-                "UI",
-                &UIConfig::FIELDS[..],
-                &UIConfig::DESCS[..],
-                into_settings_map(&config.ui),
-            ),
-            (
-                "Terminal",
-                &TerminalConfig::FIELDS[..],
-                &TerminalConfig::DESCS[..],
-                into_settings_map(&config.terminal),
-            ),
-        ] {
-            let pos = cx.create_rw_signal(Point::new(0.0, item_height_accum));
-            items.push_back(SettingsItem {
-                kind: kind.to_string(),
-                name: "".to_string(),
-                field: "".to_string(),
-                filter_text: "".to_string(),
-                description: "".to_string(),
-                value: SettingsValue::Empty,
-                pos,
-                size: cx.create_rw_signal(Size::ZERO),
-                header: true,
-            });
-            kinds.push_back((kind.to_string(), pos));
-            for (name, desc) in fields.iter().zip(descs.iter()) {
-                let field = name.replace('_', "-");
-
-                let value = if let Some(dropdown) =
-                    config.get_dropdown_info(&kind.to_lowercase(), &field)
-                {
-                    SettingsValue::Dropdown(dropdown)
-                } else {
-                    let value = settings_map.remove(&field).unwrap();
-                    SettingsValue::from(value)
-                };
-
-                let name =
-                    format!("{kind}: {}", name.replace('_', " ").to_title_case());
-                let kind = kind.to_lowercase();
-                let filter_text = format!("{kind} {name} {desc}").to_lowercase();
-                let filter_text =
-                    format!("{filter_text}{}", filter_text.replace(' ', ""));
-                items.push_back(SettingsItem {
-                    kind,
-                    name,
-                    field,
-                    filter_text,
-                    description: desc.to_string(),
-                    value,
-                    pos: cx.create_rw_signal(Point::ZERO),
-                    size: cx.create_rw_signal(Size::ZERO),
-                    header: false,
-                });
-                item_height_accum += 50.0;
-            }
-        }
-
+        let config = common.config;
         let plugin_items = cx.create_rw_signal(im::Vector::new());
         let plugin_kinds = cx.create_rw_signal(im::Vector::new());
-
+        let filtered_items = cx.create_rw_signal(im::Vector::new());
+        let items = cx.create_rw_signal(im::Vector::new());
+        let kinds = cx.create_rw_signal(im::Vector::new());
         cx.create_effect(move |_| {
-            let mut item_height_accum = item_height_accum;
+            let config = config.get();
+
+            let mut data_items = im::Vector::new();
+            let mut data_kinds = im::Vector::new();
+            let mut item_height_accum = 0.0;
+            for (kind, fields, descs, mut settings_map) in [
+                (
+                    "Core",
+                    &CoreConfig::FIELDS[..],
+                    &CoreConfig::DESCS[..],
+                    into_settings_map(&config.core),
+                ),
+                (
+                    "Editor",
+                    &EditorConfig::FIELDS[..],
+                    &EditorConfig::DESCS[..],
+                    into_settings_map(&config.editor),
+                ),
+                (
+                    "UI",
+                    &UIConfig::FIELDS[..],
+                    &UIConfig::DESCS[..],
+                    into_settings_map(&config.ui),
+                ),
+                (
+                    "Terminal",
+                    &TerminalConfig::FIELDS[..],
+                    &TerminalConfig::DESCS[..],
+                    into_settings_map(&config.terminal),
+                ),
+            ] {
+                let pos = cx.create_rw_signal(Point::new(0.0, item_height_accum));
+                data_items.push_back(SettingsItem {
+                    kind: kind.to_string(),
+                    name: "".to_string(),
+                    field: "".to_string(),
+                    filter_text: "".to_string(),
+                    description: "".to_string(),
+                    value: SettingsValue::Empty,
+                    serde_value: Value::Null,
+                    pos,
+                    size: cx.create_rw_signal(Size::ZERO),
+                    header: true,
+                });
+                data_kinds.push_back((kind.to_string(), pos));
+                for (name, desc) in fields.iter().zip(descs.iter()) {
+                    let field = name.replace('_', "-");
+
+                    let (value, serde_value) = if let Some(dropdown) =
+                        config.get_dropdown_info(&kind.to_lowercase(), &field)
+                    {
+                        let index = dropdown.active_index;
+                        (
+                            SettingsValue::Dropdown(dropdown),
+                            Value::Number(index.into()),
+                        )
+                    } else {
+                        let value = settings_map.remove(&field).unwrap();
+                        (SettingsValue::from(value.clone()), value)
+                    };
+
+                    let name = format!(
+                        "{kind}: {}",
+                        name.replace('_', " ").to_title_case()
+                    );
+                    let kind = kind.to_lowercase();
+                    let filter_text = format!("{kind} {name} {desc}").to_lowercase();
+                    let filter_text =
+                        format!("{filter_text}{}", filter_text.replace(' ', ""));
+                    data_items.push_back(SettingsItem {
+                        kind,
+                        name,
+                        field,
+                        filter_text,
+                        description: desc.to_string(),
+                        value,
+                        pos: cx.create_rw_signal(Point::ZERO),
+                        size: cx.create_rw_signal(Size::ZERO),
+                        serde_value,
+                        header: false,
+                    });
+                    item_height_accum += 50.0;
+                }
+            }
+
+            filtered_items.set(data_items.clone());
+            items.set(data_items);
+
             let plugins = installed_plugin.get();
-            let mut items = im::Vector::new();
-            let mut kinds = im::Vector::new();
+            let mut setting_items = im::Vector::new();
+            let mut plugin_kinds_tmp = im::Vector::new();
             for (_, volt) in plugins {
                 let meta = volt.meta.get();
                 let kind = meta.name;
@@ -234,18 +249,19 @@ impl SettingsData {
                 if let Some(config) = meta.config {
                     let pos =
                         cx.create_rw_signal(Point::new(0.0, item_height_accum));
-                    items.push_back(SettingsItem {
+                    setting_items.push_back(SettingsItem {
                         kind: meta.display_name.clone(),
                         name: "".to_string(),
                         field: "".to_string(),
                         filter_text: "".to_string(),
                         description: "".to_string(),
                         value: SettingsValue::Empty,
+                        serde_value: Value::Null,
                         pos,
                         size: cx.create_rw_signal(Size::ZERO),
                         header: true,
                     });
-                    kinds.push_back((meta.display_name.clone(), pos));
+                    plugin_kinds_tmp.push_back((meta.display_name.clone(), pos));
 
                     {
                         let mut local_items = Vec::new();
@@ -279,22 +295,24 @@ impl SettingsData {
                                 value,
                                 pos: cx.create_rw_signal(Point::ZERO),
                                 size: cx.create_rw_signal(Size::ZERO),
+                                serde_value: Value::Null,
                                 header: false,
                             };
                             local_items.push(item);
                             item_height_accum += 50.0;
                         }
                         local_items.sort_by_key(|i| i.name.clone());
-                        items.extend(local_items.into_iter());
+                        setting_items.extend(local_items.into_iter());
                     }
                 }
             }
-            plugin_items.set(items);
-            plugin_kinds.set(kinds);
+            plugin_items.set(setting_items);
+            plugin_kinds.set(plugin_kinds_tmp);
+            kinds.set(data_kinds);
         });
 
         Self {
-            filtered_items: cx.create_rw_signal(items.clone()),
+            filtered_items,
             plugin_items,
             plugin_kinds,
             items,
@@ -326,9 +344,8 @@ pub fn settings_view(
         let doc = doc.get();
         let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
         let plugin_items = settings_data.plugin_items.get();
-
+        let mut items = items.get();
         if pattern.is_empty() {
-            let mut items = items.clone();
             items.extend(plugin_items);
             filtered_items_signal.set(items);
             return;
@@ -365,6 +382,7 @@ pub fn settings_view(
                 }
             }
 
+            let kinds = kinds.get();
             for (kind, pos) in kinds.iter().rev() {
                 if pos.get_untracked().y < scroll_y {
                     return kind.to_string();
@@ -416,7 +434,7 @@ pub fn settings_view(
     let switcher = || {
         stack((
             dyn_stack(
-                move || kinds.clone(),
+                move || kinds.get().clone(),
                 |(k, _)| k.clone(),
                 move |(k, pos)| switcher_item(k, Box::new(move || Some(pos)), 0.0),
             )
@@ -488,7 +506,13 @@ pub fn settings_view(
                 scroll({
                     dyn_stack(
                         move || filtered_items_signal.get(),
-                        |item| (item.kind.clone(), item.name.clone()),
+                        |item| {
+                            (
+                                item.kind.clone(),
+                                item.name.clone(),
+                                item.serde_value.clone(),
+                            )
+                        },
                         move |item| {
                             settings_item_view(
                                 editors,
