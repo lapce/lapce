@@ -1667,6 +1667,14 @@ fn client_capabilities() -> ClientCapabilities {
     // https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/lsp-extensions.md#server-status
     let mut experimental = Map::new();
     experimental.insert("serverStatusNotification".into(), true.into());
+    let command_vec = ["rust-analyzer.runSingle", "rust-analyzer.debugSingle"]
+        .map(Value::from)
+        .to_vec();
+
+    let mut commands = Map::new();
+    experimental.insert("serverStatusNotification".into(), true.into());
+    commands.insert("commands".into(), command_vec.into());
+    experimental.insert("commands".into(), commands.into());
     ClientCapabilities {
         text_document: Some(TextDocumentClientCapabilities {
             synchronization: Some(TextDocumentSyncClientCapabilities {
