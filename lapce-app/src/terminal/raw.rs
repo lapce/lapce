@@ -122,9 +122,6 @@ impl RawTerminal {
                 rows.push(row_cell);
             }
         }
-        for line in &lines {
-            tracing::info!("{}", line);
-        }
         lines
     }
 }
