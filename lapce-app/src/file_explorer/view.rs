@@ -175,22 +175,56 @@ fn file_node_text_view(
     let ui_line_height = data.common.ui_line_height;
 
     match node.kind.clone() {
-        FileNodeViewKind::Path(path) => container(
-            label(move || {
-                path.file_name()
-                    .map(|f| f.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            })
-            .style(move |s| {
-                s.height(ui_line_height.get())
-                    .color(file_node_text_color(
-                        config,
-                        node.clone(),
-                        source_control.clone(),
-                    ))
-                    .selectable(false)
-            }),
-        ),
+        FileNodeViewKind::Path(path) => {
+            if node.is_root {
+                let file = path.clone();
+                container((
+                    label(move || {
+                        file.file_name()
+                            .map(|f| f.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    })
+                    .style(move |s| {
+                        s.height(ui_line_height.get())
+                            .color(file_node_text_color(
+                                config,
+                                node.clone(),
+                                source_control.clone(),
+                            ))
+                            .padding_right(5.0)
+                            .selectable(false)
+                    }),
+                    label(move || path.to_string_lossy().to_string()).style(
+                        move |s| {
+                            s.height(ui_line_height.get())
+                                .color(
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_FOREGROUND_DIM),
+                                )
+                                .selectable(false)
+                        },
+                    ),
+                ))
+            } else {
+                container(
+                    label(move || {
+                        path.file_name()
+                            .map(|f| f.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    })
+                    .style(move |s| {
+                        s.height(ui_line_height.get())
+                            .color(file_node_text_color(
+                                config,
+                                node.clone(),
+                                source_control.clone(),
+                            ))
+                            .selectable(false)
+                    }),
+                )
+            }
+        }
         FileNodeViewKind::Renaming { path, err } => {
             if data.naming.with_untracked(Naming::editor_needs_reset) {
                 initialize_naming_editor_with_path(&data, &path);
