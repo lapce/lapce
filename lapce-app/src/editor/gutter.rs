@@ -311,21 +311,10 @@ impl FoldingRange {
             start_character,
             end_line,
             end_character,
-            kind,
             collapsed_text,
+            ..
         } = value;
-        let status = if kind
-            .as_ref()
-            .map(|x| {
-                x == &lsp_types::FoldingRangeKind::Imports
-                // || x == &lsp_types::FoldingRangeKind::Comment
-            })
-            .unwrap_or_default()
-        {
-            FoldingRangeStatus::Fold
-        } else {
-            FoldingRangeStatus::Unfold
-        };
+        let status = FoldingRangeStatus::Unfold;
         Self {
             start: FoldingPosition {
                 line: start_line,
@@ -359,14 +348,14 @@ pub enum FoldingRangeStatus {
 
 impl FoldingRangeStatus {
     pub fn click(&mut self) {
-        match self {
-            FoldingRangeStatus::Fold => {
-                *self = FoldingRangeStatus::Unfold;
-            }
-            FoldingRangeStatus::Unfold => {
-                *self = FoldingRangeStatus::Fold;
-            }
-        }
+        // match self {
+        //     FoldingRangeStatus::Fold => {
+        //         *self = FoldingRangeStatus::Unfold;
+        //     }
+        //     FoldingRangeStatus::Unfold => {
+        //         *self = FoldingRangeStatus::Fold;
+        //     }
+        // }
     }
     pub fn is_folded(&self) -> bool {
         *self == Self::Fold
