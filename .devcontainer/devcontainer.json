@@ -1,0 +1,5 @@
+{
+    "image": "ghcr.io/lapce/lapdev-devcontainer-lapce",
+    "forwardPorts": [6080],
+}
+
