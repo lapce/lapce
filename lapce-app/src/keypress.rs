@@ -335,6 +335,7 @@ impl KeyPressData {
         let mods = keypress.mods;
         match &keymatch {
             KeymapMatch::Full(command) => {
+                tracing::debug!("handle_keymatch {:?}", command);
                 self.pending_keypress
                     .update(|(pending_keypress, last_time)| {
                         last_time.take();
