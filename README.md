@@ -44,7 +44,7 @@ If you'd like to compile from source, you can find the [guide](docs/building-fro
 ## Contributing
 
 <a href="https://ws.lap.dev/#https://github.com/lapce/lapce" target="_blank">
-      <img src="https://lap.dev/images/open-in-lapdev.png" alt="Open in Lapdev">
+      <img src="https://lap.dev/images/open-in-lapdev.svg?version=8" alt="Open in Lapdev">
 </a>
 
 [Lapdev](https://lap.dev/) is a cloud dev env similar to GitHub Codespaces. By clicking the button above, you'll be taken to a fully set up Lapce dev env where you can browse the code and start developing. All dependencies are pre-installed, so you can get straight to code.
