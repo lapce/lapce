@@ -43,6 +43,10 @@ If you'd like to compile from source, you can find the [guide](docs/building-fro
 
 ## Contributing
 
+<a href="https://ws.lap.dev/#https://github.com/lapce/lapce" target="_blank">
+      <img src="https://lap.dev/images/open-in-lapdev.svg" alt="Open in Lapdev">
+</a>
+
 Guidelines for contributing to Lapce can be found in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Feedback & Contact
