@@ -220,51 +220,6 @@ pub enum ProxyRequest {
     ReferencesResolve {
         items: Vec<Location>,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum ProxyNotification {
-    Initialize {
-        workspace: Option<PathBuf>,
-        disabled_volts: Vec<VoltID>,
-        /// Paths to extra plugins that should be loaded
-        extra_plugin_paths: Vec<PathBuf>,
-        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
-        window_id: usize,
-        tab_id: usize,
-    },
-    OpenFileChanged {
-        path: PathBuf,
-    },
-    OpenPaths {
-        paths: Vec<PathObject>,
-    },
-    Shutdown {},
-    Completion {
-        request_id: usize,
-        path: PathBuf,
-        input: String,
-        position: Position,
-    },
-    SignatureHelp {
-        request_id: usize,
-        path: PathBuf,
-        position: Position,
-    },
-    Update {
-        path: PathBuf,
-        delta: RopeDelta,
-        rev: u64,
-    },
-    UpdatePluginConfigs {
-        configs: HashMap<String, HashMap<String, serde_json::Value>>,
-    },
-    NewTerminal {
-        term_id: TermId,
-        profile: TerminalProfile,
-    },
     InstallVolt {
         volt: VoltInfo,
     },
@@ -279,6 +234,51 @@ pub enum ProxyNotification {
     },
     EnableVolt {
         volt: VoltInfo,
+    },
+    Initialize {
+        workspace: Option<PathBuf>,
+        disabled_volts: Vec<VoltID>,
+        /// Paths to extra plugins that should be loaded
+        extra_plugin_paths: Vec<PathBuf>,
+        plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
+        window_id: usize,
+        tab_id: usize,
+    },
+    Completion {
+        request_id: usize,
+        path: PathBuf,
+        input: String,
+        position: Position,
+    },
+    SignatureHelp {
+        request_id: usize,
+        path: PathBuf,
+        position: Position,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum ProxyNotification {
+    OpenFileChanged {
+        path: PathBuf,
+    },
+    OpenPaths {
+        paths: Vec<PathObject>,
+    },
+    Shutdown {},
+    Update {
+        path: PathBuf,
+        delta: RopeDelta,
+        rev: u64,
+    },
+    UpdatePluginConfigs {
+        configs: HashMap<String, HashMap<String, serde_json::Value>>,
+    },
+    NewTerminal {
+        term_id: TermId,
+        profile: TerminalProfile,
     },
     GitCommit {
         message: String,
@@ -610,23 +610,23 @@ impl ProxyRpcHandler {
     }
 
     pub fn install_volt(&self, volt: VoltInfo) {
-        self.notification(ProxyNotification::InstallVolt { volt });
+        self.request_async(ProxyRequest::InstallVolt { volt }, |_| {});
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) {
-        self.notification(ProxyNotification::ReloadVolt { volt });
+        self.request_async(ProxyRequest::ReloadVolt { volt }, |_| {});
     }
 
     pub fn remove_volt(&self, volt: VoltMetadata) {
-        self.notification(ProxyNotification::RemoveVolt { volt });
+        self.request_async(ProxyRequest::RemoveVolt { volt }, |_| {});
     }
 
     pub fn disable_volt(&self, volt: VoltInfo) {
-        self.notification(ProxyNotification::DisableVolt { volt });
+        self.request_async(ProxyRequest::DisableVolt { volt }, |_| {});
     }
 
     pub fn enable_volt(&self, volt: VoltInfo) {
-        self.notification(ProxyNotification::EnableVolt { volt });
+        self.request_async(ProxyRequest::EnableVolt { volt }, |_| {});
     }
 
     pub fn shutdown(&self) {
@@ -645,14 +645,17 @@ impl ProxyRpcHandler {
         window_id: usize,
         tab_id: usize,
     ) {
-        self.notification(ProxyNotification::Initialize {
-            workspace,
-            disabled_volts,
-            extra_plugin_paths,
-            plugin_configurations,
-            window_id,
-            tab_id,
-        });
+        self.request_async(
+            ProxyRequest::Initialize {
+                workspace,
+                disabled_volts,
+                extra_plugin_paths,
+                plugin_configurations,
+                window_id,
+                tab_id,
+            },
+            |_| {},
+        );
     }
 
     pub fn completion(
@@ -662,12 +665,15 @@ impl ProxyRpcHandler {
         input: String,
         position: Position,
     ) {
-        self.notification(ProxyNotification::Completion {
-            request_id,
-            path,
-            input,
-            position,
-        });
+        self.request_async(
+            ProxyRequest::Completion {
+                request_id,
+                path,
+                input,
+                position,
+            },
+            |_| {},
+        );
     }
 
     pub fn signature_help(
@@ -676,11 +682,14 @@ impl ProxyRpcHandler {
         path: PathBuf,
         position: Position,
     ) {
-        self.notification(ProxyNotification::SignatureHelp {
-            request_id,
-            path,
-            position,
-        });
+        self.request_async(
+            ProxyRequest::SignatureHelp {
+                request_id,
+                path,
+                position,
+            },
+            |_| {},
+        );
     }
 
     pub fn new_terminal(&self, term_id: TermId, profile: TerminalProfile) {

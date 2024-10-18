@@ -68,50 +68,6 @@ impl ProxyHandler for Dispatcher {
     fn handle_notification(&mut self, rpc: ProxyNotification) {
         use ProxyNotification::*;
         match rpc {
-            Initialize {
-                workspace,
-                disabled_volts,
-                extra_plugin_paths,
-                plugin_configurations,
-                window_id,
-                tab_id,
-            } => {
-                self.window_id = window_id;
-                self.tab_id = tab_id;
-                self.workspace = workspace;
-                self.file_watcher.notify(FileWatchNotifier::new(
-                    self.workspace.clone(),
-                    self.core_rpc.clone(),
-                    self.proxy_rpc.clone(),
-                ));
-                if let Some(workspace) = self.workspace.as_ref() {
-                    self.file_watcher
-                        .watch(workspace, true, WORKSPACE_EVENT_TOKEN);
-                }
-
-                let plugin_rpc = self.catalog_rpc.clone();
-                let workspace = self.workspace.clone();
-                thread::spawn(move || {
-                    let mut plugin = PluginCatalog::new(
-                        workspace,
-                        disabled_volts,
-                        extra_plugin_paths,
-                        plugin_configurations,
-                        plugin_rpc.clone(),
-                    );
-                    plugin_rpc.mainloop(&mut plugin);
-                });
-                self.core_rpc.notification(CoreNotification::ProxyStatus {
-                    status: lapce_rpc::proxy::ProxyStatus::Connected,
-                });
-
-                // send home directory for initinal filepicker dir
-                let dirs = directories::UserDirs::new();
-
-                if let Some(dirs) = dirs {
-                    self.core_rpc.home_dir(dirs.home_dir().into());
-                }
-            }
             OpenPaths { paths } => {
                 self.core_rpc
                     .notification(CoreNotification::OpenPaths { paths });
@@ -138,22 +94,6 @@ impl ProxyHandler for Dispatcher {
                     self.buffers.remove(&path);
                     self.core_rpc.open_file_changed(path, FileChanged::Delete);
                 }
-            }
-            Completion {
-                request_id,
-                path,
-                input,
-                position,
-            } => {
-                self.catalog_rpc
-                    .completion(request_id, &path, input, position);
-            }
-            SignatureHelp {
-                request_id,
-                path,
-                position,
-            } => {
-                self.catalog_rpc.signature_help(request_id, &path, position);
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
@@ -310,28 +250,6 @@ impl ProxyHandler for Dispatcher {
                     tracing::error!("{:?}", err);
                 }
             }
-            InstallVolt { volt } => {
-                let catalog_rpc = self.catalog_rpc.clone();
-                if let Err(err) = catalog_rpc.install_volt(volt) {
-                    tracing::error!("{:?}", err);
-                }
-            }
-            ReloadVolt { volt } => {
-                if let Err(err) = self.catalog_rpc.reload_volt(volt) {
-                    tracing::error!("{:?}", err);
-                }
-            }
-            RemoveVolt { volt } => {
-                self.catalog_rpc.remove_volt(volt);
-            }
-            DisableVolt { volt } => {
-                self.catalog_rpc.stop_volt(volt);
-            }
-            EnableVolt { volt } => {
-                if let Err(err) = self.catalog_rpc.enable_volt(volt) {
-                    tracing::error!("{:?}", err);
-                }
-            }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {
@@ -410,6 +328,7 @@ impl ProxyHandler for Dispatcher {
                     buffer.language_id.to_string(),
                     buffer.rev as i32,
                     content.clone(),
+                    id,
                 );
                 self.file_watcher.watch(&path, false, OPEN_FILE_EVENT_TOKEN);
                 self.buffers.insert(path, buffer);
@@ -498,6 +417,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetHover {
@@ -506,13 +426,17 @@ impl ProxyHandler for Dispatcher {
                 position,
             } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc.hover(&path, position, move |_, result| {
-                    let result = result.map(|hover| ProxyResponse::HoverResponse {
-                        request_id,
-                        hover,
-                    });
-                    proxy_rpc.handle_response(id, result);
-                });
+                self.catalog_rpc.hover(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result = result.map(|hover| {
+                            ProxyResponse::HoverResponse { request_id, hover }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                    id,
+                );
             }
             GetSignature { .. } => {}
             GetReferences { path, position } => {
@@ -526,6 +450,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GitGetRemoteFileUrl { file } => {
@@ -557,6 +482,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetTypeDefinition {
@@ -577,6 +503,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             ShowCallHierarchy { path, position } => {
@@ -590,6 +517,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             CallHierarchyIncoming {
@@ -606,6 +534,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetInlayHints { path } => {
@@ -615,12 +544,16 @@ impl ProxyHandler for Dispatcher {
                     start: Position::new(0, 0),
                     end: buffer.offset_to_position(buffer.len()),
                 };
-                self.catalog_rpc
-                    .get_inlay_hints(&path, range, move |_, result| {
+                self.catalog_rpc.get_inlay_hints(
+                    &path,
+                    range,
+                    move |_, result| {
                         let result = result
                             .map(|hints| ProxyResponse::GetInlayHints { hints });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                    id,
+                );
             }
             GetInlineCompletions {
                 path,
@@ -638,6 +571,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetSemanticTokens { path } => {
@@ -685,6 +619,7 @@ impl ProxyHandler for Dispatcher {
                             proxy_rpc.handle_response(id, Err(e));
                         }
                     },
+                    id,
                 );
             }
             GetCodeActions {
@@ -703,36 +638,46 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetDocumentSymbols { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_document_symbols(&path, move |_, result| {
+                self.catalog_rpc.get_document_symbols(
+                    &path,
+                    move |_, result| {
                         let result = result
                             .map(|resp| ProxyResponse::GetDocumentSymbols { resp });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                    id,
+                );
             }
             GetWorkspaceSymbols { query } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_workspace_symbols(query, move |_, result| {
+                self.catalog_rpc.get_workspace_symbols(
+                    query,
+                    move |_, result| {
                         let result = result.map(|symbols| {
                             ProxyResponse::GetWorkspaceSymbols { symbols }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                    id,
+                );
             }
             GetDocumentFormatting { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_document_formatting(&path, move |_, result| {
+                self.catalog_rpc.get_document_formatting(
+                    &path,
+                    move |_, result| {
                         let result = result.map(|edits| {
                             ProxyResponse::GetDocumentFormatting { edits }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                    id,
+                );
             }
             PrepareRename { path, position } => {
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -744,6 +689,7 @@ impl ProxyHandler for Dispatcher {
                             result.map(|resp| ProxyResponse::PrepareRename { resp });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             Rename {
@@ -761,6 +707,7 @@ impl ProxyHandler for Dispatcher {
                             result.map(|edit| ProxyResponse::Rename { edit });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetFiles { .. } => {
@@ -1076,6 +1023,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             CodeActionResolve {
@@ -1094,6 +1042,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             DapVariable { dap_id, reference } => {
@@ -1122,13 +1071,16 @@ impl ProxyHandler for Dispatcher {
             }
             GetCodeLens { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .get_code_lens(&path, move |plugin_id, result| {
+                self.catalog_rpc.get_code_lens(
+                    &path,
+                    move |plugin_id, result| {
                         let result = result.map(|resp| {
                             ProxyResponse::GetCodeLensResponse { plugin_id, resp }
                         });
                         proxy_rpc.handle_response(id, result);
-                    });
+                    },
+                    id,
+                );
             }
             LspFoldingRange { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
@@ -1159,6 +1111,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GotoImplementation { path, position } => {
@@ -1175,6 +1128,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             ReferencesResolve { items } => {
@@ -1200,6 +1154,90 @@ impl ProxyHandler for Dispatcher {
                     .collect();
                 let resp = ProxyResponse::ReferencesResolveResponse { items };
                 self.proxy_rpc.handle_response(id, Ok(resp));
+            }
+            InstallVolt { volt } => {
+                let catalog_rpc = self.catalog_rpc.clone();
+                if let Err(err) = catalog_rpc.install_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            ReloadVolt { volt } => {
+                if let Err(err) = self.catalog_rpc.reload_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            RemoveVolt { volt } => {
+                self.catalog_rpc.remove_volt(id, volt);
+            }
+            DisableVolt { volt } => {
+                self.catalog_rpc.stop_volt(id, volt);
+            }
+            EnableVolt { volt } => {
+                if let Err(err) = self.catalog_rpc.enable_volt(id, volt) {
+                    tracing::error!("{:?}", err);
+                }
+            }
+            Completion {
+                request_id,
+                path,
+                input,
+                position,
+            } => {
+                self.catalog_rpc
+                    .completion(request_id, id, &path, input, position);
+            }
+            SignatureHelp {
+                request_id,
+                path,
+                position,
+            } => {
+                self.catalog_rpc
+                    .signature_help(request_id, id, &path, position);
+            }
+            Initialize {
+                workspace,
+                disabled_volts,
+                extra_plugin_paths,
+                plugin_configurations,
+                window_id,
+                tab_id,
+            } => {
+                self.window_id = window_id;
+                self.tab_id = tab_id;
+                self.workspace = workspace;
+                self.file_watcher.notify(FileWatchNotifier::new(
+                    self.workspace.clone(),
+                    self.core_rpc.clone(),
+                    self.proxy_rpc.clone(),
+                ));
+                if let Some(workspace) = self.workspace.as_ref() {
+                    self.file_watcher
+                        .watch(workspace, true, WORKSPACE_EVENT_TOKEN);
+                }
+
+                let plugin_rpc = self.catalog_rpc.clone();
+                let workspace = self.workspace.clone();
+                thread::spawn(move || {
+                    let mut plugin = PluginCatalog::new(
+                        id,
+                        workspace,
+                        disabled_volts,
+                        extra_plugin_paths,
+                        plugin_configurations,
+                        plugin_rpc.clone(),
+                    );
+                    plugin_rpc.mainloop(&mut plugin);
+                });
+                self.core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: lapce_rpc::proxy::ProxyStatus::Connected,
+                });
+
+                // send home directory for initinal filepicker dir
+                let dirs = directories::UserDirs::new();
+
+                if let Some(dirs) = dirs {
+                    self.core_rpc.home_dir(dirs.home_dir().into());
+                }
             }
         }
     }
