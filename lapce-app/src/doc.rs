@@ -1096,40 +1096,40 @@ impl Doc {
     }
 
     pub fn get_folding_range(&self) {
-        let cx = self.scope;
-        let doc = self.clone();
-        let rev = self.rev();
-        if let DocContent::File { path, .. } = doc.content.get_untracked() {
-            let send = create_ext_action(cx, {
-                move |result| {
-                    if rev != doc.rev() {
-                        return;
-                    }
-                    if let Ok(ProxyResponse::LspFoldingRangeResponse {
-                        resp, ..
-                    }) = result
-                    {
-                        let folding = resp
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|x| {
-                                crate::editor::gutter::FoldingRange::from_lsp(x)
-                            })
-                            .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
-                            .collect();
-                        doc.folding_ranges.update(|symbol| {
-                            symbol.0 = folding;
-                        });
-                    }
-                }
-            });
+        // let cx = self.scope;
+        // let doc = self.clone();
+        // let rev = self.rev();
+        // if let DocContent::File { path, .. } = doc.content.get_untracked() {
+        //     let send = create_ext_action(cx, {
+        //         move |result| {
+        //             if rev != doc.rev() {
+        //                 return;
+        //             }
+        //             if let Ok(ProxyResponse::LspFoldingRangeResponse {
+        //                 resp, ..
+        //             }) = result
+        //             {
+        //                 let folding = resp
+        //                     .unwrap_or_default()
+        //                     .into_iter()
+        //                     .map(|x| {
+        //                         crate::editor::gutter::FoldingRange::from_lsp(x)
+        //                     })
+        //                     .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
+        //                     .collect();
+        //                 doc.folding_ranges.update(|symbol| {
+        //                     symbol.0 = folding;
+        //                 });
+        //             }
+        //         }
+        //     });
 
-            self.common
-                .proxy
-                .get_lsp_folding_range(path, move |result| {
-                    send(result);
-                });
-        }
+        //     self.common
+        //         .proxy
+        //         .get_lsp_folding_range(path, move |result| {
+        //             send(result);
+        //         });
+        // }
     }
 
     /// Get the current completion lens text
