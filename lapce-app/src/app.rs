@@ -3704,7 +3704,7 @@ pub fn launch() {
         args.push("--wait".to_string());
         let mut cmd = std::process::Command::new(&args[0]);
         #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
 
         let stderr_file_path =
             Directory::logs_directory().unwrap().join("stderr.log");
@@ -4001,6 +4001,9 @@ pub fn load_shell_env() {
         "-Command",
         "Get-ChildItem env: | ForEach-Object { \"{0}={1}\" -f $_.Name, $_.Value }",
     ]);
+
+    #[cfg(windows)]
+    cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
 
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
