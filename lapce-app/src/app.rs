@@ -4003,7 +4003,7 @@ pub fn load_shell_env() {
     ]);
 
     #[cfg(windows)]
-    cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
+    command.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
 
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
