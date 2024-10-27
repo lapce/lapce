@@ -152,6 +152,7 @@ pub fn register_lapce_path() -> Result<()> {
         }
     }
 
+    tracing::info!("Successfully registered Lapce path: {:?}", path);
     Ok(())
 }
 
@@ -198,11 +199,12 @@ pub fn get_url<T: reqwest::IntoUrl + Clone>(
     if let Some(user_agent) = user_agent {
         builder = builder.user_agent(user_agent);
     }
+    const MAX_RETRIES: u8 = 3;
     let client = builder.build()?;
     let mut try_time = 0;
     loop {
         let rs = client.get(url.clone()).send();
-        if rs.is_ok() || try_time > 3 {
+        if rs.is_ok() || try_time > MAX_RETRIES {
             return Ok(rs?);
         } else {
             try_time += 1;
