@@ -185,9 +185,7 @@ impl BracketParser {
             "bracket.color.3".to_string(),
         ];
         if self.active
-            && code
-                .chars()
-                .fold(0, |i, c| if c == '\n' { i + 1 } else { i })
+            && code.chars().filter(|&c| c == '\n').count()
                 < self.limit as usize
         {
             self.bracket_pos = HashMap::new();
@@ -245,10 +243,7 @@ impl BracketParser {
     }
 
     fn is_left(c: &char) -> bool {
-        if *c == '(' || *c == '{' || *c == '[' {
-            return true;
-        }
-        false
+        *c == '(' || *c == '{' || *c == '['
     }
 
     fn parse(&mut self) {
@@ -283,7 +278,7 @@ impl BracketParser {
                     pair_node.children.push(left_node);
                     self.cur += 1;
                     self.parse_bracket(level + 1, &mut pair_node);
-                    parent_node.children.push(pair_node.clone());
+                    parent_node.children.push(pair_node);
                     counter = 0;
                 } else if level <= parent_node.level {
                     let code_node = ASTNode::new_with_type(NodeType::Code, counter);
