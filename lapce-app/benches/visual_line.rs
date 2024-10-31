@@ -54,7 +54,7 @@ impl<'a> TextLayoutProvider for TLProv<'a> {
                 )
             } else if let Some(s) = line_content_original.strip_suffix('\n') {
                 (
-                    format!("{s} ",),
+                    format!("{s}  "),
                     &line_content_original[..line_content_original.len() - 1],
                 )
             } else {
