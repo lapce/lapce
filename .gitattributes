@@ -2,7 +2,7 @@
 *          text=auto eol=lf
 
 *.rs       text diff=rust eol=lf
-*.toml     text diff=toml eol=lf
+*.toml     text eol=lf
 Cargo.lock text eol=lf
 
 *.sh       text eol=lf
