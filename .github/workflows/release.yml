@@ -163,11 +163,9 @@ jobs:
           - os-name: ubuntu
             os-version: jammy
           - os-name: ubuntu
-            os-version: lunar
-          - os-name: ubuntu
-            os-version: mantic
-          - os-name: ubuntu
             os-version: noble
+          - os-name: ubuntu
+            os-version: oracular
     steps:
       - uses: actions/checkout@v4
 
@@ -196,8 +194,8 @@ jobs:
             os-version: 39
           - os-name: fedora
             os-version: 40
-          # - os-name: fedora
-          #   os-version: 41
+          - os-name: fedora
+            os-version: 41
           # - os-name: fedora
           #   os-version: rawhide
     steps:

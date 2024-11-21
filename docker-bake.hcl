@@ -129,13 +129,11 @@ target "ubuntu" {
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { packages = null, platforms = null, type = "package", os_version = "bionic"  }, # 18.04
-      { packages = null, platforms = null, type = "package", os_version = "focal"   }, # 20.04
-      { packages = null, platforms = null, type = "package", os_version = "jammy"   }, # 22.04
-      { packages = null, platforms = null, type = "package", os_version = "kinetic" }, # 22.10
-      { packages = null, platforms = null, type = "package", os_version = "lunar"   }, # 23.04
-      { packages = null, platforms = null, type = "package", os_version = "mantic"  }, # 23.10
-      { packages = null, platforms = null, type = "package", os_version = "noble"   }, # 24.04
+      { packages = null, platforms = null, type = "package", os_version = "bionic"   }, # 18.04
+      { packages = null, platforms = null, type = "package", os_version = "focal"    }, # 20.04
+      { packages = null, platforms = null, type = "package", os_version = "jammy"    }, # 22.04
+      { packages = null, platforms = null, type = "package", os_version = "noble"    }, # 24.04
+      { packages = null, platforms = null, type = "package", os_version = "oracular" }, # 24.10
       # static binary, it looks ugly to define the target this way
       # but I don't have a better way to make it more friendly on CLI side without
       # more terrible code-wise way to implement it
