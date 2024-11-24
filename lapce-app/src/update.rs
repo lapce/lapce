@@ -54,7 +54,7 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
 
 pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
     let dir =
-        Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
+        Directory::updates_directory().ok_or_else(|| anyhow!("Failed to locate updates directory"))?;
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
         "linux" => match std::env::consts::ARCH {
@@ -89,11 +89,8 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
 pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     let info = dmg::Attach::new(src).with()?;
     let dest = process_path.parent().ok_or_else(|| anyhow!("no parent"))?;
-    let dest = if dest.file_name().and_then(|s| s.to_str()) == Some("MacOS") {
-        dest.parent().unwrap().parent().unwrap().parent().unwrap()
-    } else {
-        dest
-    };
+    let dest = dest.parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+    .ok_or_else(|| anyhow!("Failed to determine destination path"))?;
     std::fs::remove_dir_all(dest.join("Lapce.app"))?;
     fs_extra::copy_items(
         &[info.mount_point.join("Lapce.app")],
