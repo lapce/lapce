@@ -56,10 +56,10 @@ pub fn offset_utf16_to_utf8(
         return 0;
     }
 
-    // We accumulate the utf16 char lens until we find the utf8 offset that matches it
+    // We accumulate the utf16 char lengths until we find the utf8 offset that matches it
     // or, we find out that it went into the middle of sometext
     // We also keep track of the last offset and char in order to calculate the length of the text
-    // if we the index was at the end of the string
+    // if the index was at the end of the string
     let mut utf16_offset = 0;
     let mut last_ich = None;
     for (utf8_offset, ch) in char_indices {
