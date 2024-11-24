@@ -12,6 +12,8 @@ use lapce_rpc::{
     proxy::ProxyResponse,
     terminal::{TermId, TerminalProfile},
 };
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
@@ -23,6 +25,7 @@ use crate::{
     keypress::{EventRef, KeyPressData, KeyPressFocus, KeyPressHandle},
     main_split::MainSplitData,
     panel::kind::PanelKind,
+    terminal::raw::RawTerminal,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
@@ -409,8 +412,12 @@ impl TerminalPanelData {
                 let exit_code = exit_code.unwrap_or(0);
                 if was_prelaunch == Some(true) && exit_code == 0 {
                     let run_debug = terminal.run_debug.get_untracked();
-                    if let Some(run_debug) = run_debug {
+                    if let Some(mut run_debug) = run_debug {
                         if run_debug.mode == RunDebugMode::Debug {
+                            update_executable(
+                                &mut run_debug,
+                                terminal.raw.get_untracked().clone(),
+                            );
                             self.common.proxy.dap_start(
                                 run_debug.config,
                                 self.debug.source_breakpoints(),
@@ -816,5 +823,57 @@ impl TerminalPanelData {
                     send(result);
                 });
         }
+    }
+}
+
+fn update_executable(
+    run_debug: &mut RunDebugProcess,
+    raw: Arc<RwLock<RawTerminal>>,
+) {
+    if run_debug.config.config_source.from_rust_code_lens() {
+        let lines = raw.write_arc().output(5);
+        if let Some(executable) = lines.into_iter().rev().find_map(|x| {
+            if let Ok(map) = serde_json::from_str::<RustArtifact>(&x) {
+                return map.artifact();
+            } else {
+                tracing::debug!("{}", x);
+            }
+            None
+        }) {
+            run_debug.config.program = executable;
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Profile {
+    pub test: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Target {
+    pub kind: Vec<String>,
+    pub crate_types: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RustArtifact {
+    pub reason: String,
+    pub target: Target,
+    pub profile: Profile,
+    pub executable: String,
+}
+
+impl RustArtifact {
+    pub fn artifact(self) -> Option<String> {
+        if &self.reason == "compiler-artifact" && !self.executable.is_empty() {
+            let is_binary = self.target.kind.contains(&"bin".to_owned());
+            let is_build_script =
+                self.target.crate_types.contains(&"custom-build".to_owned());
+            if (is_binary && !is_build_script) || self.profile.test {
+                return Some(self.executable);
+            }
+        }
+        None
     }
 }

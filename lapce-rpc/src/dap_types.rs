@@ -68,11 +68,15 @@ pub enum ConfigSource {
     #[default]
     Palette,
     RunInTerminal,
-    CodeLens,
+    RustCodeLens,
 }
 impl ConfigSource {
     pub fn from_palette(&self) -> bool {
         *self == Self::Palette
+    }
+
+    pub fn from_rust_code_lens(&self) -> bool {
+        *self == Self::RustCodeLens
     }
 }
 
