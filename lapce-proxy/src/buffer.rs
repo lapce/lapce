@@ -36,9 +36,9 @@ impl Buffer {
                         ("Permission Denied".to_string(), true)
                     }
                     std::io::ErrorKind::NotFound => ("".to_string(), false),
-                    _ => ("Not Supported".to_string(), true),
+                    _ => (format!("Unknown error: {}", err), true),
                 },
-                None => ("Not Supported".to_string(), true),
+                None => (format!("Non-IO error: {}", err), true),
             },
         };
         let rope = Rope::from(s);
@@ -201,7 +201,7 @@ pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
     // Parse the file contents as utf8
     let contents = String::from_utf8(buffer)?;
 
-    Ok(contents.to_string())
+    Ok(contents)
 }
 
 pub fn language_id_from_path(path: &Path) -> Option<&'static str> {

@@ -103,17 +103,11 @@ impl Snippet {
     ) -> (Vec<SnippetElement>, usize) {
         let mut elements = Vec::new();
         let mut pos = pos;
-        loop {
-            if s.len() == pos {
-                break;
-            } else if let Some((ele, end)) = Self::extract_tabstop(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) = Self::extract_placeholder(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs, loose_escs)
+
+        while pos < s.len() {
+            if let Some((ele, end)) = Self::extract_tabstop(s, pos)
+                .or_else(|| Self::extract_placeholder(s, pos))
+                .or_else(|| Self::extract_text(s, pos, escs, loose_escs))
             {
                 elements.push(ele);
                 pos = end;
@@ -143,9 +137,7 @@ impl Snippet {
             //   UTF-8 sequence boundaries, since we take the entire slice, with the
             //   exception of the first `$` char which is 1 byte in accordance with
             //   the UTF-8 standard.
-            let n = unsafe {
-                matched.as_str().get_unchecked(1..).parse::<usize>().ok()?
-            };
+            let n = matched.as_str()[1..].parse::<usize>().ok()?;
             let end = pos + matched.end();
             return Some((SnippetElement::Tabstop(n), end));
         }
