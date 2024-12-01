@@ -92,21 +92,16 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                 };
 
                 let svg_string = move || {
-                    let terminal = tab.active_terminal(true);
-                    let run_debug = terminal.as_ref().map(|t| t.run_debug);
-                    if let Some(run_debug) = run_debug {
+                    if let Some(run_debug) = tab.active_terminal(true).and_then(|t| Some(t.run_debug)) {
                         if let Some((mode, stopped)) = run_debug.with(|run_debug| {
                             run_debug.as_ref().map(|r| (r.mode, r.stopped))
                         }) {
-                            let svg = match (mode, stopped) {
+                            return match (mode, stopped) {
                                 (RunDebugMode::Run, false) => LapceIcons::START,
                                 (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
                                 (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
-                                (RunDebugMode::Debug, true) => {
-                                    LapceIcons::DEBUG_DISCONNECT
-                                }
+                                (RunDebugMode::Debug, true) => LapceIcons::DEBUG_DISCONNECT,
                             };
-                            return svg;
                         }
                     }
                     LapceIcons::TERMINAL

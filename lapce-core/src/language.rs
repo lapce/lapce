@@ -2047,7 +2047,7 @@ mod tests {
     use super::LapceLanguage;
 
     #[test]
-    fn test_lanaguage_from_path() {
+    fn test_language_from_path() {
         let l = LapceLanguage::from_path(&PathBuf::new().join("test.rs"));
         assert_eq!(l, LapceLanguage::Rust);
     }
