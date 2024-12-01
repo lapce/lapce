@@ -683,18 +683,19 @@ impl TerminalPanelData {
         Some(())
     }
 
-    pub fn dap_pause(&self, term_id: TermId) -> Option<()> {
-        let terminal = self.get_terminal(&term_id)?;
+    pub fn dap_pause(&self, term_id: TermId) -> Result<(), String> {
+        let terminal = self.get_terminal(&term_id).ok_or_else(|| "Terminal not found".to_string())?;
         let dap_id = terminal
             .run_debug
-            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))
+            .ok_or_else(|| "DAP ID not found".to_string())?;
         let thread_id = self.debug.daps.with_untracked(|daps| {
             daps.get(&dap_id)
                 .and_then(|dap| dap.thread_id.get_untracked())
         });
         let thread_id = thread_id.unwrap_or_default();
         self.common.proxy.dap_pause(dap_id, thread_id);
-        Some(())
+        Ok(())
     }
 
     pub fn dap_step_over(&self, term_id: TermId) -> Option<()> {
