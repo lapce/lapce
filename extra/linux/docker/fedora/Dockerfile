@@ -130,7 +130,7 @@ URL:      https://github.com/lapce/lapce
 Packager: Jakub Panek
 
 %description
-Lapce is written in pure Rust with a UI in Druid (which is also written in Rust).
+Lapce is written in pure Rust with a UI in Floem (which is also written in Rust).
 It is designed with Rope Science from the Xi-Editor which makes for lightning-fast computation, and leverages OpenGL for rendering.
 
 %build
@@ -162,7 +162,7 @@ install -Dm644 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.la
 - See GitHub for full changelog
 EOL
 
-/usr/bin/rpmbuild --build-in-place --noclean --noprep -bb --rmspec lapce.spec --verbose
+/usr/bin/rpmbuild --build-in-place --noclean --noprep -bb --rmspec lapce.spec --verbose -D 'debug_package %{nil}'
 ls -lahR $HOME/rpmbuild
 EOF
 
