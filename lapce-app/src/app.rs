@@ -187,12 +187,11 @@ impl AppData {
     }
 
     fn active_window(&self) -> Option<WindowData> {
-        let windows = self.windows.get_untracked();
-        let active_window = self.active_window.get_untracked();
-        windows
-            .get(&active_window)
+        self.windows
+            .get_untracked()
+            .get(&self.active_window.get_untracked())
             .cloned()
-            .or_else(|| windows.iter().next().map(|(_, window)| window.clone()))
+            .or_else(|| self.windows.get_untracked().values().next().cloned())
     }
 
     fn default_window_config(&self) -> WindowConfig {
@@ -254,7 +253,7 @@ impl AppData {
     pub fn run_app_command(&self, cmd: AppCommand) {
         match cmd {
             AppCommand::SaveApp => {
-                let db: Arc<LapceDb> = use_context().unwrap();
+                let db: Arc<LapceDb> = use_context().expect("Database context not available");
                 if let Err(err) = db.save_app(self) {
                     tracing::error!("{:?}", err);
                 }
@@ -263,7 +262,7 @@ impl AppData {
                 if self.app_terminated.get_untracked() {
                     return;
                 }
-                let db: Arc<LapceDb> = use_context().unwrap();
+                let db: Arc<LapceDb> = use_context().expect("Database context not available");
                 if self.windows.with_untracked(|w| w.len()) == 1 {
                     if let Err(err) = db.insert_app(self.clone()) {
                         tracing::error!("{:?}", err);

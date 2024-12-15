@@ -2377,10 +2377,7 @@ impl MainSplitData {
                 if let Some(tab_id) = self.editor_tabs.with_untracked(|x| {
                     for (tab_id, tab_data) in x {
                         if tab_data.with_untracked(|x| {
-                            x.children
-                                .iter()
-                                .find(|(_, _, child)| child.id() == id)
-                                .is_some()
+                            x.children.iter().any(|(_, _, child)| child.id() == id)
                         }) {
                             return Some(*tab_id);
                         }
