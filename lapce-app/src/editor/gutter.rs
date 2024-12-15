@@ -242,18 +242,18 @@ impl FoldingRanges {
                 FoldingRangeStatus::Fold => {
                     folded.insert(
                         item.start.line,
-                        FoldingDisplayItem::Folded(item.start.clone()),
+                        FoldingDisplayItem::Folded(item.start),
                     );
                     limit_line = item.end.line;
                 }
                 FoldingRangeStatus::Unfold => {
                     unfold_start.insert(
                         item.start.line,
-                        FoldingDisplayItem::UnfoldStart(item.start.clone()),
+                        FoldingDisplayItem::UnfoldStart(item.start),
                     );
                     unfold_end.insert(
                         item.end.line,
-                        FoldingDisplayItem::UnfoldEnd(item.end.clone()),
+                        FoldingDisplayItem::UnfoldEnd(item.end),
                     );
                     limit_line = 0;
                 }
@@ -265,9 +265,7 @@ impl FoldingRanges {
         for (key, val) in folded {
             unfold_start.insert(key, val);
         }
-        let items = unfold_start.into_iter().map(|x| x.1).collect();
-
-        items
+        unfold_start.into_iter().map(|x| x.1).collect()
     }
 }
 
