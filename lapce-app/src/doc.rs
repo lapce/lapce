@@ -706,7 +706,7 @@ impl Doc {
         let config = self.common.config.get_untracked();
         if config.editor.autosave_interval > 0 {
             let Some(path) =
-                self.content.with_untracked(|c| c.path().map(|x| x.clone()))
+                self.content.with_untracked(|c| c.path().cloned())
             else {
                 return;
             };
@@ -2099,11 +2099,7 @@ impl Styling for DocStyling {
                         && end >= start_offset
                         && diag.severity < Some(DiagnosticSeverity::HINT)
                     {
-                        let start = if start > start_offset {
-                            start - start_offset
-                        } else {
-                            0
-                        };
+                        let start = start.saturating_sub(start_offset);
                         let end = end - start_offset;
                         let start = phantom_text.col_after(start, true);
                         let end = phantom_text.col_after(end, false);
