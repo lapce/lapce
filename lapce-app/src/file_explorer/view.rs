@@ -510,7 +510,6 @@ fn file_explorer_view(
             focus.set(Focus::Panel(PanelKind::FileExplorer));
         }
     })
-
 }
 
 fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
