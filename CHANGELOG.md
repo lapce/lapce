@@ -5,6 +5,7 @@
 ### Features/Changes
 
 - Add Ubuntu 24.04 LTS (noble) build
+- Improved support for `musl` targets
 
 ### Bug Fixes
 
