@@ -394,10 +394,13 @@ impl Doc {
         // TODO: we could have these Rcs created once and stored somewhere, maybe on
         // common, to avoid recreating them everytime.
         let cursor_info = CursorInfo {
-            blink_interval: Rc::new(move || config.editor.blink_interval()),
+            blink_interval: Arc::new(move || config.editor.blink_interval()),
             blink_timer: common.window_common.cursor_blink_timer,
             hidden: common.window_common.hide_cursor,
-            should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
+            should_blink: Arc::new(should_blink(
+                common.focus,
+                common.keyboard_focus,
+            )),
         };
         let mut editor =
             Editor::new_direct(cx, id, self.clone(), self.styling(), modal);

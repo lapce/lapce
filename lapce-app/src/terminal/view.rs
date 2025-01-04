@@ -9,11 +9,13 @@ use alacritty_terminal::{
 use floem::{
     context::{EventCx, PaintCx},
     event::{Event, EventPropagation},
+    kurbo::Stroke,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     pointer::PointerInputEvent,
+    prelude::SignalTrack,
     reactive::{create_effect, ReadSignal, RwSignal, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
@@ -467,7 +469,7 @@ impl TerminalView {
             if self.is_focused {
                 cx.fill(&rect, cursor_color, 0.0);
             } else {
-                cx.stroke(&rect, cursor_color, 1.0);
+                cx.stroke(&rect, cursor_color, &Stroke::new(1.0));
             }
         }
 

@@ -12,7 +12,8 @@ use floem::{
     keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
-    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
+    pointer::{MouseButton, PointerButton, PointerInputEvent, PointerMoveEvent},
+    prelude::SignalTrack,
     reactive::{
         batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
         SignalWith,
@@ -2671,8 +2672,8 @@ impl EditorData {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
-        match pointer_event.button {
-            PointerButton::Primary => {
+        match pointer_event.button.mouse_button() {
+            MouseButton::Primary => {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
@@ -2740,7 +2741,7 @@ impl EditorData {
                     }
                 }
             }
-            PointerButton::Secondary => {
+            MouseButton::Secondary => {
                 self.right_click(pointer_event);
             }
             _ => {}

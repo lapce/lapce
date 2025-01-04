@@ -16,6 +16,7 @@ use floem::{
     keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
+    prelude::SignalTrack,
     reactive::{
         use_context, Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
         SignalWith, WriteSignal,

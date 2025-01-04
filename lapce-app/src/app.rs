@@ -21,6 +21,7 @@ use floem::{
         kurbo::{Point, Rect, Size},
         Color,
     },
+    prelude::SignalTrack,
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
@@ -569,7 +570,7 @@ impl AppData {
         view_id.request_focus();
 
         view.window_scale(move || window_scale.get())
-            .keyboard_navigatable()
+            .keyboard_navigable()
             .on_event(EventListener::KeyDown, move |event| {
                 if let Event::KeyDown(key_event) = event {
                     if key_down_window_data.key_down(key_event) {
@@ -693,17 +694,22 @@ fn editor_tab_header(
             use crate::config::ui::TabCloseButton;
 
             let tab_icon = container({
-                svg(move || info.with(|info| info.icon.clone())).style(move |s| {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    s.size(size, size)
-                        .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
-                        .apply_if(
-                            !info.with(|info| info.is_pristine)
-                                && config.ui.tab_close_button == TabCloseButton::Off,
-                            |s| s.color(config.color(LapceColor::LAPCE_WARN)),
-                        )
-                })
+                svg("")
+                    .update_value(move || info.with(|info| info.icon.clone()))
+                    .style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.size(size, size)
+                            .apply_opt(info.with(|info| info.color), |s, c| {
+                                s.color(c)
+                            })
+                            .apply_if(
+                                !info.with(|info| info.is_pristine)
+                                    && config.ui.tab_close_button
+                                        == TabCloseButton::Off,
+                                |s| s.color(config.color(LapceColor::LAPCE_WARN)),
+                            )
+                    })
             })
             .style(|s| s.padding(4.));
 

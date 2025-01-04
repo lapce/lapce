@@ -490,7 +490,7 @@ pub fn settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width_pct(100.0)
                             .border_radius(6.0)
@@ -640,7 +640,7 @@ fn settings_item_view(
                 });
 
                 text_input_view
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width(300.0).border(1.0).border_radius(6.0).border_color(
                             config.get().color(LapceColor::LAPCE_BORDER),
@@ -944,7 +944,7 @@ fn color_section_list(
                     text(&key).style(move |s| {
                         s.width(max_width.get()).margin_left(20).margin_right(10)
                     }),
-                    text_input_view.keyboard_navigatable().style(move |s| {
+                    text_input_view.keyboard_navigable().style(move |s| {
                         s.width(150.0)
                             .margin_vert(6)
                             .border(1)
@@ -1088,7 +1088,7 @@ pub fn theme_color_settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width_pct(100.0)
                             .border_radius(6.0)
@@ -1270,7 +1270,7 @@ fn dropdown_view(
             .width(250.0)
             .line_height(1.8)
     })
-    .keyboard_navigatable()
+    .keyboard_navigable()
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_input_focus.set(true);
     })
@@ -1341,7 +1341,7 @@ fn dropdown_scroll(
             .max_height(200.0)
             .set(PropagatePointerWheel, false)
     })
-    .keyboard_navigatable()
+    .keyboard_navigable()
     .request_focus(|| {})
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_scroll_focus.set(true);

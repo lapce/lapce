@@ -4,6 +4,7 @@ use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
     event::{Event, EventListener, EventPropagation},
+    kurbo::Stroke,
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
@@ -754,7 +755,11 @@ impl View for TextInput {
                         end_point.y + end_position.glyph_descent,
                     ),
                 );
-                cx.stroke(&line, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
+                cx.stroke(
+                    &line,
+                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    &Stroke::new(1.0),
+                );
             }
 
             if !self.hide_cursor.get_untracked()
@@ -781,7 +786,7 @@ impl View for TextInput {
                 cx.stroke(
                     &line,
                     self.config.get_untracked().color(LapceColor::EDITOR_CARET),
-                    2.0,
+                    &Stroke::new(2.0),
                 );
             }
 

@@ -7,10 +7,12 @@ use floem::{
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
+    kurbo::Stroke,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
         Color,
     },
+    prelude::SignalTrack,
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
         SignalGet, SignalUpdate, SignalWith,
@@ -393,7 +395,7 @@ impl EditorView {
                 cx.stroke(
                     &Line::new(p0, p1),
                     config.color(LapceColor::EDITOR_DIM),
-                    1.0,
+                    &Stroke::new(1.0),
                 );
             }
         }
@@ -599,7 +601,7 @@ impl EditorView {
                 let rect = Size::new(x1 - x0, line_height)
                     .to_rect()
                     .with_origin(Point::new(x0, line_info.vline_y));
-                cx.stroke(&rect, color, 1.0);
+                cx.stroke(&rect, color, &Stroke::new(1.0));
             }
         }
     }
@@ -804,7 +806,11 @@ impl EditorView {
 
                 let rect = Rect::new(x0, y0, x1, y1);
 
-                cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
+                cx.stroke(
+                    &rect,
+                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    &Stroke::new(1.0),
+                );
             }
         }
     }
@@ -852,7 +858,7 @@ impl EditorView {
                     let p1 = Point::new(x1, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
             }
         } else {
@@ -934,7 +940,7 @@ impl EditorView {
                     let p1 = Point::new(start_x, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
 
                 // Is end_line on screen, and is the vertical line to the left of the closing
@@ -944,14 +950,14 @@ impl EditorView {
                     let p1 = Point::new(end_x, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
 
                 let p0 = Point::new(min_x, y0);
                 let p1 = Point::new(min_x, y1);
                 let line = Line::new(p0, p1);
 
-                cx.stroke(&line, brush, 1.0);
+                cx.stroke(&line, brush, &Stroke::new(1.0));
             }
         }
     }
