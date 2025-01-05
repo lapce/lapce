@@ -3820,7 +3820,7 @@ pub fn launch() {
     let config = scope.create_rw_signal(Arc::new(config));
     let app_data = AppData {
         windows,
-        active_window: scope.create_rw_signal(WindowId::from(0)),
+        active_window: scope.create_rw_signal(WindowId::from_raw(0)),
         window_scale,
         app_terminated: scope.create_rw_signal(false),
         watcher: Arc::new(watcher),
