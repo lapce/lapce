@@ -110,12 +110,12 @@ pub struct LapceWorkspace {
 
 impl LapceWorkspace {
     pub fn display(&self) -> Option<String> {
-        let path = self.path.as_ref()?;
-        let path = path
-            .file_name()
-            .unwrap_or(path.as_os_str())
-            .to_string_lossy()
-            .to_string();
+        let path = self.path.as_ref().map_or(String::new(), |p| {
+            p.file_name()
+                .unwrap_or_else(|| p.as_os_str())
+                .to_string_lossy()
+                .to_string()
+        });
         let remote = match &self.kind {
             LapceWorkspaceType::Local => String::new(),
             LapceWorkspaceType::RemoteSSH(remote) => {
