@@ -173,7 +173,7 @@ impl Naming {
     }
 
     pub fn is_accepting_input(&self) -> bool {
-        self.state().map_or(false, NamingState::is_accepting_input)
+        self.state().is_some_and(NamingState::is_accepting_input)
     }
 
     pub fn editor_needs_reset(&self) -> bool {
@@ -264,13 +264,13 @@ pub struct FileNodeViewData {
 pub struct FileNodeItem {
     pub path: PathBuf,
     pub is_dir: bool,
-    /// Whether the directory's children have been read.  
+    /// Whether the directory's children have been read.
     /// Does nothing if not a directory.
     pub read: bool,
     /// Whether the directory is open in the explorer view.
     pub open: bool,
     pub children: HashMap<PathBuf, FileNodeItem>,
-    /// The number of child (directories) that are open themselves  
+    /// The number of child (directories) that are open themselves
     /// Used for sizing of the explorer list
     pub children_open_count: usize,
 }
@@ -301,7 +301,7 @@ impl Ord for FileNodeItem {
 }
 
 impl FileNodeItem {
-    /// Collect the children, sorted by name.  
+    /// Collect the children, sorted by name.
     /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
         let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
@@ -309,7 +309,7 @@ impl FileNodeItem {
         children
     }
 
-    /// Collect the children, sorted by name.  
+    /// Collect the children, sorted by name.
     /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
         let mut children = self
@@ -369,7 +369,7 @@ impl FileNodeItem {
             .try_fold(self, |node, path| node.children.get_mut(path))
     }
 
-    /// Remove a specific child from the node.  
+    /// Remove a specific child from the node.
     /// The path is recursive and will remove the child from parent indicated by the path.
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
         let parent = path.parent()?;
@@ -404,7 +404,7 @@ impl FileNodeItem {
         Some(())
     }
 
-    /// Set the children of the node.  
+    /// Set the children of the node.
     /// Note: this opens the node.
     pub fn set_item_children(
         &mut self,

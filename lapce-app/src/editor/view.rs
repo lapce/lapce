@@ -1726,7 +1726,7 @@ fn editor_gutter_folding_range(
     viewport: RwSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let doc_clone = doc.clone();
+    let doc_clone = doc;
     dyn_stack(
         move || doc.get().folding_ranges.get().to_display_items(),
         move |item| *item,
@@ -1738,7 +1738,7 @@ fn editor_gutter_folding_range(
                 item,
             )
             .on_click_stop({
-                let value = doc_clone.clone();
+                let value = doc_clone;
                 move |_| {
                     value.get_untracked().folding_ranges.update(|x| match item {
                         FoldingDisplayItem::UnfoldStart(pos)

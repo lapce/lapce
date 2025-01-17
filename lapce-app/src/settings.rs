@@ -337,8 +337,8 @@ pub fn settings_view(
     let search_editor = editors.make_local(cx, common);
     let doc = search_editor.doc_signal();
 
-    let items = settings_data.items.clone();
-    let kinds = settings_data.kinds.clone();
+    let items = settings_data.items;
+    let kinds = settings_data.kinds;
     let filtered_items_signal = settings_data.filtered_items;
     create_effect(move |_| {
         let doc = doc.get();
@@ -370,7 +370,6 @@ pub fn settings_view(
     let scroll_pos = create_rw_signal(Point::ZERO);
 
     let current_kind = {
-        let kinds = kinds.clone();
         create_memo(move |_| {
             let scroll_pos = scroll_pos.get();
             let scroll_y = scroll_pos.y + 30.0;

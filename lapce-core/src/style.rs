@@ -64,11 +64,7 @@ pub fn line_styles(
             if start > end_offset || end < start_offset {
                 None
             } else {
-                let start = if start > start_offset {
-                    start - start_offset
-                } else {
-                    0
-                };
+                let start = start.saturating_sub(start_offset);
                 let end = end - start_offset;
                 let style = style.clone();
                 Some(LineStyle { start, end, style })

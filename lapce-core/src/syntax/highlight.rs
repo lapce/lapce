@@ -393,13 +393,13 @@ pub(crate) struct HighlightIterLayer<'a> {
     pub(crate) depth: usize,
 }
 
-impl<'a> std::fmt::Debug for HighlightIterLayer<'a> {
+impl std::fmt::Debug for HighlightIterLayer<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HighlightIterLayer").finish()
     }
 }
 
-impl<'a> HighlightIterLayer<'a> {
+impl HighlightIterLayer<'_> {
     // First, sort scope boundaries by their byte offset in the document. At a
     // given position, emit scope endings before scope beginnings. Finally, emit
     // scope boundaries from deeper layers first.
@@ -426,7 +426,7 @@ impl<'a> HighlightIterLayer<'a> {
     }
 }
 
-impl<'a> HighlightIter<'a> {
+impl HighlightIter<'_> {
     fn emit_event(
         &mut self,
         offset: usize,
@@ -481,7 +481,7 @@ impl<'a> HighlightIter<'a> {
     }
 }
 
-impl<'a> Iterator for HighlightIter<'a> {
+impl Iterator for HighlightIter<'_> {
     type Item = Result<HighlightEvent, super::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
