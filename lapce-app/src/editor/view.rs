@@ -326,7 +326,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_ADDED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -344,7 +344,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_REMOVED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -1732,7 +1732,6 @@ fn editor_gutter_folding_range(
     viewport: RwSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let doc_clone = doc.clone();
     dyn_stack(
         move || doc.get().folding_ranges.get().to_display_items(),
         move |item| *item,
@@ -1744,9 +1743,8 @@ fn editor_gutter_folding_range(
                 item,
             )
             .on_click_stop({
-                let value = doc_clone.clone();
                 move |_| {
-                    value.get_untracked().folding_ranges.update(|x| match item {
+                    doc.get_untracked().folding_ranges.update(|x| match item {
                         FoldingDisplayItem::UnfoldStart(pos)
                         | FoldingDisplayItem::Folded(pos) => {
                             x.0.iter_mut().find_map(|mut range| {

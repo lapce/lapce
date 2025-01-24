@@ -254,14 +254,14 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
                         s.cursor(CursorStyle::Pointer).background(
                             config
                                 .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                                .with_alpha_factor(0.8),
+                                .multiply_alpha(0.8),
                         )
                     })
                     .active(|s| {
                         s.background(
                             config
                                 .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                                .with_alpha_factor(0.6),
+                                .multiply_alpha(0.6),
                         )
                     })
                     .disabled(|s| s.background(config.color(LapceColor::EDITOR_DIM)))

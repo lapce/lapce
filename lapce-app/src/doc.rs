@@ -705,8 +705,7 @@ impl Doc {
     fn check_auto_save(&self) {
         let config = self.common.config.get_untracked();
         if config.editor.autosave_interval > 0 {
-            let Some(path) =
-                self.content.with_untracked(|c| c.path().map(|x| x.clone()))
+            let Some(path) = self.content.with_untracked(|c| c.path().cloned())
             else {
                 return;
             };
@@ -1272,33 +1271,30 @@ impl Doc {
             .set(FindProgress::InProgress(Selection::new()));
 
         let find_result = self.find_result.clone();
-        let find_rev_signal = self.common.find.rev.clone();
-        let triggered_by_changes = self.common.find.triggered_by_changes.clone();
+        let find_rev_signal = self.common.find.rev;
+        let triggered_by_changes = self.common.find.triggered_by_changes;
 
-        let path = self.content.get_untracked().path().map(|x| x.clone());
+        let path = self.content.get_untracked().path().cloned();
         let common = self.common.clone();
         let send = create_ext_action(self.scope, move |occurrences: Selection| {
-            match (
+            if let (false, Some(path), true, true) = (
                 occurrences.regions().is_empty(),
                 &path,
                 find_rev_signal.get_untracked() == find_rev,
                 triggered_by_changes.get_untracked(),
             ) {
-                (false, Some(path), true, true) => {
-                    triggered_by_changes.set(false);
-                    common.internal_command.send(InternalCommand::GoToLocation {
-                        location: EditorLocation {
-                            path: path.clone(),
-                            position: Some(EditorPosition::Offset(
-                                occurrences.regions()[0].start,
-                            )),
-                            scroll_offset: None,
-                            ignore_unconfirmed: false,
-                            same_editor_tab: false,
-                        },
-                    });
-                }
-                _ => {}
+                triggered_by_changes.set(false);
+                common.internal_command.send(InternalCommand::GoToLocation {
+                    location: EditorLocation {
+                        path: path.clone(),
+                        position: Some(EditorPosition::Offset(
+                            occurrences.regions()[0].start,
+                        )),
+                        scroll_offset: None,
+                        ignore_unconfirmed: false,
+                        same_editor_tab: false,
+                    },
+                });
             }
             find_result.occurrences.set(occurrences);
             find_result.progress.set(FindProgress::Ready);

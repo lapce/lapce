@@ -379,7 +379,7 @@ impl TerminalView {
             if cell.flags.contains(Flags::DIM)
                 || cell.flags.contains(Flags::DIM_BOLD)
             {
-                fg = fg.with_alpha_factor(0.66);
+                fg = fg.multiply_alpha(0.66);
             }
 
             if inverse {
@@ -608,7 +608,7 @@ impl View for TerminalView {
         let layout = self.id.get_layout().unwrap_or_default();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
-        if size.is_empty() {
+        if size.is_zero_area() {
             return None;
         }
         if size != self.size {

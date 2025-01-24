@@ -167,7 +167,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 config
                     .get()
                     .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
-                    .with_alpha_factor(0.5),
+                    .multiply_alpha(0.5),
             )
     })
     .debug_name("Alert Box")

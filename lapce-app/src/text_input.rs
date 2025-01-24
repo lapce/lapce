@@ -402,7 +402,7 @@ impl TextInput {
             self.style
                 .color()
                 .unwrap_or(Color::BLACK)
-                .with_alpha_factor(0.5),
+                .multiply_alpha(0.5),
         );
         placeholder_text_layout.set_text(&self.placeholder, AttrsList::new(attrs));
         self.placeholder_text_layout = Some(placeholder_text_layout);

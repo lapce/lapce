@@ -785,7 +785,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     .color(
                                         LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
-                                    .with_alpha_factor(0.8),
+                                    .multiply_alpha(0.8),
                             )
                         })
                         .active(|s| {
@@ -794,7 +794,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     .color(
                                         LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
-                                    .with_alpha_factor(0.6),
+                                    .multiply_alpha(0.6),
                             )
                         })
                         .disabled(|s| {

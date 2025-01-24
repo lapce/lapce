@@ -1534,7 +1534,7 @@ checksum = "f25c0e292a7ca6d6498557ff1df68f32c99850012b6ea401cf8daf771f22ff53"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/rust-windowing/winit?rev=5ea81efc74ebaa04a7cb4621ec522bce14d700e5#5ea81efc74ebaa04a7cb4621ec522bce14d700e5"
+source = "git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe#ee245c569d65fdeacf705ee5eedb564508d10ebe"
 dependencies = [
  "serde",
 ]
@@ -1813,6 +1813,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "bitflags 2.6.0",
  "clipboard-win",
@@ -1832,6 +1833,9 @@ dependencies = [
  "indexmap",
  "lapce-xi-rope",
  "muda",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "parking_lot",
  "peniko",
  "raw-window-handle",
@@ -1854,6 +1858,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
@@ -1880,6 +1885,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "smallvec",
 ]
@@ -1887,6 +1893,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "cosmic-text",
  "crossbeam",
@@ -1904,6 +1911,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1920,6 +1928,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=6c6351641879b7137d8d2802f88cbc4ee4fc4294#6c6351641879b7137d8d2802f88cbc4ee4fc4294"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -7431,7 +7440,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 [[package]]
 name = "winit"
 version = "0.30.7"
-source = "git+https://github.com/rust-windowing/winit?rev=5ea81efc74ebaa04a7cb4621ec522bce14d700e5#5ea81efc74ebaa04a7cb4621ec522bce14d700e5"
+source = "git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe#ee245c569d65fdeacf705ee5eedb564508d10ebe"
 dependencies = [
  "ahash",
  "android-activity",
@@ -7445,7 +7454,7 @@ dependencies = [
  "core-foundation",
  "core-graphics",
  "cursor-icon",
- "dpi 0.1.1 (git+https://github.com/rust-windowing/winit?rev=5ea81efc74ebaa04a7cb4621ec522bce14d700e5)",
+ "dpi 0.1.1 (git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe)",
  "js-sys",
  "libc",
  "memmap2",

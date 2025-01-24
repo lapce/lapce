@@ -672,7 +672,6 @@ impl WindowTabData {
                     .installed
                     .get_untracked()
                     .values()
-                    .into_iter()
                     .map(|x| {
                         let meta = x.meta.get_untracked();
                         (meta.name.clone(), meta)

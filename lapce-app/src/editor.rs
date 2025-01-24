@@ -12,7 +12,7 @@ use floem::{
     keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
-    pointer::{MouseButton, PointerButton, PointerInputEvent, PointerMoveEvent},
+    pointer::{MouseButton, PointerInputEvent, PointerMoveEvent},
     prelude::SignalTrack,
     reactive::{
         batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,

@@ -246,6 +246,7 @@ impl AppData {
                             workspaces: vec![workspace],
                         },
                     },
+                    vec![],
                 )
             },
             Some(config),
@@ -300,10 +301,15 @@ impl AppData {
     ) -> floem::Application {
         let mut app = floem::Application::new();
 
+        let mut inital_windows = 0;
+
         // Split user input into known existing directors and
         // file paths that exist or not
         let (dirs, files): (Vec<&PathObject>, Vec<&PathObject>) =
             paths.iter().partition(|p| p.is_dir);
+
+        let files: Vec<PathObject> = files.into_iter().cloned().collect();
+        let mut files = if files.is_empty() { None } else { Some(files) };
 
         if !dirs.is_empty() {
             // There were directories specified, so we'll load those as windows
@@ -358,12 +364,14 @@ impl AppData {
                     config
                 };
                 let app_data = self.clone();
+                let files = files.take().unwrap_or_default();
                 app = app.window(
-                    move |window_id| app_data.app_view(window_id, info),
+                    move |window_id| app_data.app_view(window_id, info, files),
                     Some(config),
                 );
+                inital_windows += 1;
             }
-        } else if files.is_empty() {
+        } else if files.is_none() {
             // There were no dirs and no files specified, so we'll load the last windows
             match db.get_app() {
                 Ok(app_info) => {
@@ -381,9 +389,12 @@ impl AppData {
                         };
                         let app_data = self.clone();
                         app = app.window(
-                            move |window_id| app_data.app_view(window_id, info),
+                            move |window_id| {
+                                app_data.app_view(window_id, info, vec![])
+                            },
                             Some(config),
                         );
+                        inital_windows += 1;
                     }
                 }
                 Err(err) => {
@@ -392,7 +403,7 @@ impl AppData {
             }
         }
 
-        if self.windows.with_untracked(|windows| windows.is_empty()) {
+        if inital_windows == 0 {
             let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
                 size: Size::new(800.0, 600.0),
                 pos: Point::ZERO,
@@ -419,21 +430,41 @@ impl AppData {
             };
             let app_data = self.clone();
             app = app.window(
-                move |window_id| app_data.app_view(window_id, info),
+                move |window_id| {
+                    app_data.app_view(
+                        window_id,
+                        info,
+                        files.take().unwrap_or_default(),
+                    )
+                },
                 Some(config),
             );
         }
 
-        // Open any listed files in the first window
-        if let Some(window) = self.windows.with_untracked(|windows| {
-            windows
-                .iter()
-                .next()
-                .map(|(_, window_data)| window_data.clone())
-        }) {
-            let cur_window_tab = window.active.get_untracked();
+        app
+    }
+
+    fn app_view(
+        &self,
+        window_id: WindowId,
+        info: WindowInfo,
+        files: Vec<PathObject>,
+    ) -> impl View {
+        let app_view_id = create_rw_signal(floem::ViewId::new());
+        let window_data = WindowData::new(
+            window_id,
+            app_view_id,
+            info,
+            self.window_scale,
+            self.latest_release.read_only(),
+            self.plugin_paths.clone(),
+            self.app_command,
+        );
+
+        {
+            let cur_window_tab = window_data.active.get_untracked();
             let (_, window_tab) =
-                &window.window_tabs.get_untracked()[cur_window_tab];
+                &window_data.window_tabs.get_untracked()[cur_window_tab];
             for file in files {
                 let position = file.linecol.map(|pos| {
                     EditorPosition::Position(lsp_types::Position {
@@ -456,20 +487,6 @@ impl AppData {
             }
         }
 
-        app
-    }
-
-    fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
-        let app_view_id = create_rw_signal(floem::ViewId::new());
-        let window_data = WindowData::new(
-            window_id,
-            app_view_id,
-            info,
-            self.window_scale,
-            self.latest_release.read_only(),
-            self.plugin_paths.clone(),
-            self.app_command,
-        );
         self.windows.update(|windows| {
             windows.insert(window_id, window_data.clone());
         });
@@ -924,7 +941,7 @@ fn editor_tab_header(
                         .background(
                             config
                                 .color(LapceColor::PANEL_BACKGROUND)
-                                .with_alpha_factor(0.7),
+                                .multiply_alpha(0.7),
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
@@ -943,7 +960,12 @@ fn editor_tab_header(
                             LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
                         }))
                 })
-                .style(|s| s.absolute().padding_horiz(3.0).size_full())
+                .style(|s| {
+                    s.absolute()
+                        .padding_horiz(3.0)
+                        .size_full()
+                        .pointer_events_none()
+                })
                 .debug_name("Drop Indicator"),
             empty()
                 .style(move |s| {
@@ -972,7 +994,7 @@ fn editor_tab_header(
                             config
                                 .get()
                                 .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                                .with_alpha_factor(0.5),
+                                .multiply_alpha(0.5),
                         )
                 })
                 .debug_name("Active Tab Indicator"),
@@ -1550,7 +1572,13 @@ fn editor_tab(
                 .on_resize(move |rect| {
                     tab_size.set(rect.size());
                 })
-                .style(|s| s.absolute().size_full()),
+                .style(move |s| {
+                    s.absolute()
+                        .size_full()
+                        .apply_if(dragging.get().is_none(), |s| {
+                            s.pointer_events_none()
+                        })
+                }),
         ))
         .debug_name("Editor Content and Drag Over")
         .style(|s| s.size_full()),
@@ -1753,10 +1781,15 @@ fn split_resize_border(
                         })
                         .background(config.get().color(LapceColor::EDITOR_CARET))
                     })
+                    .pointer_events_auto()
             })
         },
     )
-    .style(|s| s.position(Position::Absolute).size_full())
+    .style(|s| {
+        s.position(Position::Absolute)
+            .size_full()
+            .pointer_events_none()
+    })
     .debug_name("Split Resize Border")
 }
 
@@ -1828,7 +1861,11 @@ fn split_border(
             })
         },
     )
-    .style(|s| s.position(Position::Absolute).size_full())
+    .style(|s| {
+        s.position(Position::Absolute)
+            .size_full()
+            .pointer_events_none()
+    })
     .debug_name("Split Border")
 }
 
@@ -2766,6 +2803,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
                 .border_color(config.color(LapceColor::LAPCE_BORDER))
                 .flex_col()
                 .background(config.color(LapceColor::PALETTE_BACKGROUND))
+                .pointer_events_auto()
         }),
     )
     .style(move |s| {
@@ -2778,6 +2816,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .size_full()
         .flex_col()
         .items_center()
+        .pointer_events_none()
     })
     .debug_name("Pallete Layer")
 }
@@ -2879,6 +2918,7 @@ fn window_message_view(
                 )
                 .style(|s| {
                     s.absolute()
+                        .pointer_events_auto()
                         .width_full()
                         .min_height(0.0)
                         .max_height_full()
@@ -2894,7 +2934,7 @@ fn window_message_view(
                 .height_full()
         }),
     )
-    .style(|s| s.absolute().size_full().justify_end())
+    .style(|s| s.absolute().size_full().justify_end().pointer_events_none())
     .debug_name("Window Message View")
 }
 
@@ -3027,9 +3067,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .font_weight(Weight::BOLD)
                             .apply_opt(
                                 config.completion_color(item.item.kind),
-                                |s, c| {
-                                    s.color(c).background(c.with_alpha_factor(0.3))
-                                },
+                                |s, c| s.color(c).background(c.multiply_alpha(0.3)),
                             )
                     }),
                     focus_text(
@@ -3456,10 +3494,11 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                     .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
                             )
                     }))
-                    .style(|s| {
+                    .style(move |s| {
                         s.position(Position::Absolute)
                             .padding_horiz(3.0)
                             .size_full()
+                            .pointer_events_none()
                     }),
                 ))
                 .style(move |s| s.size_full().items_center())
@@ -3479,12 +3518,12 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     .color(
                         config
                             .color(LapceColor::EDITOR_FOREGROUND)
-                            .with_alpha_factor(0.7),
+                            .multiply_alpha(0.7),
                     )
                     .background(
                         config
                             .color(LapceColor::PANEL_BACKGROUND)
-                            .with_alpha_factor(0.7),
+                            .multiply_alpha(0.7),
                     )
             })
             .on_click_stop(move |_| {

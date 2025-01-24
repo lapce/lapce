@@ -320,7 +320,7 @@ fn debug_processes(
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
                                 (config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
-                                    .with_alpha_factor(0.3),
+                                    .multiply_alpha(0.3),
                             )
                         })
                 })
