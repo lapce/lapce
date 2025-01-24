@@ -185,7 +185,7 @@ pub struct Doc {
     /// (line, col)
     pub completion_pos: RwSignal<(usize, usize)>,
 
-    /// Current inline completion text, if any.  
+    /// Current inline completion text, if any.
     /// This will be displayed even on views that are not focused.
     pub inline_completion: RwSignal<Option<String>>,
     /// (line, col)
@@ -641,7 +641,7 @@ impl Doc {
         self.buffer.with_untracked(|b| b.rev())
     }
 
-    /// Get the buffer's line-ending.  
+    /// Get the buffer's line-ending.
     /// Note: this may not be the same as what the actual line endings in the file are, rather this
     /// is what the line-ending is set to (and what it will be saved as).
     pub fn line_ending(&self) -> LineEnding {
@@ -2095,11 +2095,7 @@ impl Styling for DocStyling {
                         && end >= start_offset
                         && diag.severity < Some(DiagnosticSeverity::HINT)
                     {
-                        let start = if start > start_offset {
-                            start - start_offset
-                        } else {
-                            0
-                        };
+                        let start = start.saturating_sub(start_offset);
                         let end = end - start_offset;
                         let start = phantom_text.col_after(start, true);
                         let end = phantom_text.col_after(end, false);

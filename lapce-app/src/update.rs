@@ -166,7 +166,7 @@ pub fn restart(path: &Path) -> Result<()> {
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::unix::process::CommandExt;
-    std::process::Command::new(path).arg("-n").exec();
+    let _ = std::process::Command::new(path).arg("-n").exec();
     Ok(())
 }
 

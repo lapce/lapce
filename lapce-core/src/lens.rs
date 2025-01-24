@@ -292,7 +292,7 @@ impl LensBuilder {
     }
 }
 
-impl<'a> Iterator for LensIter<'a> {
+impl Iterator for LensIter<'_> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {

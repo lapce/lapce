@@ -237,7 +237,7 @@ impl Editors {
         Self(cx.create_rw_signal(im::HashMap::new()))
     }
 
-    /// Add an editor to the editors.  
+    /// Add an editor to the editors.
     /// Returns the id of the editor.
     pub fn insert(&self, editor: EditorData) -> EditorId {
         let id = editor.id();
