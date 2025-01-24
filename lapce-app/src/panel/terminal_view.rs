@@ -153,6 +153,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .border_color(
                                         config.get().color(LapceColor::LAPCE_BORDER),
                                     )
+                                    .pointer_events_none()
                             }),
                         ))
                         .style(move |s| {
@@ -182,7 +183,10 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                         })
                     })
                     .style(|s| {
-                        s.absolute().padding_horiz(3.0).size_pct(100.0, 100.0)
+                        s.absolute()
+                            .padding_horiz(3.0)
+                            .size_pct(100.0, 100.0)
+                            .pointer_events_none()
                     }),
                 ))
                 .on_event_cont(
@@ -215,7 +219,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         }),
         empty().style(move |s| {
             let size = scroll_size.get();
-            s.size(size.width, size.height)
+            s.size(size.width, size.height).pointer_events_none()
         }),
         container(clickable_icon(
             || LapceIcons::ADD,

@@ -5,6 +5,7 @@ use floem::{
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::Rect,
+    prelude::SignalTrack,
     reactive::{create_memo, create_rw_signal, SignalGet, SignalUpdate, SignalWith},
     style::{CursorStyle, Style},
     views::{

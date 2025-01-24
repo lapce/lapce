@@ -283,7 +283,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
         container(
             text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
-                .keyboard_navigatable()
+                .keyboard_navigable()
                 .request_focus(|| {})
                 .style(move |s| {
                     s.width_pct(100.0)
@@ -515,7 +515,7 @@ fn keyboard_picker_view(
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
         }),
     )
-    .keyboard_navigatable()
+    .keyboard_navigable()
     .on_event_stop(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
