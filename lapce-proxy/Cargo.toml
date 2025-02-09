@@ -56,9 +56,9 @@ grep-matcher  = "0.1"
 grep-regex    = "0.1"
 
 # wasm
-wasmtime      = "14.0.0"
-wasmtime-wasi = "14.0.0"
-wasi-common   = "14.0.0"
+wasmtime      = "23"
+wasmtime-wasi = "23"
+wasi-common   = "23"
 
 [dependencies.wasi-experimental-http-wasmtime]
 git = "https://github.com/lapce/wasi-experimental-http"
