@@ -30,16 +30,22 @@ impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
         let (s, read_only) = match load_file(&path) {
             Ok(s) => (s, false),
-            Err(err) => match err.downcast_ref::<std::io::Error>() {
-                Some(err) => match err.kind() {
-                    std::io::ErrorKind::PermissionDenied => {
-                        ("Permission Denied".to_string(), true)
-                    }
-                    std::io::ErrorKind::NotFound => ("".to_string(), false),
-                    _ => ("Not Supported".to_string(), true),
-                },
-                None => ("Not Supported".to_string(), true),
-            },
+            Err(err) => {
+                use std::io::ErrorKind;
+                match err.downcast_ref::<std::io::Error>() {
+                    Some(err) => match err.kind() {
+                        ErrorKind::PermissionDenied => {
+                            ("Permission Denied".to_string(), true)
+                        }
+                        ErrorKind::NotFound => ("".to_string(), false),
+                        ErrorKind::OutOfMemory => {
+                            ("File too big (out of memory)".to_string(), false)
+                        }
+                        _ => (format!("Not supported: {err}"), true),
+                    },
+                    None => (format!("Not supported: {err}"), true),
+                }
+            }
         };
         let rope = Rope::from(s);
         let rev = u64::from(!rope.is_empty());
