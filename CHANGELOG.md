@@ -4,7 +4,7 @@
 
 ### Features/Changes
 
-- Add setup files for installing dependencies
+- Add setup file for installing dependencies
 - Add Ubuntu 24.04 LTS (noble) build
 
 ### Bug Fixes

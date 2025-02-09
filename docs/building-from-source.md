@@ -9,23 +9,9 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 git clone https://github.com/lapce/lapce.git ~/lapce
 ```
 
-3. `cd` into the repository, and run the specific setup file for your distribution:
-
-#### Ubuntu
+3. `cd` into the repository and run setup.sh to install dependencies:
 ```sh
-./setups/apt.sh
-```
-#### Fedora
-```sh
-./setups/dnf.sh
-```
-#### Manjaro
-```sh
-./setups/pacman.sh
-```
-#### Void Linux
-```sh
-./setups/xbps-install.sh
+./setup.sh
 ```
 
 4. Run the build command with the release flag
