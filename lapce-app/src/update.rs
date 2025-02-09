@@ -188,7 +188,6 @@ pub fn restart(path: &Path) -> Result<()> {
 }
 
 #[cfg(all(target_os = "windows", not(feature = "portable")))]
-
 pub fn restart(path: &Path) -> Result<()> {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;

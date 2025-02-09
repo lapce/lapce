@@ -3997,7 +3997,7 @@ pub fn load_shell_env() {
     command.args(["--login", "-c", "printenv"]);
 
     #[cfg(windows)]
-    command.args(&[
+    command.args([
         "-Command",
         "Get-ChildItem env: | ForEach-Object { \"{0}={1}\" -f $_.Name, $_.Value }",
     ]);
