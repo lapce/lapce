@@ -4,36 +4,36 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 
 1. Install the Rust compiler and Cargo using [`rustup.rs`](https://rustup.rs/). If you already have the toolchain, ensure you are using version 1.64 or higher.
 
-2. Install dependencies for your operating system:
-
-#### Ubuntu
-```sh
-sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev
-```
-#### Fedora
-```sh
-sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel wayland-devel openssl-devel pkgconf
-```
-#### Void Linux
-```sh
-sudo xbps-install -S base-devel clang libxkbcommon-devel vulkan-loader wayland-devel
-```
-
-3. Clone this repository (this command will clone to your home directory):
+2. Clone this repository (this command will clone to your home directory):
 ```sh
 git clone https://github.com/lapce/lapce.git ~/lapce
 ```
 
-4. `cd` into the repository, and run the build command with the release flag
+3. `cd` into the repository, and run the specific setup file for your distribution:
+
+#### Ubuntu
 ```sh
-cd ~/lapce
+./setups/apt.sh
+```
+#### Fedora
+```sh
+./setups/dnf.sh
+```
+#### Manjaro
+```sh
+./setups/pacman.sh
+```
+#### Void Linux
+```sh
+./setups/xbps-install.sh
 ```
 
+4. Run the build command with the release flag
 ```sh
 cargo install --path . --bin lapce --profile release-lto --locked
 ```
 
-> If you use a different distribution, and are having trouble finding appropriate dependencies, let us know in an issue!
+> If you use a different distribution, and are having trouble finding appropriate dependencies, let us know in an issue! Most distributions that are similar e.g. Linux Mint and Ubuntu should work with the same setup file. Again, let us know if they don't!
 
 Once Lapce is compiled, the executable will be available in `$HOME/.cargo/bin/lapce` and should be available in `PATH` automatically.
 
