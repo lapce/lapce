@@ -207,7 +207,7 @@ fn exclusive_popup<V: View + 'static>(
             config
                 .get()
                 .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
-                .with_alpha_factor(0.5),
+                .multiply_alpha(0.5),
         )
     })
 }
