@@ -579,7 +579,7 @@ impl Iterator for HighlightIter<'_> {
                             scope.inherits = prop
                                 .value
                                 .as_ref()
-                                .map_or(true, |r| r.as_ref() == "true");
+                                .is_none_or(|r| r.as_ref() == "true");
                         }
                     }
                     layer.scope_stack.push(scope);

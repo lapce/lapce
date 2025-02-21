@@ -1053,7 +1053,7 @@ impl ProxyHandler for Dispatcher {
                             .ancestors()
                             .skip(1)
                             .find(|parent| parent.exists())
-                            .map_or(true, |parent| parent.is_dir());
+                            .is_none_or(|parent| parent.is_dir());
 
                         if parent_is_dir {
                             Ok(ProxyResponse::Success {})
