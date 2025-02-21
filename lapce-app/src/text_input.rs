@@ -1,17 +1,18 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    Renderer, View, ViewId,
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
     event::{Event, EventListener, EventPropagation},
     peniko::{
-        kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
+        kurbo::{Line, Point, Rect, Size, Vec2},
     },
     prop_extractor,
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope, SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal,
     },
     style::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
@@ -21,7 +22,6 @@ use floem::{
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     unit::PxPct,
     views::Decorators,
-    Renderer, View, ViewId,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -31,9 +31,9 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
-    config::{color::LapceColor, LapceConfig},
+    config::{LapceConfig, color::LapceColor},
     doc::Doc,
-    editor::{view::editor_style, DocSignal, EditorData},
+    editor::{DocSignal, EditorData, view::editor_style},
     keypress::KeyPressFocus,
     main_split::Editors,
     window_tab::CommonData,

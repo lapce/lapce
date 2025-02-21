@@ -12,8 +12,8 @@ use std::{
     collections::HashMap,
     path::Path,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -25,7 +25,7 @@ use tree_sitter::{
     Language, Point, Query, QueryCaptures, QueryCursor, QueryMatch, Tree,
 };
 
-use super::{util::RopeProvider, PARSER};
+use super::{PARSER, util::RopeProvider};
 use crate::{language::LapceLanguage, style::SCOPES};
 
 thread_local! {

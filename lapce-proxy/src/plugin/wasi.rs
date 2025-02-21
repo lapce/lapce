@@ -11,20 +11,20 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
+    RpcError,
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,
-    RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    notification::Initialized, request::Initialize, DocumentFilter,
-    InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams, WorkspaceFolder,
+    DocumentFilter, InitializeParams, InitializedParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceFolder,
+    notification::Initialized, request::Initialize,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -33,12 +33,12 @@ use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
 use super::{
-    client_capabilities,
+    PluginCatalogRpcHandler, client_capabilities,
     psp::{
-        handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, PluginServerRpc, ResponseSender, RpcCallback,
+        PluginHandlerNotification, PluginHostHandler, PluginServerHandler,
+        PluginServerRpc, ResponseSender, RpcCallback, handle_plugin_server_message,
     },
-    volt_icon, PluginCatalogRpcHandler,
+    volt_icon,
 };
 use crate::plugin::psp::PluginServerRpcHandler;
 

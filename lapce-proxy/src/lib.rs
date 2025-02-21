@@ -8,23 +8,23 @@ pub mod terminal;
 pub mod watcher;
 
 use std::{
-    io::{stdin, stdout, BufReader},
+    io::{BufReader, stdin, stdout},
     path::PathBuf,
     process::exit,
     sync::Arc,
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
+    RpcMessage,
     core::{CoreRpc, CoreRpcHandler},
     file::PathObject,
     proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
-    RpcMessage,
 };
 use tracing::error;
 
@@ -147,7 +147,9 @@ pub fn register_lapce_path() -> Result<()> {
                 paths.append(
                     &mut std::env::split_paths(&current_path).collect::<Vec<_>>(),
                 );
-                std::env::set_var("PATH", std::env::join_paths(paths)?);
+                unsafe {
+                    std::env::set_var("PATH", std::env::join_paths(paths)?);
+                }
             }
         }
     }

@@ -1,4 +1,5 @@
 use alacritty_terminal::{
+    Term,
     event::EventListener,
     grid::Dimensions,
     index::{Column, Direction, Line, Point},
@@ -8,7 +9,6 @@ use alacritty_terminal::{
         test::TermSize,
     },
     vte::ansi,
-    Term,
 };
 use crossbeam_channel::Sender;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};

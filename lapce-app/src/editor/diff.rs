@@ -1,17 +1,17 @@
 use std::{rc::Rc, sync::atomic};
 
 use floem::{
+    View,
     event::EventListener,
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
-        clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
+        Decorators, clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg,
     },
-    View,
 };
 use lapce_core::buffer::{
-    diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
+    diff::{DiffExpand, DiffLines, expand_diff_lines, rope_diff},
     rope_text::RopeText,
 };
 use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
@@ -315,7 +315,7 @@ struct DiffShowMoreSection {
 pub fn diff_show_more_section_view(
     left_editor: &EditorData,
     right_editor: &EditorData,
-) -> impl View {
+) -> impl View + use<> {
     let left_editor_view = left_editor.kind;
     let right_editor_view = right_editor.kind;
     let viewport = right_editor.viewport();

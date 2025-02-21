@@ -1,4 +1,4 @@
-use lapce_xi_rope::{rope::ChunkIter, Rope};
+use lapce_xi_rope::{Rope, rope::ChunkIter};
 use tree_sitter::TextProvider;
 
 pub struct RopeChunksIterBytes<'a> {

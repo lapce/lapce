@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     fmt::Write,
     path::Path,
     str::FromStr,
@@ -9,7 +9,7 @@ use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
-use tracing::{event, Level};
+use tracing::{Level, event};
 use tree_sitter::{Point, TreeCursor};
 
 use crate::{
@@ -36,11 +36,11 @@ impl Indent {
         match self {
             Indent::Tab => "\u{0009}",
             #[allow(clippy::wildcard_in_or_patterns)]
-            Indent::Space(v) => {
-                match v {
-                    2 => "\u{0020}\u{0020}",
-                    4 => "\u{0020}\u{0020}\u{0020}\u{0020}",
-                    8 | _ => "\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}",
+            Indent::Space(v) => match v {
+                2 => "\u{0020}\u{0020}",
+                4 => "\u{0020}\u{0020}\u{0020}\u{0020}",
+                8 | _ => {
+                    "\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}\u{0020}"
                 }
             },
         }
@@ -1836,7 +1836,10 @@ impl LapceLanguage {
         match HighlightConfiguration::new(grammar, &query, &injection, "") {
             Ok(x) => Ok(x),
             Err(x) => {
-                let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {}", self.name());
+                let str = format!(
+                    "Encountered {x:?} while trying to construct HighlightConfiguration for {}",
+                    self.name()
+                );
                 event!(Level::ERROR, "{str}");
                 Err(HighlightIssue::Error(str))
             }
