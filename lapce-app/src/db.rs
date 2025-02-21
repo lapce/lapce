@@ -4,8 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Sender};
+use anyhow::{Result, anyhow};
+use crossbeam_channel::{Sender, unbounded};
 use floem::{peniko::kurbo::Vec2, reactive::SignalGet};
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;

@@ -1,19 +1,19 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    AnyView, IntoView, View,
     event::{Event, EventListener, EventPropagation},
     kurbo::{Point, Size},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_rw_signal,
     },
     style::{CursorStyle, Style},
     taffy::AlignItems,
     unit::PxPctAuto,
     views::{
-        container, dyn_stack, empty, h_stack, label, stack, stack_from_iter, tab,
-        text, Decorators,
+        Decorators, container, dyn_stack, empty, h_stack, label, stack,
+        stack_from_iter, tab, text,
     },
-    AnyView, IntoView, View,
 };
 
 use super::{
@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     app::{clickable_icon, clickable_icon_base},
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     file_explorer::view::file_explorer_panel,
     panel::{
         call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,

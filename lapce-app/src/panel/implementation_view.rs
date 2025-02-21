@@ -1,18 +1,18 @@
 use std::{ops::AddAssign, path::PathBuf, rc::Rc};
 
 use floem::{
+    IntoView, View, ViewId,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     style::CursorStyle,
     views::{
-        container, label, scroll, stack, svg, virtual_stack, Decorators,
-        VirtualVector,
+        Decorators, VirtualVector, container, label, scroll, stack, svg,
+        virtual_stack,
     },
-    IntoView, View, ViewId,
 };
 use im::HashMap;
 use itertools::Itertools;
 use lapce_rpc::file_line::FileLine;
-use lsp_types::{request::GotoImplementationResponse, Location, SymbolKind};
+use lsp_types::{Location, SymbolKind, request::GotoImplementationResponse};
 
 use super::position::PanelPosition;
 use crate::{

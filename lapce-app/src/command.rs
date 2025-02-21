@@ -2,8 +2,8 @@ use std::{path::PathBuf, rc::Rc};
 
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
-    keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
-    ViewId,
+    ViewId, keyboard::Modifiers, peniko::kurbo::Vec2,
+    views::editor::command::Command,
 };
 use indexmap::IndexMap;
 use lapce_core::command::{

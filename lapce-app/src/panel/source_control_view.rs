@@ -1,19 +1,19 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
+    View,
     action::show_context_menu,
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::Rect,
     prelude::SignalTrack,
-    reactive::{create_memo, create_rw_signal, SignalGet, SignalUpdate, SignalWith},
+    reactive::{SignalGet, SignalUpdate, SignalWith, create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     views::{
-        container, dyn_stack,
-        editor::view::{cursor_caret, LineRegion},
-        label, scroll, stack, svg, text, Decorators,
+        Decorators, container, dyn_stack,
+        editor::view::{LineRegion, cursor_caret},
+        label, scroll, stack, svg, text,
     },
-    View,
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;

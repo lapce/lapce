@@ -11,7 +11,7 @@ use std::{
 use alacritty_terminal::{
     event::{OnResize, WindowSize},
     event_loop::Msg,
-    tty::{self, setup_env, EventedPty, EventedReadWrite, Options, Shell},
+    tty::{self, EventedPty, EventedReadWrite, Options, Shell, setup_env},
 };
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
@@ -266,7 +266,7 @@ impl Terminal {
                         state.set_current(Some(current));
                         match err.kind() {
                             ErrorKind::Interrupted | ErrorKind::WouldBlock => {
-                                break 'write_many
+                                break 'write_many;
                             }
                             _ => return Err(err),
                         }
@@ -378,5 +378,7 @@ fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()
         .replace('-', "_");
-    std::env::set_var("LC_ALL", locale + ".UTF-8");
+    unsafe {
+        std::env::set_var("LC_ALL", locale + ".UTF-8");
+    }
 }

@@ -107,7 +107,7 @@ pub(super) fn error_modal(title: &str, msg: &str) -> i32 {
     use std::{ffi::OsStr, iter::once, mem, os::windows::prelude::OsStrExt};
 
     use windows::Win32::UI::WindowsAndMessaging::{
-        MessageBoxW, MB_ICONERROR, MB_SYSTEMMODAL,
+        MB_ICONERROR, MB_SYSTEMMODAL, MessageBoxW,
     };
 
     let result: i32;

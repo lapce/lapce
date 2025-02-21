@@ -5,8 +5,8 @@ use std::{
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::{json, Value};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::{Value, json};
 
 use crate::{RpcError, RpcMessage, RpcObject};
 

@@ -21,7 +21,7 @@ use self::{
     color::LapceColor,
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
-    editor::{EditorConfig, WrapStyle, SCALE_OR_SIZE_LIMIT},
+    editor::{EditorConfig, SCALE_OR_SIZE_LIMIT, WrapStyle},
     icon::LapceIcons,
     icon_theme::IconThemeConfig,
     svg::SvgStore,

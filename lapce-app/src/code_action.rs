@@ -11,7 +11,7 @@ use lsp_types::CodeActionOrCommand;
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     window_tab::{CommonData, Focus},
 };
 

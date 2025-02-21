@@ -1,19 +1,19 @@
 use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     event::{Event, EventListener},
     kurbo::Rect,
     peniko::Color,
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_rw_signal,
     },
     style::{AlignItems, CursorStyle, Position, Style},
     text::Style as FontStyle,
     views::{
-        container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
-        Decorators,
+        Container, Decorators, container, dyn_stack, label, scroll, stack, svg,
+        virtual_stack,
     },
-    View,
 };
 use lapce_core::selection::Selection;
 use lapce_rpc::{
@@ -26,7 +26,7 @@ use super::{data::FileExplorerData, node::FileNodeVirtualList};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     editor_tab::{EditorTabChild, EditorTabData},
     panel::{
         data::PanelSection, kind::PanelKind, position::PanelPosition,

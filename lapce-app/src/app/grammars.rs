@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use lapce_core::directory::Directory;
 
 use crate::{tracing::*, update::ReleaseInfo};
@@ -24,7 +24,7 @@ pub fn find_grammar_release() -> Result<ReleaseInfo> {
         "https://api.github.com/repos/lapce/tree-sitter-grammars/releases?per_page=100",
     ).context("Failed to retrieve releases for tree-sitter-grammars")?)?;
 
-    use lapce_core::meta::{ReleaseType, RELEASE, VERSION};
+    use lapce_core::meta::{RELEASE, ReleaseType, VERSION};
 
     let releases = releases
         .into_iter()
