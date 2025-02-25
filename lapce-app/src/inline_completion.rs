@@ -1,10 +1,10 @@
 use std::{borrow::Cow, ops::Range, path::PathBuf, str::FromStr};
 
-use floem::reactive::{batch, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith};
+use floem::reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, batch};
 use lapce_core::{
     buffer::{
-        rope_text::{RopeText, RopeTextRef},
         Buffer,
+        rope_text::{RopeText, RopeTextRef},
     },
     rope_text_pos::RopeTextPosition,
     selection::Selection,

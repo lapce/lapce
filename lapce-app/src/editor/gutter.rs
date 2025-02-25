@@ -1,16 +1,16 @@
 use floem::{
+    Renderer, View, ViewId,
     context::PaintCx,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{Memo, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    Renderer, View, ViewId,
 };
 use im::HashMap;
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 use serde::{Deserialize, Serialize};
 
-use super::{view::changes_colors_screen, EditorData};
-use crate::config::{color::LapceColor, LapceConfig};
+use super::{EditorData, view::changes_colors_screen};
+use crate::config::{LapceConfig, color::LapceColor};
 
 pub struct EditorGutterView {
     id: ViewId,

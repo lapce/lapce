@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
+    RpcMessage,
     file::{LineCol, PathObject},
     proxy::{ProxyMessage, ProxyNotification},
-    RpcMessage,
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

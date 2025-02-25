@@ -1,11 +1,11 @@
 use floem::{
+    View,
     peniko::kurbo::Rect,
     reactive::{
-        create_effect, create_rw_signal, SignalGet, SignalUpdate, SignalWith,
+        SignalGet, SignalUpdate, SignalWith, create_effect, create_rw_signal,
     },
     text::{Attrs, AttrsList, LineHeightValue, TextLayout},
-    views::{container, label, rich_text, scroll, stack, Decorators},
-    View,
+    views::{Decorators, container, label, rich_text, scroll, stack},
 };
 use lapce_core::buffer::rope_text::RopeText;
 

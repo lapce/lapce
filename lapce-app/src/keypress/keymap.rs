@@ -232,7 +232,7 @@ impl FromStr for KeyMapKey {
                     return Err(anyhow::anyhow!(
                         "unrecognized physical key code {}",
                         &s[1..s.len() - 2]
-                    ))
+                    ));
                 }
             };
             KeyMapKey::Physical(PhysicalKey::Code(code))

@@ -11,7 +11,7 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     main_split::Editors,
     window_tab::CommonData,
 };
@@ -78,11 +78,7 @@ impl SourceControlData {
                 .iter()
                 .filter_map(
                     |(_, (diff, checked))| {
-                        if *checked {
-                            Some(diff)
-                        } else {
-                            None
-                        }
+                        if *checked { Some(diff) } else { None }
                     },
                 )
                 .cloned()

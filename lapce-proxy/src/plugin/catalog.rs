@@ -3,34 +3,34 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     thread,
 };
 
 use lapce_rpc::{
+    RpcError,
     dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
-    RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    notification::DidOpenTextDocument, request::Request, DidOpenTextDocumentParams,
-    MessageType, SemanticTokens, ShowMessageParams, TextDocumentIdentifier,
-    TextDocumentItem, VersionedTextDocumentIdentifier,
+    DidOpenTextDocumentParams, MessageType, SemanticTokens, ShowMessageParams,
+    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
+    notification::DidOpenTextDocument, request::Request,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
+    PluginCatalogNotification, PluginCatalogRpcHandler,
     dap::{DapClient, DapRpcHandler, DebuggerData},
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
-    PluginCatalogNotification, PluginCatalogRpcHandler,
 };
 use crate::plugin::{
     install_volt, psp::PluginHandlerNotification, wasi::enable_volt,
@@ -301,11 +301,7 @@ impl PluginCatalog {
                     .as_ref()
                     .and_then(|a| a.language.as_ref())
                     .map(|l| l.contains(&document.language_id))?;
-                if contains {
-                    Some(id.clone())
-                } else {
-                    None
-                }
+                if contains { Some(id.clone()) } else { None }
             })
             .collect();
         self.start_unactivated_volts(to_be_activated);
@@ -410,9 +406,9 @@ impl PluginCatalog {
         frame_id: usize,
         f: Box<
             dyn RpcCallback<
-                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
-                RpcError,
-            >,
+                    Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                    RpcError,
+                >,
         >,
     ) {
         if let Some(dap) = self.daps.get(&dap_id) {

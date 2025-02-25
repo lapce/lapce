@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use floem::{reactive::SignalGet, views::Decorators, View};
+use floem::{View, reactive::SignalGet, views::Decorators};
 
 use super::position::PanelPosition;
 use crate::{

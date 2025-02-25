@@ -7,17 +7,19 @@ use std::{
 };
 
 use floem::{
-    action::{exec_after, show_context_menu, TimerToken},
+    ViewId,
+    action::{TimerToken, exec_after, show_context_menu},
     ext_event::create_ext_action,
     keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{
-        batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
-        SignalWith,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, batch,
+        use_context,
     },
     views::editor::{
+        Editor,
         command::CommandExecuted,
         id::EditorId,
         movement,
@@ -26,16 +28,14 @@ use floem::{
             DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
         },
         visual_line::{ConfigId, Lines, TextLayoutProvider, VLine, VLineInfo},
-        Editor,
     },
-    ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
     buffer::{
+        InvalLines,
         diff::DiffLines,
         rope_text::{RopeText, RopeTextVal},
-        InvalLines,
     },
     command::{
         EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
@@ -71,11 +71,11 @@ use crate::{
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     lsp::path_from_url,
     main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
-        from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
+        MarkdownContent, from_marked_string, from_plaintext, parse_markdown,
     },
     panel::{
         call_hierarchy_view::CallHierarchyItemData,
