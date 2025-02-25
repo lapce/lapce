@@ -874,7 +874,7 @@ impl LapceConfig {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
-        self.color(color).with_alpha_factor(alpha)
+        self.color(color).multiply_alpha(alpha)
     }
 
     /// Get the dropdown information for the specific setting, used for the settings UI.

@@ -316,7 +316,7 @@ impl LapceDb {
                 window.size.width = 800.0;
             }
             if window.size.height < 10.0 {
-                window.size.width = 600.0;
+                window.size.height = 600.0;
             }
         }
         Ok(info)
@@ -329,7 +329,7 @@ impl LapceDb {
             info.size.width = 800.0;
         }
         if info.size.height < 10.0 {
-            info.size.width = 600.0;
+            info.size.height = 600.0;
         }
         Ok(info)
     }

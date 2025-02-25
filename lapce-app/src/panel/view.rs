@@ -218,7 +218,7 @@ pub fn panel_container_view(
     let available_size = window_tab_data.panel.available_size;
     let is_dragging_panel = move || {
         dragging
-            .with_untracked(|d| d.as_ref().map(|d| d.is_panel()))
+            .with(|d| d.as_ref().map(|d| d.is_panel()))
             .unwrap_or(false)
     };
     let drop_view = {
@@ -401,9 +401,11 @@ pub fn panel_container_view(
         resize_drag_view(position),
         stack((drop_view(position.first()), drop_view(position.second()))).style(
             move |s| {
+                let is_dragging_panel = is_dragging_panel();
                 s.absolute()
                     .size_pct(100.0, 100.0)
                     .apply_if(!is_bottom, |s| s.flex_col())
+                    .apply_if(!is_dragging_panel, |s| s.pointer_events_none())
             },
         ),
     ))
@@ -603,12 +605,13 @@ fn panel_picker(
                         .background(
                             config
                                 .color(LapceColor::PANEL_BACKGROUND)
-                                .with_alpha_factor(0.7),
+                                .multiply_alpha(0.7),
                         )
                 })
                 .style(|s| s.padding(1.0)),
                 label(|| "".to_string()).style(move |s| {
                     s.selectable(false)
+                        .pointer_events_none()
                         .absolute()
                         .size_pct(100.0, 100.0)
                         .apply_if(!is_bottom && is_first, |s| s.margin_top(2.0))
