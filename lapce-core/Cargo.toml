@@ -24,8 +24,8 @@ floem-editor-core = { workspace = true }
 
 libloading  = "0.8.1"
 slotmap     = "1.0"
-arc-swap    = "1.6.0"
-tree-sitter = "0.22.6"
+arc-swap    = "1.7.1"
+tree-sitter = "0.25.2"
 ahash       = "0.8.11"
 remain      = "0.2"
 hashbrown   = { version = "0.14.5", features = ["raw"] }
