@@ -3931,6 +3931,8 @@ pub fn launch() {
             if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {
                 if let Some(window_tab) = app_data.active_window_tab() {
                     window_tab.open_paths(&paths);
+                    // focus window after open doc
+                    floem::action::focus_window();
                 }
             }
         });
