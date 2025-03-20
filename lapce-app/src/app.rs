@@ -3932,7 +3932,6 @@ pub fn launch() {
                 if let Some(window_tab) = app_data.active_window_tab() {
                     window_tab.open_paths(&paths);
                     // focus window after open doc
-                    floem::action::set_window_maximized(true);
                     floem::action::focus_window();
                 }
             }
