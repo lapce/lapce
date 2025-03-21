@@ -3760,7 +3760,7 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
-    if let Err(err) = lapce_proxy::require_lapce_path() {
+    if let Err(err) = lapce_proxy::register_lapce_path() {
         tracing::error!("{:?}", err);
     }
     let db = match LapceDb::new() {
