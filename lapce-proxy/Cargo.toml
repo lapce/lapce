@@ -40,10 +40,10 @@ floem-editor-core = { workspace = true }
 
 # proxy specific dependencies
 
-dyn-clone    = "1.0.16"
+dyn-clone    = "1.0.19"
 walkdir      = "2.4.0"
 jsonrpc-lite = "0.6.0"
-polling      = "3.5.0"
+polling      = "3.7.2"
 libc         = "0.2"
 
 # deleting files
@@ -56,7 +56,7 @@ grep-matcher  = "0.1"
 grep-regex    = "0.1"
 
 # wasm
-wasmtime      = "14.0.0"
+wasmtime      = "14.0.4"
 wasmtime-wasi = "14.0.0"
 wasi-common   = "14.0.0"
 
