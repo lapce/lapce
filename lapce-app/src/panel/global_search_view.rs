@@ -4,10 +4,7 @@ use floem::{
     event::EventListener,
     reactive::{ReadSignal, SignalGet, SignalUpdate},
     style::{CursorStyle, Style},
-    views::{
-        container, label, scroll, stack, svg, virtual_stack, Decorators,
-        VirtualDirection, VirtualItemSize,
-    },
+    views::{container, label, scroll, stack, svg, virtual_stack, Decorators},
     View,
 };
 use lapce_xi_rope::find::CaseMatching;
@@ -120,12 +117,6 @@ fn search_result(
     container({
         scroll({
             virtual_stack(
-                VirtualDirection::Vertical,
-                VirtualItemSize::Fn(Box::new(
-                    |(_, match_data): &(PathBuf, SearchMatchData)| {
-                        match_data.height()
-                    },
-                )),
                 move || global_search_data.clone(),
                 move |(path, _)| path.to_owned(),
                 move |(path, match_data)| {
@@ -217,10 +208,6 @@ fn search_result(
                                 })
                         }),
                         virtual_stack(
-                            VirtualDirection::Vertical,
-                            VirtualItemSize::Fixed(Box::new(move || {
-                                ui_line_height.get()
-                            })),
                             move || {
                                 if expanded.get() {
                                     match_data.matches.get()
@@ -305,11 +292,15 @@ fn search_result(
                                 )
                             },
                         )
+                        .item_size_fixed(move || ui_line_height.get())
                         .style(|s| s.flex_col()),
                     ))
                     .style(|s| s.flex_col())
                 },
             )
+            .item_size_fn(|(_, match_data): &(PathBuf, SearchMatchData)| {
+                match_data.height()
+            })
             .style(|s| s.flex_col().min_width_pct(100.0).line_height(1.8))
         })
         .style(|s| s.absolute().size_pct(100.0, 100.0))

@@ -3,12 +3,14 @@ use std::{
     env,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::Arc,
+    sync::{
+        mpsc::{channel, Sender},
+        Arc,
+    },
     time::Instant,
 };
 
 use alacritty_terminal::vte::ansi::Handler;
-use crossbeam_channel::Sender;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
     ext_event::{create_ext_action, create_signal_from_channel},
@@ -315,9 +317,8 @@ impl WindowTabData {
         let keypress = cx.create_rw_signal(KeyPressData::new(cx, &config));
         let proxy_status = cx.create_rw_signal(None);
 
-        let (term_tx, term_rx) = crossbeam_channel::unbounded();
-        let (term_notification_tx, term_notification_rx) =
-            crossbeam_channel::unbounded();
+        let (term_tx, term_rx) = channel();
+        let (term_notification_tx, term_notification_rx) = channel();
         {
             let term_notification_tx = term_notification_tx.clone();
             std::thread::Builder::new()

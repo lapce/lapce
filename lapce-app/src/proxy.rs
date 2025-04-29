@@ -1,6 +1,10 @@
-use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    process::Command,
+    sync::{mpsc::Sender, Arc},
+};
 
-use crossbeam_channel::Sender;
 use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
@@ -111,7 +115,7 @@ pub fn new_proxy(
             .unwrap();
     }
 
-    let (tx, rx) = crossbeam_channel::unbounded();
+    let (tx, rx) = std::sync::mpsc::channel();
     {
         let core_rpc = core_rpc.clone();
         std::thread::Builder::new()

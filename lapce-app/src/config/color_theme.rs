@@ -1,9 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
+    str::FromStr,
 };
 
-use floem::peniko::Color;
+use floem::{peniko::Color, prelude::palette::css};
 use serde::{Deserialize, Serialize};
 
 use super::color::LoadThemeError;
@@ -61,12 +62,12 @@ impl ThemeBaseConfig {
         for (key, value) in self.0.iter() {
             match self.resolve_variable(&default, key, value, 0) {
                 Ok(Some(color)) => {
-                    let color = Color::parse(color)
-                        .unwrap_or_else(|| {
+                    let color = Color::from_str(color)
+                        .unwrap_or_else(|_| {
                             tracing::warn!(
                                 "Failed to parse color theme variable for ({key}: {value})"
                             );
-                            Color::HOT_PINK
+                            css::HOT_PINK
                         });
                     base.0.insert(key.to_string(), color);
                 }
@@ -148,14 +149,14 @@ impl ColorThemeConfig {
                 let color = if let Some(stripped) = hex.strip_prefix('$') {
                     base.get(stripped)
                 } else {
-                    Color::parse(hex)
+                    Color::from_str(hex).ok()
                 };
 
                 let color = color
                     .or_else(|| {
                         default.and_then(|default| default.get(name).cloned())
                     })
-                    .unwrap_or(Color::rgb8(0, 0, 0));
+                    .unwrap_or(Color::from_rgb8(0, 0, 0));
 
                 (name.to_string(), color)
             })
@@ -182,7 +183,7 @@ impl ColorThemeConfig {
 #[cfg(test)]
 mod tests {
     use config::Config;
-    use floem::peniko::Color;
+    use floem::{peniko::Color, prelude::palette::css};
 
     use crate::{config::LapceConfig, workspace::LapceWorkspace};
 
@@ -229,7 +230,7 @@ color-preference = "dark"
 
         lapce_config.resolve_theme(&workspace);
 
-        println!("Hot Pink: {:?}", Color::HOT_PINK);
+        println!("Hot Pink: {:?}", css::HOT_PINK);
         // test basic override
         assert_eq!(
             lapce_config.color("lapce.error"),
@@ -239,13 +240,13 @@ color-preference = "dark"
         // test that it falls through to the dark theme for unspecified color
         assert_eq!(
             lapce_config.color("lapce.warn"),
-            Color::rgb8(0xE5, 0xC0, 0x7B),
+            Color::from_rgb8(0xE5, 0xC0, 0x7B),
             "Failed to get from fallback dark theme"
         ); // $yellow
            // test that our custom variable worked
         assert_eq!(
             lapce_config.color("editor.background"),
-            Color::rgb8(0xFF, 0x00, 0xFF),
+            Color::from_rgb8(0xFF, 0x00, 0xFF),
             "Failed to get from custom variable"
         );
         // test that for text it now uses our redeclared variable

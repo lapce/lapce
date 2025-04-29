@@ -11,7 +11,7 @@ use floem::{
     text::Style as FontStyle,
     views::{
         container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
-        Decorators, VirtualDirection, VirtualItemSize,
+        Decorators,
     },
     View,
 };
@@ -45,30 +45,19 @@ use crate::{
 ///
 /// The result is always opaque regardless of the transparency of the inputs.
 fn blend_colors(background: Color, foreground: Color) -> Color {
-    let Color {
-        r: background_r,
-        g: background_g,
-        b: background_b,
-        ..
-    } = background;
-    let Color {
-        r: foreground_r,
-        g: foreground_g,
-        b: foreground_b,
-        a,
-    } = foreground;
-    let a: u16 = a.into();
-
+    let background = background.to_rgba8();
+    let foreground = foreground.to_rgba8();
+    let a: u16 = foreground.a.into();
     let [r, g, b] = [
-        [background_r, foreground_r],
-        [background_g, foreground_g],
-        [background_b, foreground_b],
+        [background.r, foreground.r],
+        [background.g, foreground.g],
+        [background.b, foreground.b],
     ]
     .map(|x| x.map(u16::from))
     .map(|[b, f]| (a * f + (255 - a) * b) / 255)
     .map(|x| x as u8);
 
-    Color { r, g, b, a: 255 }
+    Color::from_rgba8(r, g, b, 255)
 }
 
 pub fn file_explorer_panel(
@@ -330,8 +319,6 @@ fn file_explorer_view(
 
     scroll(
         virtual_stack(
-            VirtualDirection::Vertical,
-            VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
             move || FileNodeVirtualList::new(root.get(), data.naming.get()),
             move |node| (node.kind.clone(), node.is_dir, node.open, node.level),
             move |node| {
@@ -476,6 +463,7 @@ fn file_explorer_view(
                 }
             },
         )
+        .item_size_fixed(move || ui_line_height.get())
         .style(|s| s.absolute().flex_col().min_width_full()),
     )
     .style(|s| s.absolute().size_full().line_height(1.8))

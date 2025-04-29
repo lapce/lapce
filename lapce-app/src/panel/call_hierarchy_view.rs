@@ -5,7 +5,7 @@ use floem::{
     style::CursorStyle,
     views::{
         container, empty, label, scroll, stack, svg, virtual_stack, Decorators,
-        VirtualDirection, VirtualItemSize, VirtualVector,
+        VirtualVector,
     },
     IntoView, View, ViewId,
 };
@@ -132,8 +132,6 @@ pub fn show_hierarchy_panel(
     let scroll_to_line = call_hierarchy_data.scroll_to_line;
     scroll(
         virtual_stack(
-            VirtualDirection::Vertical,
-            VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
             move || VirtualList::new(call_hierarchy_data.root.get()),
             move |(_, _, item)| item.get_untracked().view_id,
             move |(_, level, rw_data)| {
@@ -238,7 +236,7 @@ pub fn show_hierarchy_panel(
                     }
                 })
             },
-        )
+        ).item_size_fixed(move || ui_line_height.get())
         .style(|s| s.flex_col().absolute().min_width_full()),
     )
     .style(|s| s.absolute().size_full())

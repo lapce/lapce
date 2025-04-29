@@ -5,13 +5,13 @@ use std::{
     rc::Rc,
     sync::{
         atomic::{AtomicU64, Ordering},
+        mpsc::{channel, Receiver, Sender, TryRecvError},
         Arc,
     },
     time::Instant,
 };
 
 use anyhow::Result;
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     keyboard::Modifiers,
@@ -140,7 +140,7 @@ impl PaletteData {
         let run_id = cx.create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
 
-        let (run_tx, run_rx) = crossbeam_channel::unbounded();
+        let (run_tx, run_rx) = channel();
         {
             let run_id = run_id.read_only();
             let input = input.read_only();
@@ -177,7 +177,7 @@ impl PaletteData {
                 kind
             });
         }
-        let (resp_tx, resp_rx) = crossbeam_channel::unbounded();
+        let (resp_tx, resp_rx) = channel();
         {
             let run_id = run_id_counter.clone();
             std::thread::Builder::new()

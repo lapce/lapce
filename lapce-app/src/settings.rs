@@ -14,8 +14,7 @@ use floem::{
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},
-        stack, svg, text, virtual_stack, Decorators, VirtualDirection,
-        VirtualItemSize, VirtualVector,
+        stack, svg, text, virtual_stack, Decorators, VirtualVector,
     },
     IntoView, View,
 };
@@ -831,8 +830,6 @@ fn color_section_list(
                 .line_height(2.0)
         }),
         virtual_stack(
-            VirtualDirection::Vertical,
-            VirtualItemSize::Fixed(Box::new(move || text_height.get() + 24.0)),
             move || BTreeMapVirtualList(list()),
             move |(key, _)| (key.to_owned()),
             move |(key, value)| {
@@ -1025,6 +1022,7 @@ fn color_section_list(
                 .style(|s| s.items_center())
             },
         )
+        .item_size_fixed(move || text_height.get() + 24.0)
         .style(|s| s.flex_col().padding_right(20)),
     ))
     .style(|s| s.flex_col())

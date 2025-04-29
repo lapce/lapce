@@ -1,3 +1,5 @@
+use std::sync::mpsc::Sender;
+
 use alacritty_terminal::{
     event::EventListener,
     grid::Dimensions,
@@ -10,7 +12,6 @@ use alacritty_terminal::{
     vte::ansi,
     Term,
 };
-use crossbeam_channel::Sender;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 
 use super::event::TermNotification;

@@ -9,7 +9,7 @@ use floem::{
     style::CursorStyle,
     views::{
         container, dyn_container, img, label, scroll::scroll, stack, svg,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        virtual_stack, Decorators, VirtualVector,
     },
     IntoView, View,
 };
@@ -194,14 +194,11 @@ fn installed_view(plugin: PluginData) -> impl View {
     container(
         scroll(
             virtual_stack(
-                VirtualDirection::Vertical,
-                VirtualItemSize::Fixed(Box::new(move || {
-                    ui_line_height.get() * 3.0 + 10.0
-                })),
                 move || IndexMapItems(volts.get()),
                 move |(_, id, _)| id.clone(),
                 move |(_, _, volt)| view_fn(volt, plugin.clone()),
             )
+            .item_size_fixed(move || ui_line_height.get() * 3.0 + 10.0)
             .style(|s| s.flex_col().width_pct(100.0)),
         )
         .style(|s| s.absolute().size_pct(100.0, 100.0)),
@@ -379,14 +376,11 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
         container({
             scroll({
                 virtual_stack(
-                    VirtualDirection::Vertical,
-                    VirtualItemSize::Fixed(Box::new(move || {
-                        ui_line_height.get() * 3.0 + 10.0
-                    })),
                     move || IndexMapItems(volts.get()),
                     move |(_, id, _)| id.clone(),
                     view_fn,
                 )
+                .item_size_fixed(move || ui_line_height.get() * 3.0 + 10.0)
                 .on_resize(move |rect| {
                     content_rect.set(rect);
                 })

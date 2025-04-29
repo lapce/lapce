@@ -1,6 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
-
-use crossbeam_channel::Sender;
+use std::sync::{atomic::AtomicBool, mpsc::Sender, Arc};
 
 pub struct ConfigWatcher {
     tx: Sender<()>,

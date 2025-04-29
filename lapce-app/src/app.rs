@@ -6,12 +6,15 @@ use std::{
     path::PathBuf,
     process::Stdio,
     rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{
+        atomic::AtomicU64,
+        mpsc::{channel, sync_channel, SyncSender},
+        Arc,
+    },
 };
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use crossbeam_channel::Sender;
 use floem::{
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
@@ -41,8 +44,7 @@ use floem::{
         editor::{core::register::Clipboard, text::SystemClipboard},
         empty, label, rich_text,
         scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
-        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
-        VirtualItemSize, VirtualVector,
+        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
     IntoView, View,
@@ -2655,8 +2657,6 @@ fn palette_content(
         scroll({
             let workspace = workspace.clone();
             virtual_stack(
-                VirtualDirection::Vertical,
-                VirtualItemSize::Fixed(Box::new(move || palette_item_height)),
                 move || PaletteItems(items.get()),
                 move |(i, _item)| {
                     (run_id.get_untracked(), *i, input.get_untracked().input)
@@ -2701,6 +2701,7 @@ fn palette_content(
                     })
                 },
             )
+            .item_size_fixed(move || palette_item_height)
             .style(|s| s.width_full().flex_col())
         })
         .ensure_visible(move || {
@@ -3040,10 +3041,6 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
         move || completion_data.with_untracked(|c| (c.request_id, c.input_id));
     scroll(
         virtual_stack(
-            VirtualDirection::Vertical,
-            VirtualItemSize::Fixed(Box::new(move || {
-                config.get().editor.line_height() as f64
-            })),
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
             move |(i, _item)| (request_id(), *i),
             move |(i, item)| {
@@ -3118,6 +3115,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                 })
             },
         )
+        .item_size_fixed(move || config.get().editor.line_height() as f64)
         .style(|s| {
             s.align_items(Some(AlignItems::Center))
                 .width_full()
@@ -3827,7 +3825,7 @@ pub fn launch() {
 
     let plugin_paths = Arc::new(cli.plugin_path);
 
-    let (tx, rx) = crossbeam_channel::bounded(1);
+    let (tx, rx) = channel();
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
     if let Some(path) = LapceConfig::settings_file() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
@@ -3947,7 +3945,7 @@ pub fn launch() {
 
     #[cfg(feature = "updater")]
     {
-        let (tx, rx) = crossbeam_channel::bounded(1);
+        let (tx, rx) = sync_channel(1);
         let notification = create_signal_from_channel(rx);
         let latest_release = app_data.latest_release;
         create_effect(move |_| {
@@ -3969,7 +3967,7 @@ pub fn launch() {
     }
 
     {
-        let (tx, rx) = crossbeam_channel::bounded(1);
+        let (tx, rx) = sync_channel(1);
         let notification = create_signal_from_channel(rx);
         let app_data = app_data.clone();
         create_effect(move |_| {
@@ -4111,7 +4109,7 @@ pub fn try_open_in_existing_process(
     Ok(())
 }
 
-fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
+fn listen_local_socket(tx: SyncSender<CoreNotification>) -> Result<()> {
     let local_socket = Directory::local_socket()
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
     if local_socket.exists() {
