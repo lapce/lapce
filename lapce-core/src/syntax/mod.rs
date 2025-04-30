@@ -8,11 +8,11 @@
 
 use std::{
     cell::RefCell,
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     hash::{Hash, Hasher},
     mem,
     path::Path,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{Arc, atomic::AtomicUsize},
 };
 
 use ahash::RandomState;
@@ -21,8 +21,8 @@ use hashbrown::raw::RawTable;
 use itertools::Itertools;
 use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::{
-    spans::{Spans, SpansBuilder},
     Interval, Rope,
+    spans::{Spans, SpansBuilder},
 };
 use slotmap::{DefaultKey as LayerId, HopSlotMap};
 use thiserror::Error;
@@ -31,14 +31,14 @@ use tree_sitter::{Node, Parser, Point, QueryCursor, Tree};
 use self::{
     edit::SyntaxEdit,
     highlight::{
-        get_highlight_config, intersect_ranges, Highlight, HighlightConfiguration,
-        HighlightEvent, HighlightIter, HighlightIterLayer, IncludedChildren,
-        LocalScope,
+        Highlight, HighlightConfiguration, HighlightEvent, HighlightIter,
+        HighlightIterLayer, IncludedChildren, LocalScope, get_highlight_config,
+        intersect_ranges,
     },
     util::RopeProvider,
 };
 use crate::{
-    buffer::{rope_text::RopeText, Buffer},
+    buffer::{Buffer, rope_text::RopeText},
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,

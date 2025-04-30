@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tracing::{event, Level};
+use tracing::{Level, event};
 use url::Url;
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
@@ -59,7 +59,10 @@ pub fn path_from_url(url: &Url) -> PathBuf {
                         event!(Level::DEBUG, "Returning path `{:?}`", path);
                         return PathBuf::from(path);
                     } else {
-                        event!(Level::ERROR, "Unhandled 'maybe_drive_letter' pattern: {maybe_drive_letter:?}");
+                        event!(
+                            Level::ERROR,
+                            "Unhandled 'maybe_drive_letter' pattern: {maybe_drive_letter:?}"
+                        );
                     }
                 }
                 v => {

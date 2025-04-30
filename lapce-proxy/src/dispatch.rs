@@ -3,24 +3,25 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     thread,
     time::Duration,
 };
 
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use crossbeam_channel::Sender;
 use git2::{
-    build::CheckoutBuilder, DiffOptions, ErrorCode::NotFound, Oid, Repository,
+    DiffOptions, ErrorCode::NotFound, Oid, Repository, build::CheckoutBuilder,
 };
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
-use grep_searcher::{sinks::UTF8, SearcherBuilder};
+use grep_searcher::{SearcherBuilder, sinks::UTF8};
 use indexmap::IndexMap;
 use lapce_rpc::{
+    RequestId, RpcError,
     buffer::BufferId,
     core::{CoreNotification, CoreRpcHandler, FileChanged},
     file::FileNodeItem,
@@ -32,19 +33,18 @@ use lapce_rpc::{
     source_control::{DiffInfo, FileDiff},
     style::{LineStyle, SemanticStyles},
     terminal::TermId,
-    RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
 use lsp_types::{
-    notification::{Cancel, Notification},
     CancelParams, MessageType, NumberOrString, Position, Range, ShowMessageParams,
     TextDocumentItem, Url,
+    notification::{Cancel, Notification},
 };
 use parking_lot::Mutex;
 
 use crate::{
-    buffer::{get_mod_time, load_file, Buffer},
-    plugin::{catalog::PluginCatalog, PluginCatalogRpcHandler},
+    buffer::{Buffer, get_mod_time, load_file},
+    plugin::{PluginCatalogRpcHandler, catalog::PluginCatalog},
     terminal::{Terminal, TerminalSender},
     watcher::{FileWatcher, Notify, WatchToken},
 };
@@ -130,7 +130,10 @@ impl ProxyHandler for Dispatcher {
                                 );
                             }
                             Err(err) => {
-                                tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                                tracing::event!(
+                                    tracing::Level::ERROR,
+                                    "Failed to re-read file after change notification: {err}"
+                                );
                             }
                         }
                     }
@@ -1050,7 +1053,7 @@ impl ProxyHandler for Dispatcher {
                             .ancestors()
                             .skip(1)
                             .find(|parent| parent.exists())
-                            .map_or(true, |parent| parent.is_dir());
+                            .is_none_or(|parent| parent.is_dir());
 
                         if parent_is_dir {
                             Ok(ProxyResponse::Success {})

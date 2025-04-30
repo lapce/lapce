@@ -1,21 +1,21 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     peniko::Color,
     reactive::{
-        create_effect, create_rw_signal, ReadSignal, SignalGet, SignalUpdate,
-        SignalWith,
+        ReadSignal, SignalGet, SignalUpdate, SignalWith, create_effect,
+        create_rw_signal,
     },
     style::{CursorStyle, Style},
-    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
-    View,
+    views::{Decorators, container, dyn_stack, label, scroll, stack, svg},
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
 use super::{data::PanelSection, position::PanelPosition, view::PanelBuilder};
 use crate::{
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     doc::{DiagnosticData, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,

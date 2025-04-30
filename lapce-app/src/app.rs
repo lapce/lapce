@@ -6,56 +6,56 @@ use std::{
     path::PathBuf,
     process::Stdio,
     rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{Arc, atomic::AtomicU64},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
+    IntoView, View,
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
     menu::{Menu, MenuItem},
     peniko::{
-        kurbo::{Point, Rect, Size},
         Color,
+        kurbo::{Point, Rect, Size},
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, provide_context, use_context,
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal, provide_context, use_context,
     },
     style::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,
         Style,
     },
     taffy::{
-        style_helpers::{self, auto, fr},
         Line,
+        style_helpers::{self, auto, fr},
     },
     text::{Style as FontStyle, Weight},
     unit::PxPctAuto,
     views::{
-        clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector, clip,
+        container, drag_resize_window_area, drag_window_area, dyn_stack,
         editor::{core::register::Clipboard, text::SystemClipboard},
         empty, label, rich_text,
-        scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
-        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
-        VirtualItemSize, VirtualVector,
+        scroll::{PropagatePointerWheel, VerticalScrollAsHorizontal, scroll},
+        stack, svg, tab, text, tooltip, virtual_stack,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
-    IntoView, View,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    syntax::{highlight::reset_highlight_configs, Syntax},
+    syntax::{Syntax, highlight::reset_highlight_configs},
 };
 use lapce_rpc::{
+    RpcMessage,
     core::{CoreMessage, CoreNotification},
     file::PathObject,
-    RpcMessage,
 };
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
@@ -70,8 +70,8 @@ use crate::{
         WindowCommand,
     },
     config::{
-        color::LapceColor, icon::LapceIcons, ui::TabSeparatorHeight,
-        watcher::ConfigWatcher, LapceConfig,
+        LapceConfig, color::LapceColor, icon::LapceIcons, ui::TabSeparatorHeight,
+        watcher::ConfigWatcher,
     },
     db::LapceDb,
     debug::RunDebugMode,
@@ -91,11 +91,11 @@ use crate::{
     },
     markdown::MarkdownContent,
     palette::{
-        item::{PaletteItem, PaletteItemContent},
         PaletteStatus,
+        item::{PaletteItem, PaletteItemContent},
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
-    plugin::{plugin_info_view, PluginData},
+    plugin::{PluginData, plugin_info_view},
     settings::{settings_view, theme_color_settings_view},
     status::status,
     text_input::TextInputBuilder,
@@ -458,7 +458,7 @@ impl AppData {
         app
     }
 
-    fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
+    fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View + use<> {
         let app_view_id = create_rw_signal(floem::ViewId::new());
         let window_data = WindowData::new(
             window_id,
@@ -2154,7 +2154,7 @@ fn palette_item(
     palette_item_height: f64,
     config: ReadSignal<Arc<LapceConfig>>,
     keymap: Option<&KeyMap>,
-) -> impl View {
+) -> impl View + use<> {
     match &item.content {
         PaletteItemContent::File { path, .. }
         | PaletteItemContent::Reference { path, .. } => {
@@ -2241,11 +2241,7 @@ fn palette_item(
                 .iter()
                 .filter_map(|i| {
                     let i = *i;
-                    if i < text.len() {
-                        Some(i)
-                    } else {
-                        None
-                    }
+                    if i < text.len() { Some(i) } else { None }
                 })
                 .collect();
             let hint_indices: Vec<usize> = item
@@ -2323,11 +2319,7 @@ fn palette_item(
                 .iter()
                 .filter_map(|i| {
                     let i = *i;
-                    if i < text.len() {
-                        Some(i)
-                    } else {
-                        None
-                    }
+                    if i < text.len() { Some(i) } else { None }
                 })
                 .collect();
             let hint_indices: Vec<usize> = item
@@ -2395,11 +2387,7 @@ fn palette_item(
                 .iter()
                 .filter_map(|i| {
                     let i = *i;
-                    if i < text.len() {
-                        Some(i)
-                    } else {
-                        None
-                    }
+                    if i < text.len() { Some(i) } else { None }
                 })
                 .collect();
             let hint_indices: Vec<usize> = item
@@ -3668,7 +3656,7 @@ pub fn launch() {
 
     #[cfg(feature = "vendored-fonts")]
     {
-        use floem::text::{fontdb::Source, FONT_SYSTEM};
+        use floem::text::{FONT_SYSTEM, fontdb::Source};
 
         const FONT_DEJAVU_SANS_REGULAR: &[u8] = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -3912,13 +3900,15 @@ pub fn launch() {
         });
         std::thread::Builder::new()
             .name("LapceUpdater".to_owned())
-            .spawn(move || loop {
-                if let Ok(release) = crate::update::get_latest_release() {
-                    if let Err(err) = tx.send(release) {
-                        tracing::error!("{:?}", err);
+            .spawn(move || {
+                loop {
+                    if let Ok(release) = crate::update::get_latest_release() {
+                        if let Err(err) = tx.send(release) {
+                            tracing::error!("{:?}", err);
+                        }
                     }
+                    std::thread::sleep(std::time::Duration::from_secs(60 * 60));
                 }
-                std::thread::sleep(std::time::Duration::from_secs(60 * 60));
             })
             .unwrap();
     }

@@ -1,7 +1,7 @@
 use floem_editor_core::buffer::rope_text::RopeText;
 use lsp_types::Position;
 
-use crate::encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16};
+use crate::encoding::{offset_utf8_to_utf16, offset_utf16_to_utf8};
 
 pub trait RopeTextPosition: RopeText {
     /// Converts a UTF8 offset to a UTF16 LSP position

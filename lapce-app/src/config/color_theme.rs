@@ -242,7 +242,7 @@ color-preference = "dark"
             Color::rgb8(0xE5, 0xC0, 0x7B),
             "Failed to get from fallback dark theme"
         ); // $yellow
-           // test that our custom variable worked
+        // test that our custom variable worked
         assert_eq!(
             lapce_config.color("editor.background"),
             Color::rgb8(0xFF, 0x00, 0xFF),
