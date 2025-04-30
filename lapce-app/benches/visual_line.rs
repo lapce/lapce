@@ -28,7 +28,7 @@ struct TLProv<'a> {
     font_family: Vec<FamilyOwned>,
     has_multiline_phantom: bool,
 }
-impl<'a> TextLayoutProvider for TLProv<'a> {
+impl TextLayoutProvider for TLProv<'_> {
     fn text(&self) -> Rope {
         self.text.clone()
     }

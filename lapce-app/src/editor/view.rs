@@ -1147,7 +1147,14 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
+        FloemEditorView::paint_text(
+            cx,
+            None,
+            ed,
+            viewport,
+            is_active,
+            &screen_lines,
+        );
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
