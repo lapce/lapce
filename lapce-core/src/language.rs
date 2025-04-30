@@ -495,7 +495,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Bash,
         indent: Indent::space(2),
         files: &[],
-        extensions: &["bash"],
+        extensions: &["bash", "sh"],
         comment: comment_properties!("#"),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
