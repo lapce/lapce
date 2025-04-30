@@ -9,7 +9,6 @@ pub mod watcher;
 
 use std::{
     io::{stdin, stdout, BufReader},
-    path::PathBuf,
     process::exit,
     sync::Arc,
     thread,
@@ -138,19 +137,23 @@ pub fn mainloop() {
 }
 
 pub fn register_lapce_path() -> Result<()> {
-    let path = std::env::current_exe()?;
+    let exedir = std::env::current_exe()?
+        .parent()
+        .ok_or(anyhow!("can't get parent dir of exe"))?
+        .canonicalize()?;
 
-    if let Some(path) = path.parent() {
-        if let Some(path) = path.to_str() {
-            if let Ok(current_path) = std::env::var("PATH") {
-                let mut paths = vec![PathBuf::from(path)];
-                paths.append(
-                    &mut std::env::split_paths(&current_path).collect::<Vec<_>>(),
-                );
-                std::env::set_var("PATH", std::env::join_paths(paths)?);
-            }
+    let current_path = std::env::var("PATH")?;
+    let paths = std::env::split_paths(&current_path);
+    for path in paths {
+        if exedir == path.canonicalize()? {
+            return Ok(());
         }
     }
+    let paths = std::env::split_paths(&current_path);
+    std::env::set_var(
+        "PATH",
+        std::env::join_paths(std::iter::once(exedir).chain(paths))?,
+    );
 
     Ok(())
 }
