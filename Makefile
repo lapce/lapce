@@ -1,3 +1,11 @@
+# This Makefile is intended *only* for building macOS binaries of Lapce.
+# It uses macOS-specific tools like `lipo`, `codesign`, and `hdiutil`,
+# and requires that a valid Apple Developer signing identity is installed
+# and available in the system Keychain under the fingerprint set in 
+# CODESIGN_IDENTITY.
+#
+# See `docs/building-from-source.md`.
+
 TARGET = lapce
 
 CODESIGN_IDENTITY = FAC8FBEA99169DC1980731029648F110628D6A32
