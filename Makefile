@@ -1,3 +1,11 @@
+# This Makefile is intended *only* for building macOS binaries of Lapce.
+# It uses macOS-specific tools like `lipo`, `codesign`, and `hdiutil`,
+# and requires that a valid Apple Developer signing identity is installed
+# and available in the system Keychain under the fingerprint set in 
+# CODESIGN_IDENTITY.
+#
+# See `docs/building-from-source.md`.
+
 TARGET = lapce
 
 CODESIGN_IDENTITY = FAC8FBEA99169DC1980731029648F110628D6A32
@@ -22,7 +30,7 @@ vpath $(DMG_NAME) $(APP_DIR)
 all: help
 
 help: ## Print this help message
-	@grep -E '^[a-zA-Z._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 ubuntu-deps:
 	apt-get update -y
