@@ -8,7 +8,7 @@ use floem::{
     reactive::{
         create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
     },
-    style::{AlignItems, CursorStyle, Display, FlexWrap},
+    style::{AlignItems, CursorStyle, Display},
     views::{dyn_stack, label, stack, svg, Decorators},
     View,
 };
@@ -434,7 +434,7 @@ fn progress_view(
             })
         },
     )
-    .style(move |s| s.flex_wrap(FlexWrap::Wrap).height_pct(100.0).min_width(0.0))
+    .style(move |s| s.flex_row().height_pct(100.0).min_width(0.0))
 }
 
 fn status_text<S: std::fmt::Display + 'static>(

@@ -396,6 +396,7 @@ fn right(
                     .size_pct(100.0, 100.0)
                     .justify_end()
                     .items_end()
+                    .pointer_events_none()
                     .apply_if(!has_update, |s| s.hide())
             }),
         ))

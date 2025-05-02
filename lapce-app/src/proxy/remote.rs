@@ -210,44 +210,37 @@ pub fn start_remote(
         })
         .unwrap();
 
-    std::thread::Builder::new()
-        .name("RpcMessageHandler".to_owned())
-        .spawn(move || {
-            for msg in reader_rx {
-                match msg {
-                    RpcMessage::Request(id, req) => {
-                        let writer_tx = writer_tx.clone();
-                        let core_rpc = core_rpc.clone();
-                        std::thread::spawn(move || match core_rpc.request(req) {
-                            Ok(resp) => {
-                                if let Err(err) =
-                                    writer_tx.send(RpcMessage::Response(id, resp))
-                                {
-                                    tracing::error!("{:?}", err);
-                                }
-                            }
-                            Err(e) => {
-                                if let Err(err) =
-                                    writer_tx.send(RpcMessage::Error(id, e))
-                                {
-                                    tracing::error!("{:?}", err);
-                                }
-                            }
-                        });
+    for msg in reader_rx {
+        match msg {
+            RpcMessage::Request(id, req) => {
+                let writer_tx = writer_tx.clone();
+                let core_rpc = core_rpc.clone();
+                std::thread::spawn(move || match core_rpc.request(req) {
+                    Ok(resp) => {
+                        if let Err(err) =
+                            writer_tx.send(RpcMessage::Response(id, resp))
+                        {
+                            tracing::error!("{:?}", err);
+                        }
                     }
-                    RpcMessage::Notification(n) => {
-                        core_rpc.notification(n);
+                    Err(e) => {
+                        if let Err(err) = writer_tx.send(RpcMessage::Error(id, e)) {
+                            tracing::error!("{:?}", err);
+                        }
                     }
-                    RpcMessage::Response(id, resp) => {
-                        proxy_rpc.handle_response(id, Ok(resp));
-                    }
-                    RpcMessage::Error(id, err) => {
-                        proxy_rpc.handle_response(id, Err(err));
-                    }
-                }
+                });
             }
-        })
-        .unwrap();
+            RpcMessage::Notification(n) => {
+                core_rpc.notification(n);
+            }
+            RpcMessage::Response(id, resp) => {
+                proxy_rpc.handle_response(id, Ok(resp));
+            }
+            RpcMessage::Error(id, err) => {
+                proxy_rpc.handle_response(id, Err(err));
+            }
+        }
+    }
 
     Ok(())
 }

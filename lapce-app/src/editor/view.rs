@@ -1783,7 +1783,11 @@ fn editor_gutter_folding_range(
     .style(move |s| {
         let config = config.get();
         let width = config.ui.icon_size() as f32;
-        s.width(width).height_full().margin_left(-width / 2.0)
+        // hide for now
+        s.width(width)
+            .height_full()
+            .margin_left(-width / 2.0)
+            .hide()
     })
     .debug_name("Folding Range Stack")
 }
