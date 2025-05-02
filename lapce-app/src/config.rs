@@ -5,7 +5,7 @@ use std::{
 };
 
 use ::core::slice;
-use floem::peniko::Color;
+use floem::{peniko::Color, prelude::palette::css};
 use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
@@ -356,7 +356,7 @@ impl LapceConfig {
             Some(c) => *c,
             None => {
                 error!("Failed to find key: {name}");
-                Color::HOT_PINK
+                css::HOT_PINK
             }
         }
     }
@@ -405,8 +405,8 @@ impl LapceConfig {
             default_config.map(|c| &c.color.syntax),
         );
 
-        let fg = self.color(LapceColor::EDITOR_FOREGROUND);
-        let bg = self.color(LapceColor::EDITOR_BACKGROUND);
+        let fg = self.color(LapceColor::EDITOR_FOREGROUND).to_rgba8();
+        let bg = self.color(LapceColor::EDITOR_BACKGROUND).to_rgba8();
         let is_light = fg.r as u32 + fg.g as u32 + fg.b as u32
             > bg.r as u32 + bg.g as u32 + bg.b as u32;
         let high_contrast = self.color_theme.high_contrast.unwrap_or(false);
@@ -748,11 +748,11 @@ impl LapceConfig {
                 self.terminal_get_named_color(color)
             }
             alacritty_terminal::vte::ansi::Color::Spec(rgb) => {
-                Color::rgb8(rgb.r, rgb.g, rgb.b)
+                Color::from_rgb8(rgb.r, rgb.g, rgb.b)
             }
             alacritty_terminal::vte::ansi::Color::Indexed(index) => {
                 if let Some(rgb) = colors[*index as usize] {
-                    return Color::rgb8(rgb.r, rgb.g, rgb.b);
+                    return Color::from_rgb8(rgb.r, rgb.g, rgb.b);
                 }
                 const NAMED_COLORS: [alacritty_terminal::vte::ansi::NamedColor; 16] = [
                     alacritty_terminal::vte::ansi::NamedColor::Black,
@@ -874,7 +874,7 @@ impl LapceConfig {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
-        self.color(color).with_alpha_factor(alpha)
+        self.color(color).multiply_alpha(alpha)
     }
 
     /// Get the dropdown information for the specific setting, used for the settings UI.

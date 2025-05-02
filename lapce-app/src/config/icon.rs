@@ -111,9 +111,9 @@ impl LapceIcons {
 
     pub const DOCUMENT_SYMBOL: &'static str = "document_symbol";
 
-    pub const REFERENCES: &'static str = "document_symbol";
+    pub const REFERENCES: &'static str = "references";
 
-    pub const IMPLEMENTATION: &'static str = "document_symbol";
+    pub const IMPLEMENTATION: &'static str = "implementation";
 
     pub const SYMBOL_KIND_ARRAY: &'static str = "symbol_kind.array";
     pub const SYMBOL_KIND_BOOLEAN: &'static str = "symbol_kind.boolean";

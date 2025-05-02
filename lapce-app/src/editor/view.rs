@@ -7,10 +7,12 @@ use floem::{
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
+    kurbo::Stroke,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
         Color,
     },
+    prelude::SignalTrack,
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
         SignalGet, SignalUpdate, SignalWith,
@@ -324,7 +326,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_ADDED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -342,7 +344,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_REMOVED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -393,7 +395,7 @@ impl EditorView {
                 cx.stroke(
                     &Line::new(p0, p1),
                     config.color(LapceColor::EDITOR_DIM),
-                    1.0,
+                    &Stroke::new(1.0),
                 );
             }
         }
@@ -599,7 +601,7 @@ impl EditorView {
                 let rect = Size::new(x1 - x0, line_height)
                     .to_rect()
                     .with_origin(Point::new(x0, line_info.vline_y));
-                cx.stroke(&rect, color, 1.0);
+                cx.stroke(&rect, color, &Stroke::new(1.0));
             }
         }
     }
@@ -804,7 +806,11 @@ impl EditorView {
 
                 let rect = Rect::new(x0, y0, x1, y1);
 
-                cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
+                cx.stroke(
+                    &rect,
+                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    &Stroke::new(1.0),
+                );
             }
         }
     }
@@ -852,7 +858,7 @@ impl EditorView {
                     let p1 = Point::new(x1, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
             }
         } else {
@@ -934,7 +940,7 @@ impl EditorView {
                     let p1 = Point::new(start_x, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
 
                 // Is end_line on screen, and is the vertical line to the left of the closing
@@ -944,14 +950,14 @@ impl EditorView {
                     let p1 = Point::new(end_x, y);
                     let line = Line::new(p0, p1);
 
-                    cx.stroke(&line, brush, 1.0);
+                    cx.stroke(&line, brush, &Stroke::new(1.0));
                 }
 
                 let p0 = Point::new(min_x, y0);
                 let p1 = Point::new(min_x, y1);
                 let line = Line::new(p0, p1);
 
-                cx.stroke(&line, brush, 1.0);
+                cx.stroke(&line, brush, &Stroke::new(1.0));
             }
         }
     }
@@ -1141,7 +1147,14 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
+        FloemEditorView::paint_text(
+            cx,
+            None,
+            ed,
+            viewport,
+            is_active,
+            &screen_lines,
+        );
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1726,7 +1739,6 @@ fn editor_gutter_folding_range(
     viewport: RwSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let doc_clone = doc;
     dyn_stack(
         move || doc.get().folding_ranges.get().to_display_items(),
         move |item| *item,
@@ -1738,9 +1750,8 @@ fn editor_gutter_folding_range(
                 item,
             )
             .on_click_stop({
-                let value = doc_clone;
                 move |_| {
-                    value.get_untracked().folding_ranges.update(|x| match item {
+                    doc.get_untracked().folding_ranges.update(|x| match item {
                         FoldingDisplayItem::UnfoldStart(pos)
                         | FoldingDisplayItem::Folded(pos) => {
                             x.0.iter_mut().find_map(|mut range| {
@@ -1772,7 +1783,11 @@ fn editor_gutter_folding_range(
     .style(move |s| {
         let config = config.get();
         let width = config.ui.icon_size() as f32;
-        s.width(width).height_full().margin_left(-width / 2.0)
+        // hide for now
+        s.width(width)
+            .height_full()
+            .margin_left(-width / 2.0)
+            .hide()
     })
     .debug_name("Folding Range Stack")
 }

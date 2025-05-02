@@ -12,7 +12,8 @@ use floem::{
     keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
-    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
+    pointer::{MouseButton, PointerInputEvent, PointerMoveEvent},
+    prelude::SignalTrack,
     reactive::{
         batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
         SignalWith,
@@ -2671,8 +2672,8 @@ impl EditorData {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
-        match pointer_event.button {
-            PointerButton::Primary => {
+        match pointer_event.button.mouse_button() {
+            MouseButton::Primary => {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
@@ -2740,7 +2741,7 @@ impl EditorData {
                     }
                 }
             }
-            PointerButton::Secondary => {
+            MouseButton::Secondary => {
                 self.right_click(pointer_event);
             }
             _ => {}
@@ -3568,23 +3569,23 @@ pub(crate) fn compute_screen_lines(
                 false,
             );
 
-            let range = doc.folding_ranges.get().get_folded_range();
-            let mut init_index = 0;
+            // let range = doc.folding_ranges.get().get_folded_range();
+            // let mut init_index = 0;
 
-            for vline_info in iter {
+            for (i, vline_info) in iter.enumerate() {
                 if rvlines.len() >= count {
                     break;
                 }
 
-                let (folded, next_index) =
-                    range.contain_line(init_index, vline_info.rvline.line as u32);
-                init_index = next_index;
-                if folded {
-                    continue;
-                }
+                // let (folded, next_index) =
+                //     range.contain_line(init_index, vline_info.rvline.line as u32);
+                // init_index = next_index;
+                // if folded {
+                //     continue;
+                // }
                 rvlines.push(vline_info.rvline);
 
-                let y_idx = min_vline.get() + rvlines.len();
+                let y_idx = min_vline.get() + i;
                 let vline_y = y_idx * line_height;
                 let line_y = vline_y - vline_info.rvline.line_index * line_height;
 

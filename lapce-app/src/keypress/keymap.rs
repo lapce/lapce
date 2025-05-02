@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use floem::{
     keyboard::{Key, KeyCode, Modifiers, NamedKey, PhysicalKey},
-    pointer::PointerButton,
+    pointer::{MouseButton, PointerButton},
 };
 use lapce_core::mode::Modes;
 
@@ -32,7 +32,7 @@ pub enum KeyMapKey {
 impl std::hash::Hash for KeyMapKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Self::Pointer(btn) => (*btn as u8).hash(state),
+            Self::Pointer(btn) => (btn.mouse_button() as u8).hash(state),
             Self::Logical(key) => key.hash(state),
             Self::Physical(physical) => physical.hash(state),
         }
@@ -696,9 +696,11 @@ impl Display for KeyMapKey {
                 Key::Unidentified(_) => f.write_str("Unidentified"),
                 Key::Dead(_) => f.write_str("dead"),
             },
-            Self::Pointer(B::Auxiliary) => f.write_str("MouseMiddle"),
-            Self::Pointer(B::X2) => f.write_str("MouseForward"),
-            Self::Pointer(B::X1) => f.write_str("MouseBackward"),
+            Self::Pointer(B::Mouse(MouseButton::Auxiliary)) => {
+                f.write_str("MouseMiddle")
+            }
+            Self::Pointer(B::Mouse(MouseButton::X2)) => f.write_str("MouseForward"),
+            Self::Pointer(B::Mouse(MouseButton::X1)) => f.write_str("MouseBackward"),
             Self::Pointer(_) => f.write_str("MouseUnimplemented"),
         }
     }

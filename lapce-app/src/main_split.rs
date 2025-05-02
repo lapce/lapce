@@ -2147,6 +2147,8 @@ impl MainSplitData {
                     .unwrap();
                 if let Some(diff_editor) = removed_diff_editor {
                     diff_editor.right.save_doc_position();
+                    self.editors.remove(diff_editor.right.editor.id());
+                    self.editors.remove(diff_editor.left.editor.id());
                 }
             }
             EditorTabChild::Settings(_) => {}

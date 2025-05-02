@@ -9,7 +9,7 @@ use std::{path::PathBuf, rc::Rc, str::FromStr, time::SystemTime};
 use anyhow::Result;
 use floem::{
     keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
-    pointer::{PointerButton, PointerInputEvent},
+    pointer::{MouseButton, PointerButton, PointerInputEvent},
     reactive::{RwSignal, Scope, SignalUpdate, SignalWith},
 };
 use indexmap::IndexMap;
@@ -288,7 +288,9 @@ impl KeyPressData {
                     handled: false,
                     keymatch: KeymapMatch::None,
                     keypress: KeyPress {
-                        key: KeyInput::Pointer(PointerButton::Primary),
+                        key: KeyInput::Pointer(PointerButton::Mouse(
+                            MouseButton::Primary,
+                        )),
                         mods: Modifiers::empty(),
                     },
                 }

@@ -10,7 +10,7 @@ use floem::{
     text::Style as FontStyle,
     views::{
         container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize,
+        Decorators,
     },
     View,
 };
@@ -320,7 +320,7 @@ fn debug_processes(
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
                                 (config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
-                                    .with_alpha_factor(0.3),
+                                    .multiply_alpha(0.3),
                             )
                         })
                 })
@@ -338,8 +338,6 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     container(
         scroll(
             virtual_stack(
-                VirtualDirection::Vertical,
-                VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
                 move || {
                     let dap = terminal.get_active_dap(true);
                     dap.map(|dap| {
@@ -445,6 +443,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                     })
                 },
             )
+            .item_size_fixed(move || ui_line_height.get())
             .style(|s| s.flex_col().min_width_full()),
         )
         .style(|s| s.absolute().size_full()),

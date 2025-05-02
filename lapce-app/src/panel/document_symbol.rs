@@ -6,7 +6,7 @@ use floem::{
     style::CursorStyle,
     views::{
         container, editor::id::Id, label, scroll, stack, svg, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        Decorators, VirtualVector,
     },
     View,
 };
@@ -207,8 +207,6 @@ pub fn symbol_panel(
     let ui_line_height = window_tab_data.common.ui_line_height;
     scroll(
         virtual_stack(
-            VirtualDirection::Vertical,
-            VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
             {
                 let window_tab_data = window_tab_data.clone();
                 move || {
@@ -316,7 +314,7 @@ pub fn symbol_panel(
                     }
                 })
             },
-        )
+        ).item_size_fixed(move || ui_line_height.get())
         .style(|s| s.flex_col().absolute().min_width_full()),
     )
     .style(|s| s.absolute().size_full())

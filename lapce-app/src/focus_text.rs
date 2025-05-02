@@ -52,7 +52,7 @@ pub fn focus_text(
         id,
         text: "".to_string(),
         text_layout: None,
-        focus_color: Color::default(),
+        focus_color: Color::BLACK,
         focus_indices: Vec::new(),
         text_node: None,
         available_text: None,
@@ -77,7 +77,8 @@ pub struct FocusText {
 
 impl FocusText {
     fn set_text_layout(&mut self) {
-        let mut attrs = Attrs::new().color(self.style.color().unwrap_or_default());
+        let mut attrs =
+            Attrs::new().color(self.style.color().unwrap_or(Color::BLACK));
         if let Some(font_size) = self.style.font_size() {
             attrs = attrs.font_size(font_size);
         }
@@ -119,7 +120,7 @@ impl FocusText {
             let new_text_len = new_text.len();
 
             let mut attrs =
-                Attrs::new().color(self.style.color().unwrap_or_default());
+                Attrs::new().color(self.style.color().unwrap_or(Color::BLACK));
             if let Some(font_size) = self.style.font_size() {
                 attrs = attrs.font_size(font_size);
             }
@@ -233,7 +234,7 @@ impl View for FocusText {
                 let mut attrs = Attrs::new().color(
                     self.style
                         .color()
-                        .unwrap_or_else(|| Color::rgb8(0xf0, 0xf0, 0xea)),
+                        .unwrap_or_else(|| Color::from_rgb8(0xf0, 0xf0, 0xea)),
                 );
                 if let Some(font_size) = self.style.font_size() {
                     attrs = attrs.font_size(font_size);

@@ -19,7 +19,7 @@ use lapce_rpc::{
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
+use strum_macros::{Display, EnumIter, EnumString, IntoStaticStr};
 
 use crate::{
     alert::AlertButton,

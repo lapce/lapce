@@ -9,11 +9,13 @@ use alacritty_terminal::{
 use floem::{
     context::{EventCx, PaintCx},
     event::{Event, EventPropagation},
+    kurbo::Stroke,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     pointer::PointerInputEvent,
+    prelude::SignalTrack,
     reactive::{create_effect, ReadSignal, RwSignal, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
@@ -377,7 +379,7 @@ impl TerminalView {
             if cell.flags.contains(Flags::DIM)
                 || cell.flags.contains(Flags::DIM_BOLD)
             {
-                fg = fg.with_alpha_factor(0.66);
+                fg = fg.multiply_alpha(0.66);
             }
 
             if inverse {
@@ -467,7 +469,7 @@ impl TerminalView {
             if self.is_focused {
                 cx.fill(&rect, cursor_color, 0.0);
             } else {
-                cx.stroke(&rect, cursor_color, 1.0);
+                cx.stroke(&rect, cursor_color, &Stroke::new(1.0));
             }
         }
 
@@ -606,7 +608,7 @@ impl View for TerminalView {
         let layout = self.id.get_layout().unwrap_or_default();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
-        if size.is_empty() {
+        if size.is_zero_area() {
             return None;
         }
         if size != self.size {

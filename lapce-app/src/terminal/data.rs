@@ -376,13 +376,10 @@ impl TerminalData {
         let mut profile = profile.unwrap_or_default();
 
         if profile.workdir.is_none() {
-            profile.workdir = if let Ok(path) = url::Url::from_file_path(
+            profile.workdir = url::Url::from_file_path(
                 workspace.path.as_ref().cloned().unwrap_or_default(),
-            ) {
-                Some(path)
-            } else {
-                None
-            };
+            )
+            .ok();
         }
 
         let exp_run_debug = run_debug

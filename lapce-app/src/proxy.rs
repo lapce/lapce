@@ -1,6 +1,10 @@
-use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    process::Command,
+    sync::{mpsc::Sender, Arc},
+};
 
-use crossbeam_channel::Sender;
 use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
@@ -73,15 +77,9 @@ pub fn new_proxy(
                     LapceWorkspaceType::Local => {
                         let core_rpc = core_rpc.clone();
                         let proxy_rpc = proxy_rpc.clone();
-                        std::thread::Builder::new()
-                            .name("Dispatcher".to_owned())
-                            .spawn(move || {
-                                let mut dispatcher =
-                                    Dispatcher::new(core_rpc, proxy_rpc);
-                                let proxy_rpc = dispatcher.proxy_rpc.clone();
-                                proxy_rpc.mainloop(&mut dispatcher);
-                            })
-                            .unwrap();
+                        let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
+                        let proxy_rpc = dispatcher.proxy_rpc.clone();
+                        proxy_rpc.mainloop(&mut dispatcher);
                     }
                     LapceWorkspaceType::RemoteSSH(remote) => {
                         if let Err(e) = start_remote(
@@ -107,11 +105,14 @@ pub fn new_proxy(
                         }
                     }
                 }
+                core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: ProxyStatus::Disconnected,
+                });
             })
             .unwrap();
     }
 
-    let (tx, rx) = crossbeam_channel::unbounded();
+    let (tx, rx) = std::sync::mpsc::channel();
     {
         let core_rpc = core_rpc.clone();
         std::thread::Builder::new()
@@ -120,7 +121,7 @@ pub fn new_proxy(
                 let mut proxy = Proxy { tx, term_tx };
                 core_rpc.mainloop(&mut proxy);
                 core_rpc.notification(CoreNotification::ProxyStatus {
-                    status: ProxyStatus::Connected,
+                    status: ProxyStatus::Disconnected,
                 });
             })
             .unwrap()

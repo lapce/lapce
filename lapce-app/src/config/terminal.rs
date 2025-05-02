@@ -52,7 +52,7 @@ impl TerminalConfig {
                 for b in 0..6 {
                     // Override colors 16..232 with the config (if present).
                     let index = 16 + r * 36 + g * 6 + b;
-                    let color = Color::rgb8(
+                    let color = Color::from_rgb8(
                         if r == 0 { 0 } else { r * 40 + 55 },
                         if g == 0 { 0 } else { g * 40 + 55 },
                         if b == 0 { 0 } else { b * 40 + 55 },
@@ -68,7 +68,7 @@ impl TerminalConfig {
             // Override colors 232..256 with the config (if present).
 
             let value = i * 10 + 8;
-            indexed_colors.insert(index + i, Color::rgb8(value, value, value));
+            indexed_colors.insert(index + i, Color::from_rgb8(value, value, value));
         }
 
         self.indexed_colors = Arc::new(indexed_colors);
