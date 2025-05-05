@@ -17,6 +17,7 @@ use lapce_rpc::{
 };
 use thiserror::Error;
 use tracing::{debug, error};
+use zstd::zstd_safe::WriteBuf;
 
 const UNIX_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.sh");
 const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.ps1");
@@ -111,26 +112,59 @@ pub fn start_remote(
         }
     };
 
-    let remote_proxy_file = match platform {
+    let mut remote_proxy_file = match platform {
         Windows => format!("{remote_proxy_path}\\lapce.exe"),
         _ => format!("{remote_proxy_path}/lapce"),
     };
 
-    if !remote
+    let mut system_wide_proxy = false;
+
+    let remote_version = remote
         .command_builder()
-        .args([&remote_proxy_file, "--version"])
+        .args(["lapce-proxy", "--version"])
         .output()
-        .map(|output| {
-            if meta::RELEASE == ReleaseType::Debug {
-                String::from_utf8_lossy(&output.stdout).starts_with("Lapce-proxy")
-            } else {
-                String::from_utf8_lossy(&output.stdout).trim()
-                    == format!("Lapce-proxy {}", meta::VERSION)
+        .map(|s| s.stdout)
+        .map(|s| String::from_utf8(s).ok())
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+
+    // Check for system-wide proxy
+    if !remote_version.is_empty() {
+        let version = &remote_version;
+        use semver::Version;
+        use std::cmp::Ordering;
+
+        let version = version.strip_prefix("Lapce-proxy ").unwrap_or(version);
+
+        if let Ok(version) = Version::parse(version) {
+            let lapce_version = Version::parse(meta::VERSION).unwrap();
+            if matches!(version.cmp_precedence(&lapce_version), Ordering::Greater)
+                || matches!(version.cmp_precedence(&lapce_version), Ordering::Equal)
+            {
+                system_wide_proxy = true;
             }
-        })
-        .unwrap_or(false)
+        };
+    }
+
+    // Check for lapce-managed proxy
+    if !system_wide_proxy
+        && !remote
+            .command_builder()
+            .args([&remote_proxy_file, "--version"])
+            .output()
+            .map(|output| {
+                if meta::RELEASE == ReleaseType::Debug {
+                    String::from_utf8_lossy(&output.stdout)
+                        .starts_with("Lapce-proxy")
+                } else {
+                    String::from_utf8_lossy(&output.stdout).trim()
+                        == format!("Lapce-proxy {}", meta::VERSION)
+                }
+            })
+            .unwrap_or(false)
     {
-        download_remote(
+        remote_proxy_file = download_remote(
             &remote,
             &platform,
             &architecture,
@@ -141,24 +175,24 @@ pub fn start_remote(
 
     debug!("remote proxy path: {remote_proxy_path}");
 
-    let mut child = match platform {
+    let args = match platform {
         // Force cmd.exe usage to resolve %envvar% variables
-        Windows => remote
-            .command_builder()
-            .args(["cmd", "/c"])
-            .arg(&remote_proxy_file)
-            .arg("--proxy")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?,
-        _ => remote
-            .command_builder()
-            .arg(&remote_proxy_file)
-            .arg("--proxy")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?,
+        Windows => ["cmd", "/c", &remote_proxy_file, "--proxy"],
+        // System installed proxy
+        _ if !remote_version.is_empty() => ["lapce-proxy", "--proxy", "", ""],
+        // User proxy
+        _ => [&remote_proxy_file, "--proxy", "", ""],
     };
+
+    debug!("Launching remote  proxy with args: {args:?}");
+
+    let mut child = remote
+        .command_builder()
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+
     let stdin = child
         .stdin
         .take()
@@ -251,10 +285,10 @@ fn download_remote(
     architecture: &HostArchitecture,
     remote_proxy_path: &str,
     remote_proxy_file: &str,
-) -> Result<()> {
+) -> Result<String> {
     use base64::{engine::general_purpose, Engine as _};
 
-    let script_install = match platform {
+    let (proxy_path, script_install) = match platform {
         HostPlatform::Windows => {
             let local_proxy_script =
                 Directory::proxy_directory().unwrap().join("proxy.ps1");
@@ -281,10 +315,10 @@ fn download_remote(
                     remote_proxy_path,
                 ])
                 .output()?;
-            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
-            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
 
-            cmd.status
+            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
+
+            (String::new(), cmd.status)
         }
         _ => {
             let proxy_script = general_purpose::STANDARD.encode(UNIX_PROXY_SCRIPT);
@@ -311,9 +345,10 @@ fn download_remote(
                 .output()?;
 
             debug!("{}", String::from_utf8_lossy(&cmd.stderr));
-            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
 
-            cmd.status
+            let proxy_path = String::from_utf8(cmd.stdout)?;
+
+            (proxy_path, cmd.status)
         }
     };
 
@@ -382,10 +417,12 @@ fn download_remote(
                     .arg(remote_proxy_file)
                     .status()?;
             }
+
+            return Ok(remote_proxy_file.to_string());
         }
     }
 
-    Ok(())
+    Ok(proxy_path)
 }
 
 fn host_specification(
