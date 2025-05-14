@@ -499,90 +499,110 @@ impl AppData {
         let config = window_data.config;
         // The KeyDown and PointerDown event handlers both need ownership of a WindowData object.
         let key_down_window_data = window_data.clone();
-        let view =
+        let view = stack((
+            workspace_tab_header(window_data.clone()),
+            window(window_data.clone()),
             stack((
-                workspace_tab_header(window_data.clone()),
-                window(window_data.clone()),
-                stack((
-                    drag_resize_window_area(ResizeDirection::West, empty())
-                        .style(|s| s.absolute().width(4.0).height_full()),
-                    drag_resize_window_area(ResizeDirection::North, empty())
-                        .style(|s| s.absolute().width_full().height(4.0)),
-                    drag_resize_window_area(ResizeDirection::East, empty()).style(
-                        move |s| {
-                            s.absolute()
-                                .margin_left(window_size.get().width as f32 - 4.0)
-                                .width(4.0)
-                                .height_full()
-                        },
-                    ),
-                    drag_resize_window_area(ResizeDirection::South, empty()).style(
-                        move |s| {
-                            s.absolute()
-                                .margin_top(window_size.get().height as f32 - 4.0)
-                                .width_full()
-                                .height(4.0)
-                        },
-                    ),
-                    drag_resize_window_area(ResizeDirection::NorthWest, empty())
-                        .style(|s| s.absolute().width(20.0).height(4.0)),
-                    drag_resize_window_area(ResizeDirection::NorthWest, empty())
-                        .style(|s| s.absolute().width(4.0).height(20.0)),
-                    drag_resize_window_area(ResizeDirection::NorthEast, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_left(window_size.get().width as f32 - 20.0)
-                                .width(20.0)
-                                .height(4.0)
-                        }),
-                    drag_resize_window_area(ResizeDirection::NorthEast, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_left(window_size.get().width as f32 - 4.0)
-                                .width(4.0)
-                                .height(20.0)
-                        }),
-                    drag_resize_window_area(ResizeDirection::SouthWest, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_top(window_size.get().height as f32 - 4.0)
-                                .width(20.0)
-                                .height(4.0)
-                        }),
-                    drag_resize_window_area(ResizeDirection::SouthWest, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_top(window_size.get().height as f32 - 20.0)
-                                .width(4.0)
-                                .height(20.0)
-                        }),
-                    drag_resize_window_area(ResizeDirection::SouthEast, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_left(window_size.get().width as f32 - 20.0)
-                                .margin_top(window_size.get().height as f32 - 4.0)
-                                .width(20.0)
-                                .height(4.0)
-                        }),
-                    drag_resize_window_area(ResizeDirection::SouthEast, empty())
-                        .style(move |s| {
-                            s.absolute()
-                                .margin_left(window_size.get().width as f32 - 4.0)
-                                .margin_top(window_size.get().height as f32 - 20.0)
-                                .width(4.0)
-                                .height(20.0)
-                        }),
-                ))
-                .debug_name("Drag Resize Areas")
-                .style(move |s| {
-                    s.absolute().size_full().apply_if(
+                drag_resize_window_area(ResizeDirection::West, empty()).style(|s| {
+                    s.absolute().width(4.0).height_full().pointer_events_auto()
+                }),
+                drag_resize_window_area(ResizeDirection::North, empty()).style(
+                    |s| s.absolute().width_full().height(4.0).pointer_events_auto(),
+                ),
+                drag_resize_window_area(ResizeDirection::East, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_left(window_size.get().width as f32 - 4.0)
+                            .width(4.0)
+                            .height_full()
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::South, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_top(window_size.get().height as f32 - 4.0)
+                            .width_full()
+                            .height(4.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::NorthWest, empty()).style(
+                    |s| s.absolute().width(20.0).height(4.0).pointer_events_auto(),
+                ),
+                drag_resize_window_area(ResizeDirection::NorthWest, empty()).style(
+                    |s| s.absolute().width(4.0).height(20.0).pointer_events_auto(),
+                ),
+                drag_resize_window_area(ResizeDirection::NorthEast, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_left(window_size.get().width as f32 - 20.0)
+                            .width(20.0)
+                            .height(4.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::NorthEast, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_left(window_size.get().width as f32 - 4.0)
+                            .width(4.0)
+                            .height(20.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::SouthWest, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_top(window_size.get().height as f32 - 4.0)
+                            .width(20.0)
+                            .height(4.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::SouthWest, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_top(window_size.get().height as f32 - 20.0)
+                            .width(4.0)
+                            .height(20.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::SouthEast, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_left(window_size.get().width as f32 - 20.0)
+                            .margin_top(window_size.get().height as f32 - 4.0)
+                            .width(20.0)
+                            .height(4.0)
+                            .pointer_events_auto()
+                    },
+                ),
+                drag_resize_window_area(ResizeDirection::SouthEast, empty()).style(
+                    move |s| {
+                        s.absolute()
+                            .margin_left(window_size.get().width as f32 - 4.0)
+                            .margin_top(window_size.get().height as f32 - 20.0)
+                            .width(4.0)
+                            .height(20.0)
+                            .pointer_events_auto()
+                    },
+                ),
+            ))
+            .debug_name("Drag Resize Areas")
+            .style(move |s| {
+                s.absolute()
+                    .size_full()
+                    .apply_if(
                         cfg!(target_os = "macos")
                             || !config.get_untracked().core.custom_titlebar,
                         |s| s.hide(),
                     )
-                }),
-            ))
-            .style(|s| s.flex_col().size_full());
+                    .pointer_events_none()
+            }),
+        ))
+        .style(|s| s.flex_col().size_full());
         let view_id = view.id();
         app_view_id.set(view_id);
 
