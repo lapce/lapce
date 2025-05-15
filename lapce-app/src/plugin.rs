@@ -922,7 +922,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                     }),
                     empty().style(move |s| {
                         let rect = header_rect.get();
-                        s.size(rect.width(), rect.height())
+                        s.size(rect.width(), rect.height()).pointer_events_none()
                     }),
                     empty().style(move |s| {
                         s.margin_vert(6)
