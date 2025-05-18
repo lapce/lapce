@@ -50,16 +50,16 @@ url                = { workspace = true }
 zstd               = { workspace = true }
 floem              = { workspace = true }
 
-pulldown-cmark   = { version = "0.11.0" }
+pulldown-cmark   = { version = "0.13.0" }
 Inflector        = { version = "0.11.4" }
-open             = { version = "5.1.4" }
-unicode-width    = { version = "0.1.13" }
+open             = { version = "5.3.2" }
+unicode-width    = { version = "0.2.0" }
 nucleo           = { version = "0.5.0" }
-bytemuck         = { version = "1.22.0" }
-config           = { version = "=0.13.4", default-features = false, features = ["toml"] }
+bytemuck         = { version = "1.23.0" }
+config           = { version = "=0.15.11", default-features = false, features = ["toml"] }
 structdesc       = { git = "https://github.com/lapce/structdesc", rev = "bb56969f22fdb2c2d6c03f158fd4a2bdc983b659" }
-base64           = { version = "0.21.7" }
-sha2             = { version = "0.10.8" }
+base64           = { version = "0.22.0" }
+sha2             = { version = "0.10.9" }
 zip              = { version = "0.6.6", default-features = false, features = ["deflate"] }
 percent-encoding = { version = "2.3.1" }
 
@@ -78,7 +78,7 @@ updater        = []
 vendored-fonts = []
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.6"
 
 [[bench]]
 name    = "visual_line"
