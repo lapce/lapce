@@ -5,6 +5,7 @@
 ### Features/Changes
 
 - Add Ubuntu 24.04 LTS (noble) build
+- Use Diff syntax for files with .diff/.patch extensions by default.
 
 ### Bug Fixes
 

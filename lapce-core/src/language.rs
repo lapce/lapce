@@ -706,7 +706,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Diff,
         indent: Indent::tab(),
         files: &[],
-        extensions: &[],
+        extensions: &["diff", "patch"],
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
