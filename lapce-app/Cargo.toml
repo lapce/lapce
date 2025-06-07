@@ -76,6 +76,7 @@ default        = ["updater", "vendored-fonts"]
 portable       = ["lapce-core/portable"]
 updater        = []
 vendored-fonts = []
+distribution   = ["lapce-core/distribution"]
 
 [dev-dependencies]
 criterion = "0.5"

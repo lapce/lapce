@@ -6,6 +6,9 @@ authors      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
 
+[features]
+distribution = ["lapce-core/distribution"]
+
 [dependencies]
 alacritty_terminal = { workspace = true }
 anyhow             = { workspace = true }
