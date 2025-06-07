@@ -34,36 +34,36 @@ authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
 anyhow            = { version = "1.0" }
 backtrace         = { version = "0.3" }
 chrono            = { version = "0.4" }
-clap              = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
-crossbeam-channel = { version = "0.5.12" }
+clap              = { version = "4.5.38", default-features = false, features = ["std", "help", "usage", "derive"] }
+crossbeam-channel = { version = "0.5.15" }
 directories       = { version = "4.0.1" }
-flate2            = { version = "1.0" }
+flate2            = { version = "1.1" }
 git2              = { version = "0.20.0", features = ["vendored-openssl"] }
-globset           = { version = "0.4.14" }
+globset           = { version = "0.4.16" }
 hashbrown         = { version = "0.14.5", features = ["serde"] }
 im                = { version = "15.0.0", features = ["serde"] }
 include_dir       = { version = "0.7" }
-indexmap          = { version = "2.0", features = ["serde"] }
+indexmap          = { version = "2.9", features = ["serde"] }
 interprocess      = { version = "1.2.1" }
-itertools         = { version = "0.12.1" }
+itertools         = { version = "0.14.0" }
 notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
-regex             = { version = "1.10.5" }
+regex             = { version = "1.11.1" }
 remain            = { version = "0.2" }
 semver            = { version = "1.0" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
-smallvec          = { version = "1.13.2" }
+smallvec          = { version = "1.15.0" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
-tempfile          = { version = "3.10.1" }
-thiserror         = { version = "1.0" }
+tempfile          = { version = "3.12.0" }
+thiserror         = { version = "2.0" }
 toml              = { version = "*" }
-toml_edit         = { version = "0.20.2", features = ["serde"] }
+toml_edit         = { version = "0.20.7", features = ["serde"] }
 url               = { version = "2.5.0" }
 zstd              = { version = "0.11.2" }                                                                         # follow same version wasmtime-cache in lockfile
 
