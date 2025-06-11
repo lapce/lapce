@@ -1,11 +1,11 @@
 use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use alacritty_terminal::{
+    Term,
     grid::{Dimensions, Scroll},
     selection::{Selection, SelectionType},
-    term::{test::TermSize, TermMode},
+    term::{TermMode, test::TermSize},
     vi_mode::ViMotion,
-    Term,
 };
 use anyhow::anyhow;
 use floem::{
@@ -33,7 +33,7 @@ use super::{
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     debug::{RunDebugMode, RunDebugProcess},
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     window_tab::CommonData,
     workspace::LapceWorkspace,
 };
@@ -799,9 +799,15 @@ impl ExpandedRunDebug {
                 (run_debug.program.clone(), run_debug.args.clone())
             };
         let mut program = if program == "${lapce}" {
-            std::env::current_exe().map_err(|e| {
-                anyhow!("Failed to get current exe for ${{lapce}} run and debug: {e}")
-            })?.to_str().ok_or_else(|| anyhow!("Failed to convert ${{lapce}} path to str"))?.to_string()
+            std::env::current_exe()
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to get current exe for ${{lapce}} run and debug: {e}"
+                    )
+                })?
+                .to_str()
+                .ok_or_else(|| anyhow!("Failed to convert ${{lapce}} path to str"))?
+                .to_string()
         } else {
             program
         };

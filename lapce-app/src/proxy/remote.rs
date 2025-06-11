@@ -4,16 +4,17 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use flate2::read::GzDecoder;
 use lapce_core::{
     directory::Directory,
     meta::{self, ReleaseType},
 };
 use lapce_rpc::{
+    RpcMessage,
     core::CoreRpcHandler,
     proxy::{ProxyRpc, ProxyRpcHandler},
-    stdio_transport, RpcMessage,
+    stdio_transport,
 };
 use thiserror::Error;
 use tracing::{debug, error};
@@ -252,7 +253,7 @@ fn download_remote(
     remote_proxy_path: &str,
     remote_proxy_file: &str,
 ) -> Result<()> {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
 
     let script_install = match platform {
         HostPlatform::Windows => {
@@ -345,7 +346,9 @@ fn download_remote(
                 meta::ReleaseType::Stable => meta::VERSION,
                 _ => "nightly",
             };
-            let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
+            let url = format!(
+                "https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz"
+            );
             debug!("proxy download URI: {url}");
             let mut resp = lapce_proxy::get_url(url, None).expect("request failed");
             if resp.status().is_success() {

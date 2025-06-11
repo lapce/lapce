@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     process::Command,
-    sync::{mpsc::Sender, Arc},
+    sync::{Arc, mpsc::Sender},
 };
 
 use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};

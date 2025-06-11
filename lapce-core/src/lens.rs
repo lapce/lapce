@@ -1,9 +1,9 @@
 use std::mem;
 
 use lapce_xi_rope::{
+    Cursor, Delta, Interval, Metric,
     interval::IntervalBounds,
     tree::{DefaultMetric, Leaf, Node, NodeInfo, TreeBuilder},
-    Cursor, Delta, Interval, Metric,
 };
 
 const MIN_LEAF: usize = 5;
@@ -200,11 +200,7 @@ impl Metric<LensInfo> for LensMetric {
     }
 
     fn prev(_l: &LensLeaf, offset: usize) -> Option<usize> {
-        if offset == 0 {
-            None
-        } else {
-            Some(offset - 1)
-        }
+        if offset == 0 { None } else { Some(offset - 1) }
     }
 
     fn next(l: &LensLeaf, offset: usize) -> Option<usize> {

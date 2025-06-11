@@ -3,26 +3,36 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
 use lapce_rpc::{
+    RpcError,
     core::{CoreRpcHandler, ServerStatusParams},
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
-    RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
+    CancelParams, CodeActionProviderCapability, DidChangeTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentSelector, FoldingRangeProviderCapability,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeResult,
+    LogMessageParams, MessageType, OneOf, ProgressParams, PublishDiagnosticsParams,
+    Range, Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    VersionedTextDocumentIdentifier,
     notification::{
         Cancel, DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
         Initialized, LogMessage, Notification, Progress, PublishDiagnostics,
@@ -38,16 +48,6 @@ use lsp_types::{
         SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
         WorkspaceSymbolRequest,
     },
-    CancelParams, CodeActionProviderCapability, DidChangeTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSelector, FoldingRangeProviderCapability,
-    HoverProviderCapability, ImplementationProviderCapability, InitializeResult,
-    LogMessageParams, MessageType, OneOf, ProgressParams, PublishDiagnosticsParams,
-    Range, Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
-    VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{
@@ -61,8 +61,8 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    lsp::{DocumentFilter, LspClient},
     PluginCatalogRpcHandler,
+    lsp::{DocumentFilter, LspClient},
 };
 
 pub enum ResponseHandler<Resp, Error> {

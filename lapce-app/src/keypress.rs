@@ -23,7 +23,7 @@ use self::{
     loader::KeyMapLoader,
 };
 use crate::{
-    command::{lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand},
+    command::{CommandExecuted, CommandKind, LapceCommand, lapce_internal_commands},
     config::LapceConfig,
     keypress::{
         condition::{CheckCondition, Condition},
@@ -293,7 +293,7 @@ impl KeyPressData {
                         )),
                         mods: Modifiers::empty(),
                     },
-                }
+                };
             }
         };
 

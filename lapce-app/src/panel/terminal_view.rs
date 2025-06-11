@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use floem::{
+    View, ViewId,
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
     kurbo::Size,
     menu::{Menu, MenuItem},
-    reactive::{create_rw_signal, SignalGet, SignalUpdate, SignalWith},
+    reactive::{SignalGet, SignalUpdate, SignalWith, create_rw_signal},
     views::{
-        container, dyn_stack, empty, label,
-        scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
-        stack, svg, tab, Decorators,
+        Decorators, container, dyn_stack, empty, label,
+        scroll::{Thickness, VerticalScrollAsHorizontal, scroll},
+        stack, svg, tab,
     },
-    View, ViewId,
 };
 use lapce_rpc::terminal::TermId;
 

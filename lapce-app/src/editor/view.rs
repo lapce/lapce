@@ -3,46 +3,46 @@ use std::{
 };
 
 use floem::{
+    Renderer, View, ViewId,
     action::{set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
     kurbo::Stroke,
     peniko::{
-        kurbo::{Line, Point, Rect, Size},
         Color,
+        kurbo::{Line, Point, Rect, Size},
     },
     prelude::SignalTrack,
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal,
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     views::{
-        clip, container, dyn_stack,
+        Decorators, clip, container, dyn_stack,
         editor::{
-            text::WrapMethod,
-            view::{
-                cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
-                EditorViewClass, LineRegion, ScreenLines,
-            },
-            visual_line::{RVLine, VLine},
             CurrentLineColor, CursorSurroundingLines, Editor, EditorStyle,
             IndentGuideColor, IndentStyleProp, Modal, ModalRelativeLine,
             PhantomColor, PlaceholderColor, PreeditUnderlineColor,
             RenderWhitespaceProp, ScrollBeyondLastLine, SelectionColor,
             ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
+            text::WrapMethod,
+            view::{
+                DiffSectionKind, EditorView as FloemEditorView, EditorViewClass,
+                LineRegion, ScreenLines, cursor_caret,
+            },
+            visual_line::{RVLine, VLine},
         },
         empty, label,
-        scroll::{scroll, PropagatePointerWheel},
-        stack, svg, Decorators,
+        scroll::{PropagatePointerWheel, scroll},
+        stack, svg,
     },
-    Renderer, View, ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
+    buffer::{Buffer, diff::DiffLines, rope_text::RopeText},
     cursor::{CursorAffinity, CursorMode},
     selection::SelRegion,
 };
@@ -53,11 +53,11 @@ use lapce_rpc::{
 use lapce_xi_rope::find::CaseMatching;
 use lsp_types::CodeLens;
 
-use super::{gutter::editor_gutter_view, DocSignal, EditorData};
+use super::{DocSignal, EditorData, gutter::editor_gutter_view};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, editor::WrapStyle, icon::LapceIcons},
     debug::{DapData, LapceBreakpoint},
     doc::DocContent,
     editor::gutter::FoldingDisplayItem,

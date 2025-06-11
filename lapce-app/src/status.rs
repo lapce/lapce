@@ -1,16 +1,16 @@
 use std::{
     rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{Arc, atomic::AtomicU64},
 };
 
 use floem::{
+    View,
     event::EventPropagation,
     reactive::{
-        create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_memo,
     },
     style::{AlignItems, CursorStyle, Display},
-    views::{dyn_stack, label, stack, svg, Decorators},
-    View,
+    views::{Decorators, dyn_stack, label, stack, svg},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
@@ -19,7 +19,7 @@ use lsp_types::{DiagnosticSeverity, ProgressToken};
 use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     editor::EditorData,
     listener::Listener,
     palette::kind::PaletteKind,

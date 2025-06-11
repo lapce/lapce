@@ -345,7 +345,7 @@ impl FileNodeItem {
     fn ancestors_rev<'a>(
         &self,
         path: &'a Path,
-    ) -> Option<impl Iterator<Item = &'a Path>> {
+    ) -> Option<impl Iterator<Item = &'a Path> + use<'a>> {
         let take = if let Ok(suffix) = path.strip_prefix(&self.path) {
             suffix.components().count()
         } else {

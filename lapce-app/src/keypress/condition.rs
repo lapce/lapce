@@ -79,7 +79,7 @@ mod test {
     use lapce_core::mode::Mode;
 
     use super::Condition;
-    use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};
+    use crate::keypress::{KeyPressData, KeyPressFocus, condition::CheckCondition};
 
     #[derive(Clone, Copy, Debug)]
     struct MockFocus {

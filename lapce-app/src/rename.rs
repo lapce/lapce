@@ -14,7 +14,7 @@ use lsp_types::Position;
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     main_split::Editors,
     window_tab::{CommonData, Focus},
 };

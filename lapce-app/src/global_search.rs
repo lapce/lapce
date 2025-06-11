@@ -14,7 +14,7 @@ use lapce_xi_rope::Rope;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     main_split::MainSplitData,
     window_tab::CommonData,
 };

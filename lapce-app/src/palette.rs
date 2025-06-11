@@ -4,9 +4,9 @@ use std::{
     path::PathBuf,
     rc::Rc,
     sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc::{channel, Receiver, Sender, TryRecvError},
         Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{Receiver, Sender, TryRecvError, channel},
     },
     time::Instant,
 };
@@ -16,8 +16,8 @@ use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     keyboard::Modifiers,
     reactive::{
-        use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
-        SignalWith,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        use_context,
     },
 };
 use im::Vector;
@@ -45,10 +45,10 @@ use crate::{
     db::LapceDb,
     debug::{RunDebugConfigs, RunDebugMode},
     editor::{
-        location::{EditorLocation, EditorPosition},
         EditorData,
+        location::{EditorLocation, EditorPosition},
     },
-    keypress::{condition::Condition, KeyPressData, KeyPressFocus},
+    keypress::{KeyPressData, KeyPressFocus, condition::Condition},
     lsp::path_from_url,
     main_split::MainSplitData,
     source_control::SourceControlData,

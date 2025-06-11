@@ -1,18 +1,18 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     event::EventListener,
     peniko::Color,
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_rw_signal,
     },
     style::CursorStyle,
     text::Style as FontStyle,
     views::{
-        container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
-        Decorators,
+        Decorators, container, dyn_stack, label, scroll, stack, svg, text,
+        virtual_stack,
     },
-    View,
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},
@@ -23,7 +23,7 @@ use super::{data::PanelSection, position::PanelPosition, view::PanelBuilder};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     debug::{DapVariable, RunDebugMode, StackTraceData},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,

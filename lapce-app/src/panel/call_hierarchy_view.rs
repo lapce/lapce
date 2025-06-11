@@ -1,13 +1,13 @@
 use std::{ops::AddAssign, rc::Rc};
 
 use floem::{
+    IntoView, View, ViewId,
     reactive::{RwSignal, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
-        container, empty, label, scroll, stack, svg, virtual_stack, Decorators,
-        VirtualVector,
+        Decorators, VirtualVector, container, empty, label, scroll, stack, svg,
+        virtual_stack,
     },
-    IntoView, View, ViewId,
 };
 use lsp_types::{CallHierarchyItem, Range};
 

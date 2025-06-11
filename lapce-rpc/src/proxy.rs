@@ -2,8 +2,8 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -11,18 +11,19 @@ use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
-    request::{GotoImplementationResponse, GotoTypeDefinitionResponse},
     CallHierarchyIncomingCall, CallHierarchyItem, CodeAction, CodeActionResponse,
     CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse, FoldingRange,
     GotoDefinitionResponse, Hover, InlayHint, InlineCompletionResponse,
     InlineCompletionTriggerKind, Location, Position, PrepareRenameResponse,
     SelectionRange, SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    request::{GotoImplementationResponse, GotoTypeDefinitionResponse},
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use super::plugin::VoltID;
 use crate::{
+    RequestId, RpcError, RpcMessage,
     buffer::BufferId,
     dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::{FileNodeItem, PathObject},
@@ -31,7 +32,6 @@ use crate::{
     source_control::FileDiff,
     style::SemanticStyles,
     terminal::{TermId, TerminalProfile},
-    RequestId, RpcError, RpcMessage,
 };
 
 #[allow(clippy::large_enum_variant)]

@@ -1,11 +1,11 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     event::EventListener,
     reactive::{ReadSignal, SignalGet, SignalUpdate},
     style::{CursorStyle, Style},
-    views::{container, label, scroll, stack, svg, virtual_stack, Decorators},
-    View,
+    views::{Decorators, container, label, scroll, stack, svg, virtual_stack},
 };
 use lapce_xi_rope::find::CaseMatching;
 
@@ -13,7 +13,7 @@ use super::{kind::PanelKind, position::PanelPosition};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     editor::location::{EditorLocation, EditorPosition},
     focus_text::focus_text,
     global_search::{GlobalSearchData, SearchMatchData},

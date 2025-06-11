@@ -10,38 +10,28 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
+    RequestId, RpcError,
     core::CoreRpcHandler,
     dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
     terminal::TermId,
-    RequestId, RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    request::{
-        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
-        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
-        GotoImplementation, GotoImplementationResponse, GotoTypeDefinition,
-        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
-        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
-        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
-    },
     CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
@@ -70,9 +60,19 @@ use lsp_types::{
     VersionedTextDocumentIdentifier, WindowClientCapabilities,
     WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceEdit,
     WorkspaceSymbolClientCapabilities, WorkspaceSymbolParams,
+    request::{
+        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
+        CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
+        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
+        GotoImplementation, GotoImplementationResponse, GotoTypeDefinition,
+        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
+        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
+        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
+    },
 };
 use parking_lot::Mutex;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value};
 use tar::Archive;
 use tracing::error;
@@ -123,9 +123,9 @@ pub enum PluginCatalogRpc {
         frame_id: usize,
         f: Box<
             dyn RpcCallback<
-                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
-                RpcError,
-            >,
+                    Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                    RpcError,
+                >,
         >,
     },
     DidOpenTextDocument {
@@ -549,9 +549,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<GotoDefinitionResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = GotoDefinition::METHOD;
@@ -580,9 +580,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<GotoTypeDefinitionResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = GotoTypeDefinition::METHOD;
@@ -611,11 +611,11 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         item: CallHierarchyItem,
         cb: impl FnOnce(
-                PluginId,
-                Result<Option<Vec<CallHierarchyIncomingCall>>, RpcError>,
-            ) + Clone
-            + Send
-            + 'static,
+            PluginId,
+            Result<Option<Vec<CallHierarchyIncomingCall>>, RpcError>,
+        ) + Clone
+        + Send
+        + 'static,
     ) {
         let method = CallHierarchyIncomingCalls::METHOD;
         let params = CallHierarchyIncomingCallsParams {
@@ -640,9 +640,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<Option<Vec<CallHierarchyItem>>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = CallHierarchyPrepare::METHOD;
@@ -670,9 +670,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<Vec<Location>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = References::METHOD;
@@ -703,11 +703,11 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         cb: impl FnOnce(
-                PluginId,
-                std::result::Result<Option<Vec<FoldingRange>>, RpcError>,
-            ) + Clone
-            + Send
-            + 'static,
+            PluginId,
+            std::result::Result<Option<Vec<FoldingRange>>, RpcError>,
+        ) + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = FoldingRangeRequest::METHOD;
@@ -733,9 +733,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<Option<GotoImplementationResponse>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = GotoImplementation::METHOD;
@@ -765,9 +765,9 @@ impl PluginCatalogRpcHandler {
         position: Position,
         diagnostics: Vec<Diagnostic>,
         cb: impl FnOnce(PluginId, Result<CodeActionResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = CodeActionRequest::METHOD;
@@ -800,9 +800,9 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         cb: impl FnOnce(PluginId, Result<Option<Vec<CodeLens>>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = CodeLensRequest::METHOD;
@@ -848,9 +848,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         range: Range,
         cb: impl FnOnce(PluginId, Result<Vec<InlayHint>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = InlayHintRequest::METHOD;
@@ -876,9 +876,9 @@ impl PluginCatalogRpcHandler {
         position: Position,
         trigger_kind: InlineCompletionTriggerKind,
         cb: impl FnOnce(PluginId, Result<InlineCompletionResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = InlineCompletionRequest::METHOD;
@@ -908,9 +908,9 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         cb: impl FnOnce(PluginId, Result<DocumentSymbolResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = DocumentSymbolRequest::METHOD;
@@ -934,9 +934,9 @@ impl PluginCatalogRpcHandler {
         &self,
         query: String,
         cb: impl FnOnce(PluginId, Result<Vec<SymbolInformation>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let method = WorkspaceSymbolRequest::METHOD;
         let params = WorkspaceSymbolParams {
@@ -951,9 +951,9 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         cb: impl FnOnce(PluginId, Result<Vec<TextEdit>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Formatting::METHOD;
@@ -982,9 +982,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         position: Position,
         cb: impl FnOnce(PluginId, Result<PrepareRenameResponse, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = PrepareRenameRequest::METHOD;
@@ -1009,9 +1009,9 @@ impl PluginCatalogRpcHandler {
         position: Position,
         new_name: String,
         cb: impl FnOnce(PluginId, Result<WorkspaceEdit, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = Rename::METHOD;
@@ -1038,9 +1038,9 @@ impl PluginCatalogRpcHandler {
         &self,
         path: &Path,
         cb: impl FnOnce(PluginId, Result<SemanticTokens, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = SemanticTokensFullRequest::METHOD;
@@ -1065,9 +1065,9 @@ impl PluginCatalogRpcHandler {
         path: &Path,
         positions: Vec<Position>,
         cb: impl FnOnce(PluginId, Result<Vec<SelectionRange>, RpcError>)
-            + Clone
-            + Send
-            + 'static,
+        + Clone
+        + Send
+        + 'static,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = SelectionRangeRequest::METHOD;
@@ -1493,9 +1493,9 @@ impl PluginCatalogRpcHandler {
         dap_id: DapId,
         frame_id: usize,
         f: impl FnOnce(
-                Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
-            ) + Send
-            + 'static,
+            Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
+        ) + Send
+        + 'static,
     ) {
         if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
             dap_id,

@@ -1,25 +1,25 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     event::{Event, EventListener},
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope, SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal,
     },
     style::CursorStyle,
     views::{
-        container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
+        Decorators, container, dyn_stack, label, scroll, stack, text, virtual_stack,
     },
-    View,
 };
 use lapce_core::mode::Modes;
 
 use crate::{
     command::LapceCommand,
-    config::{color::LapceColor, LapceConfig},
+    config::{LapceConfig, color::LapceColor},
     keypress::{
-        keymap::{KeyMap, KeyMapPress},
         KeyPressData,
+        keymap::{KeyMap, KeyMapPress},
     },
     main_split::Editors,
     text_input::TextInputBuilder,

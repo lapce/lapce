@@ -1,22 +1,22 @@
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
-    action::{add_overlay, exec_after, remove_overlay, TimerToken},
+    IntoView, View,
+    action::{TimerToken, add_overlay, exec_after, remove_overlay},
     event::EventListener,
     keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        Scope, SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal,
     },
     style::CursorStyle,
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     views::{
-        container, dyn_stack, empty, label,
-        scroll::{scroll, PropagatePointerWheel},
-        stack, svg, text, virtual_stack, Decorators, VirtualVector,
+        Decorators, VirtualVector, container, dyn_stack, empty, label,
+        scroll::{PropagatePointerWheel, scroll},
+        stack, svg, text, virtual_stack,
     },
-    IntoView, View,
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
@@ -29,8 +29,9 @@ use serde_json::Value;
 use crate::{
     command::CommandExecuted,
     config::{
-        color::LapceColor, core::CoreConfig, editor::EditorConfig, icon::LapceIcons,
-        terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
+        DropdownInfo, LapceConfig, color::LapceColor, core::CoreConfig,
+        editor::EditorConfig, icon::LapceIcons, terminal::TerminalConfig,
+        ui::UIConfig,
     },
     keypress::KeyPressFocus,
     main_split::Editors,
@@ -547,7 +548,7 @@ fn settings_item_view(
     editors: Editors,
     settings_data: SettingsData,
     item: SettingsItem,
-) -> impl View {
+) -> impl View + use<> {
     let config = settings_data.common.config;
 
     let is_ticked = if let SettingsValue::Bool(is_ticked) = &item.value {
@@ -1184,7 +1185,7 @@ fn dropdown_view(
     expanded: RwSignal<bool>,
     window_size: RwSignal<Size>,
     config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
+) -> impl View + use<> {
     let window_origin = create_rw_signal(Point::ZERO);
     let size = create_rw_signal(Size::ZERO);
     let overlay_id = create_rw_signal(None);
@@ -1296,7 +1297,7 @@ fn dropdown_scroll(
     input_size: RwSignal<Size>,
     window_size: RwSignal<Size>,
     config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
+) -> impl View + use<> {
     dropdown_scroll_focus.set(true);
 
     let kind = item.kind.clone();
