@@ -2,8 +2,8 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    RequestId, RpcError, RpcMessage,
     dap_types::{
         self, DapId, RunDebugConfig, Scope, StackFrame, Stopped, ThreadId, Variable,
     },
@@ -24,7 +25,6 @@ use crate::{
     proxy::ProxyStatus,
     source_control::DiffInfo,
     terminal::TermId,
-    RequestId, RpcError, RpcMessage,
 };
 
 pub enum CoreRpc {

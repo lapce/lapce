@@ -1,15 +1,15 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    View,
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::Color,
     reactive::{
-        create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_memo,
     },
     style::{AlignItems, CursorStyle, JustifyContent},
-    views::{container, drag_window_area, empty, label, stack, svg, Decorators},
-    View,
+    views::{Decorators, container, drag_window_area, empty, label, stack, svg},
 };
 use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
@@ -17,7 +17,7 @@ use lapce_rpc::proxy::ProxyStatus;
 use crate::{
     app::{clickable_icon, not_clickable_icon, tooltip_label, window_menu},
     command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     listener::Listener,
     main_split::MainSplitData,
     update::ReleaseInfo,

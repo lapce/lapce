@@ -4,11 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use crossbeam_channel::{unbounded, Receiver};
+use crossbeam_channel::{Receiver, unbounded};
 use notify::{
+    Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
     event::{ModifyKind, RenameMode},
-    recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode,
-    Watcher,
+    recommended_watcher,
 };
 use parking_lot::Mutex;
 

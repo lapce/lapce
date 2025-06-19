@@ -24,14 +24,14 @@ use lapce_rpc::{
     plugin::{PluginId, VoltID},
     proxy::ProxyResponse,
 };
-use lapce_xi_rope::{spans::SpansBuilder, Rope};
+use lapce_xi_rope::{Rope, spans::SpansBuilder};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 use crate::{
     alert::AlertButton,
@@ -39,9 +39,9 @@ use crate::{
     command::InternalCommand,
     doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
+        EditorData,
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
-        EditorData,
     },
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
@@ -2094,8 +2094,8 @@ impl MainSplitData {
                         .internal_command
                         .send(InternalCommand::ShowAlert {
                             title: format!(
-                            "Do you want to save the changes you made to {name}?"
-                        ),
+                                "Do you want to save the changes you made to {name}?"
+                            ),
                             msg: "Your changes will be lost if you don't save them."
                                 .to_string(),
                             buttons: vec![

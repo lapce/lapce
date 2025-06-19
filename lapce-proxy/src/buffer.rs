@@ -8,11 +8,11 @@ use std::{
     time::SystemTime,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use floem_editor_core::buffer::rope_text::CharIndicesJoin;
 use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
-use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
+use lapce_xi_rope::{RopeDelta, interval::IntervalBounds, rope::Rope};
 use lsp_types::*;
 
 #[derive(Clone)]

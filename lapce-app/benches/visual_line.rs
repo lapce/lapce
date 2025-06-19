@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use floem::{
     reactive::Scope,
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},

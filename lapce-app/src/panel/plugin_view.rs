@@ -1,17 +1,17 @@
 use std::{ops::Range, rc::Rc};
 
 use floem::{
+    IntoView, View,
     event::EventListener,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_memo, create_rw_signal, RwSignal, SignalGet, SignalUpdate, SignalWith,
+        RwSignal, SignalGet, SignalUpdate, SignalWith, create_memo, create_rw_signal,
     },
     style::CursorStyle,
     views::{
-        container, dyn_container, img, label, scroll::scroll, stack, svg,
-        virtual_stack, Decorators, VirtualVector,
+        Decorators, VirtualVector, container, dyn_container, img, label,
+        scroll::scroll, stack, svg, virtual_stack,
     },
-    IntoView, View,
 };
 use indexmap::IndexMap;
 use lapce_rpc::{

@@ -9,8 +9,8 @@ use lapce_core::{
     word::WordCursor,
 };
 use lapce_xi_rope::{
-    find::{find, is_multiline_regex, CaseMatching},
     Cursor, Interval, Rope,
+    find::{CaseMatching, find, is_multiline_regex},
 };
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
@@ -166,7 +166,7 @@ impl Find {
         let is_regex = self.is_regex.get_untracked();
 
         let search_string_unchanged = self.search_string.with_untracked(|search| {
-            if let Some(ref s) = search {
+            if let Some(s) = search {
                 s.content == search_string && s.regex.is_some() == is_regex
             } else {
                 false

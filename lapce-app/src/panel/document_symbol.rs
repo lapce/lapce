@@ -1,14 +1,14 @@
 use std::{ops::AddAssign, path::PathBuf, rc::Rc};
 
 use floem::{
+    View,
     peniko::Color,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
-        container, editor::id::Id, label, scroll, stack, svg, virtual_stack,
-        Decorators, VirtualVector,
+        Decorators, VirtualVector, container, editor::id::Id, label, scroll, stack,
+        svg, virtual_stack,
     },
-    View,
 };
 use lsp_types::{DocumentSymbol, SymbolKind};
 

@@ -1,26 +1,26 @@
 use std::{
     collections::HashSet,
     rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{Arc, atomic::AtomicU64},
 };
 
 use anyhow::Result;
 use floem::{
+    IntoView, View,
     action::show_context_menu,
     ext_event::create_ext_action,
     keyboard::Modifiers,
     kurbo::Rect,
     menu::{Menu, MenuItem},
     reactive::{
-        create_effect, create_memo, create_rw_signal, use_context, RwSignal, Scope,
-        SignalGet, SignalUpdate, SignalWith,
+        RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, create_effect,
+        create_memo, create_rw_signal, use_context,
     },
     style::CursorStyle,
     views::{
-        container, dyn_container, dyn_stack, empty, img, label, rich_text, scroll,
-        stack, svg, text, Decorators,
+        Decorators, container, dyn_container, dyn_stack, empty, img, label,
+        rich_text, scroll, stack, svg, text,
     },
-    IntoView, View,
 };
 use indexmap::IndexMap;
 use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
@@ -35,12 +35,12 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     command::{CommandExecuted, CommandKind},
-    config::{color::LapceColor, LapceConfig},
+    config::{LapceConfig, color::LapceColor},
     db::LapceDb,
     editor::EditorData,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     main_split::Editors,
-    markdown::{parse_markdown, MarkdownContent},
+    markdown::{MarkdownContent, parse_markdown},
     panel::plugin_view::VOLT_DEFAULT_PNG,
     web_link::web_link,
     window_tab::CommonData,
@@ -134,7 +134,7 @@ impl KeyPressFocus for PluginData {
                 #[allow(clippy::single_match)]
                 match command.kind {
                     CommandKind::Edit(EditCommand::InsertNewLine) => {
-                        return CommandExecuted::Yes
+                        return CommandExecuted::Yes;
                     }
                     _ => {}
                 }

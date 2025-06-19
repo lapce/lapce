@@ -1,11 +1,11 @@
 use floem_editor_core::buffer::{
-    rope_text::{RopeText, RopeTextRef},
     InsertsValueIter,
+    rope_text::{RopeText, RopeTextRef},
 };
 use lapce_xi_rope::{
+    Rope, RopeDelta, RopeInfo,
     delta::InsertDelta,
     multiset::{CountMatcher, Subset},
-    Rope, RopeDelta, RopeInfo,
 };
 use tree_sitter::Point;
 

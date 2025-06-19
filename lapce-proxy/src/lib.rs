@@ -8,22 +8,22 @@ pub mod terminal;
 pub mod watcher;
 
 use std::{
-    io::{stdin, stdout, BufReader},
+    io::{BufReader, stdin, stdout},
     process::exit,
     sync::Arc,
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
+    RpcMessage,
     core::{CoreRpc, CoreRpcHandler},
     file::PathObject,
     proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
-    RpcMessage,
 };
 use tracing::error;
 
@@ -150,10 +150,11 @@ pub fn register_lapce_path() -> Result<()> {
         }
     }
     let paths = std::env::split_paths(&current_path);
-    std::env::set_var(
-        "PATH",
-        std::env::join_paths(std::iter::once(exedir).chain(paths))?,
-    );
+    let paths = std::env::join_paths(std::iter::once(exedir).chain(paths))?;
+
+    unsafe {
+        std::env::set_var("PATH", paths);
+    }
 
     Ok(())
 }

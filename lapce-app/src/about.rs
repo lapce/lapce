@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
 use floem::{
+    View,
     event::EventListener,
     keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     style::{CursorStyle, Display, Position},
-    views::{container, label, stack, svg, Decorators},
-    View,
+    views::{Decorators, container, label, stack, svg},
 };
 use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};
 

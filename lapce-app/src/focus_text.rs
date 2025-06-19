@@ -1,14 +1,14 @@
 use floem::{
+    Renderer, View, ViewId,
     peniko::{
-        kurbo::{Point, Rect},
         Color,
+        kurbo::{Point, Rect},
     },
     prop_extractor,
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::NodeId,
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
-    Renderer, View, ViewId,
 };
 
 prop_extractor! {

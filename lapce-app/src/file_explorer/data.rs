@@ -34,7 +34,7 @@ use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     config::LapceConfig,
     editor::EditorData,
-    keypress::{condition::Condition, KeyPressFocus},
+    keypress::{KeyPressFocus, condition::Condition},
     main_split::Editors,
     window_tab::CommonData,
 };

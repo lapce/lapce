@@ -7,7 +7,7 @@ use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::config::{LapceConfig, color::LapceColor};
 
 #[derive(Clone)]
 pub enum MarkdownContent {

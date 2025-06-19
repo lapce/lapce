@@ -99,7 +99,7 @@ pub fn offset_utf16_to_utf8_str(text: &str, offset: usize) -> usize {
 mod tests {
     // TODO: more tests with unicode characters
 
-    use crate::encoding::{offset_utf16_to_utf8_str, offset_utf8_to_utf16_str};
+    use crate::encoding::{offset_utf8_to_utf16_str, offset_utf16_to_utf8_str};
 
     #[test]
     fn utf8_to_utf16() {

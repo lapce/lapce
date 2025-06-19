@@ -45,7 +45,7 @@ impl KeyInput {
                 #[allow(clippy::single_match)]
                 match location {
                     KeyLocation::Numpad => {
-                        return Some(KeyMapKey::Logical(logical.to_owned()))
+                        return Some(KeyMapKey::Logical(logical.to_owned()));
                     }
                     _ => {}
                 }
