@@ -156,26 +156,22 @@ impl FileExplorerData {
     /// Toggle whether the directory is expanded or not.  
     /// Does nothing if the path does not exist or is not a directory.
     pub fn toggle_expand(&self, path: &Path) {
-        let Some(read) = self
-            .root
-            .try_update(|root| {
-                let read = if let Some(node) = root.get_file_node_mut(path) {
-                    if !node.is_dir {
-                        return None;
-                    }
-                    node.open = !node.open;
-                    Some(node.read)
-                } else {
-                    None
-                };
-
-                if Some(true) == read {
-                    root.update_node_count_recursive(path);
+        let Some(Some(read)) = self.root.try_update(|root| {
+            let read = if let Some(node) = root.get_file_node_mut(path) {
+                if !node.is_dir {
+                    return None;
                 }
-                read
-            })
-            .unwrap()
-        else {
+                node.open = !node.open;
+                Some(node.read)
+            } else {
+                None
+            };
+
+            if Some(true) == read {
+                root.update_node_count_recursive(path);
+            }
+            read
+        }) else {
             return;
         };
 

@@ -207,15 +207,14 @@ impl SplitContentInfo {
 
 impl SplitData {
     pub fn split_info(&self, data: &WindowTabData) -> SplitInfo {
-        let info = SplitInfo {
+        SplitInfo {
             direction: self.direction,
             children: self
                 .children
                 .iter()
                 .map(|(_, child)| child.content_info(data))
                 .collect(),
-        };
-        info
+        }
     }
 
     pub fn editor_tab_index(&self, editor_tab_id: EditorTabId) -> Option<usize> {

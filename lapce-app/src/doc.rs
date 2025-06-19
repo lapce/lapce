@@ -682,7 +682,7 @@ impl Doc {
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
         let edits = self.buffer.with_untracked(|buffer| {
-            let edits = edits
+            edits
                 .iter()
                 .map(|edit| {
                     let selection = lapce_core::selection::Selection::region(
@@ -691,8 +691,7 @@ impl Doc {
                     );
                     (selection, edit.new_text.as_str())
                 })
-                .collect::<Vec<_>>();
-            edits
+                .collect::<Vec<_>>()
         });
         self.do_raw_edit(&edits, EditType::Completion);
     }
@@ -1921,7 +1920,8 @@ impl DocStyling {
                     if let Some(fg_color) = config.style_color(fg_color) {
                         let start = phantom_text.col_at(bracket_style.start);
                         let end = phantom_text.col_at(bracket_style.end);
-                        attrs_list.add_span(start..end, attrs.color(fg_color));
+                        attrs_list
+                            .add_span(start..end, attrs.clone().color(fg_color));
                     }
                 }
             }
@@ -2007,7 +2007,7 @@ impl Styling for DocStyling {
                 if let Some(fg_color) = config.style_color(fg_color) {
                     let start = phantom_text.col_at(line_style.start);
                     let end = phantom_text.col_at(line_style.end);
-                    attrs_list.add_span(start..end, default.color(fg_color));
+                    attrs_list.add_span(start..end, default.clone().color(fg_color));
                 }
             }
         }

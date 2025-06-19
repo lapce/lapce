@@ -70,7 +70,7 @@ impl TextLayoutProvider for TLProv<'_> {
         let attrs = Attrs::new()
             .family(&self.font_family)
             .font_size(font_size as f32);
-        let mut attrs_list = AttrsList::new(attrs);
+        let mut attrs_list = AttrsList::new(attrs.clone());
 
         // We don't do line styles, since they aren't relevant
 
@@ -79,7 +79,7 @@ impl TextLayoutProvider for TLProv<'_> {
             let start = col + offset;
             let end = start + size;
 
-            let mut attrs = attrs;
+            let mut attrs = attrs.clone();
             if let Some(fg) = phantom.fg {
                 attrs = attrs.color(fg);
             }

@@ -94,7 +94,7 @@ impl FocusText {
             attrs = attrs.line_height(line_height);
         }
 
-        let mut attrs_list = AttrsList::new(attrs);
+        let mut attrs_list = AttrsList::new(attrs.clone());
 
         for &i_start in &self.focus_indices {
             let i_end = self
@@ -109,7 +109,7 @@ impl FocusText {
             };
             attrs_list.add_span(
                 i_start..i_end,
-                attrs.color(self.focus_color).weight(Weight::BOLD),
+                attrs.clone().color(self.focus_color).weight(Weight::BOLD),
             );
         }
         let mut text_layout = TextLayout::new();
@@ -133,7 +133,7 @@ impl FocusText {
                 attrs = attrs.family(font_family);
             }
 
-            let mut attrs_list = AttrsList::new(attrs);
+            let mut attrs_list = AttrsList::new(attrs.clone());
 
             for &i_start in &self.focus_indices {
                 if i_start + 3 > new_text_len {
@@ -151,7 +151,7 @@ impl FocusText {
                 };
                 attrs_list.add_span(
                     i_start..i_end,
-                    attrs.color(self.focus_color).weight(Weight::BOLD),
+                    attrs.clone().color(self.focus_color).weight(Weight::BOLD),
                 );
             }
             let mut text_layout = TextLayout::new();

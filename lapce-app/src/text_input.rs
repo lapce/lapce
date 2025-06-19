@@ -393,7 +393,7 @@ impl TextInput {
             } else {
                 self.content.as_str()
             },
-            AttrsList::new(attrs),
+            AttrsList::new(attrs.clone()),
         );
         self.text_layout.set(Some(text_layout));
 

@@ -470,7 +470,7 @@ impl EditorTabData {
     }
 
     pub fn tab_info(&self, data: &WindowTabData) -> EditorTabInfo {
-        let info = EditorTabInfo {
+        EditorTabInfo {
             active: self.active,
             is_focus: data.main_split.active_editor_tab.get_untracked()
                 == Some(self.editor_tab_id),
@@ -479,7 +479,6 @@ impl EditorTabData {
                 .iter()
                 .map(|(_, _, child)| child.child_info(data))
                 .collect(),
-        };
-        info
+        }
     }
 }

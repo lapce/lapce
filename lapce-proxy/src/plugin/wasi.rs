@@ -75,10 +75,7 @@ impl Write for WasiPipe {
 
 impl Seek for WasiPipe {
     fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "can not seek in a pipe",
-        ))
+        Err(std::io::Error::other("can not seek in a pipe"))
     }
 }
 

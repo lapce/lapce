@@ -413,7 +413,7 @@ impl TerminalView {
             }
 
             if cell.c != ' ' && cell.c != '\t' {
-                let mut attrs = attrs.color(fg);
+                let mut attrs = attrs.clone().color(fg);
                 if bold {
                     attrs = attrs.weight(Weight::BOLD);
                 }
@@ -475,7 +475,7 @@ impl TerminalView {
 
         for (char, attr, x, y) in &line_content.chars {
             let mut text_layout = TextLayout::new();
-            text_layout.set_text(&char.to_string(), AttrsList::new(*attr));
+            text_layout.set_text(&char.to_string(), AttrsList::new(attr.clone()));
             cx.draw_text(&text_layout, Point::new(*x, *y));
         }
     }

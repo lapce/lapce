@@ -31,7 +31,7 @@ pub fn parse_markdown(
         .color(config.color(LapceColor::EDITOR_FOREGROUND))
         .font_size(config.ui.font_size() as f32)
         .line_height(LineHeightValue::Normal(line_height as f32));
-    let mut attr_list = AttrsList::new(default_attrs);
+    let mut attr_list = AttrsList::new(default_attrs.clone());
 
     let mut builder_dirty = false;
 
@@ -72,7 +72,7 @@ pub fn parse_markdown(
                     }
 
                     if let Some(attrs) = attribute_for_tag(
-                        default_attrs,
+                        default_attrs.clone(),
                         &tag,
                         &code_font_family,
                         config,
@@ -96,7 +96,7 @@ pub fn parse_markdown(
 
                             highlight_as_code(
                                 &mut attr_list,
-                                default_attrs.family(&code_font_family),
+                                default_attrs.clone().family(&code_font_family),
                                 language,
                                 &last_text,
                                 start_offset,
@@ -117,7 +117,7 @@ pub fn parse_markdown(
                                 let mut text_layout = TextLayout::new();
                                 text_layout.set_text(&current_text, attr_list);
                                 res.push(MarkdownContent::Text(text_layout));
-                                attr_list = AttrsList::new(default_attrs);
+                                attr_list = AttrsList::new(default_attrs.clone());
                                 current_text.clear();
                                 pos = 0;
                                 builder_dirty = false;
@@ -151,7 +151,7 @@ pub fn parse_markdown(
             Event::Code(text) => {
                 attr_list.add_span(
                     pos..pos + text.len(),
-                    default_attrs.family(&code_font_family),
+                    default_attrs.clone().family(&code_font_family),
                 );
                 current_text.push_str(&text);
                 pos += text.len();
@@ -163,6 +163,7 @@ pub fn parse_markdown(
                 attr_list.add_span(
                     pos..pos + text.len(),
                     default_attrs
+                        .clone()
                         .family(&code_font_family)
                         .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),
                 );
@@ -298,7 +299,7 @@ pub fn highlight_as_code(
             {
                 attr_list.add_span(
                     start_offset + range.start..start_offset + range.end,
-                    default_attrs.color(color),
+                    default_attrs.clone().color(color),
                 );
             }
         }

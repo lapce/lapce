@@ -3468,7 +3468,7 @@ fn show_completion(
     doc: &Rope,
     deltas: &[(Rope, RopeDelta, InvalLines)],
 ) -> bool {
-    let show_completion = match cmd {
+    match cmd {
         EditCommand::DeleteBackward
         | EditCommand::DeleteForward
         | EditCommand::DeleteWordBackward
@@ -3493,9 +3493,7 @@ fn show_completion(
             }
         }
         _ => false,
-    };
-
-    show_completion
+    }
 }
 
 fn show_inline_completion(cmd: &EditCommand) -> bool {

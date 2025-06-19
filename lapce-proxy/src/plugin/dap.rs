@@ -413,6 +413,7 @@ impl DapClient {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum DapRpc {
     HostRequest(DapRequest),
     HostEvent(DapEvent),

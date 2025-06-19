@@ -17,9 +17,6 @@ impl FileNodeVirtualList {
 
 impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
     fn total_len(&self) -> usize {
-        if !self.file_node_item.path.exists() {
-            return 0;
-        }
         self.file_node_item.children_open_count + 1
     }
 
@@ -30,9 +27,6 @@ impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
         let naming = &self.naming;
         let root = &self.file_node_item;
 
-        if !root.path.exists() {
-            return Vec::new().into_iter();
-        }
         let min = range.start;
         let max = range.end;
         let mut view_items = Vec::new();
