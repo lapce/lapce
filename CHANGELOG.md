@@ -4,11 +4,22 @@
 
 ### Features/Changes
 
+### Bug Fixes
+
+## 0.4.3
+
+### Features/Changes
+
 - Add Ubuntu 24.04 LTS (noble) build
 - Use Diff syntax for files with .diff/.patch extensions by default.
 - Update titles of file dialogs for better clarity
+- Bump to Rust 2024 Edition
+- Implement "Find References" panel
+- Implement "Go To Implementation" panel
 
 ### Bug Fixes
+- Fix pointer event not working on plugin panel
+- Fix rename/new file editor in file explorer is too small
 
 ## 0.4.2
 
