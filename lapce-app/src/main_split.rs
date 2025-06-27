@@ -677,9 +677,6 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
-        if self.common.focus.get_untracked() != Focus::Workbench {
-            self.common.focus.set(Focus::Workbench);
-        }
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(path.clone(), None);
 
