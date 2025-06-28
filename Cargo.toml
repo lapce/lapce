@@ -86,6 +86,10 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "2055dde9833
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
 
+# cargo vendor issue: https://github.com/rust-lang/cargo/issues/10310
+# dpi comes from winit (source) and muda (crate)
+dpi = { git = "https://github.com/rust-windowing/winit", rev = "ee245c569d65fdeacf705ee5eedb564508d10ebe" }
+
 
 [workspace.dependencies.tracing]
 git     = "https://github.com/tokio-rs/tracing"
