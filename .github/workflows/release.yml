@@ -158,8 +158,6 @@ jobs:
           - os-name: debian
             os-version: bullseye
           - os-name: ubuntu
-            os-version: focal
-          - os-name: ubuntu
             os-version: jammy
           - os-name: ubuntu
             os-version: noble
@@ -190,11 +188,9 @@ jobs:
       matrix:
         include:
           - os-name: fedora
-            os-version: 39
+            os-version: 41
           - os-name: fedora
-            os-version: 40
-          # - os-name: fedora
-          #   os-version: 41
+            os-version: 42
           # - os-name: fedora
           #   os-version: rawhide
     steps:
@@ -222,7 +218,7 @@ jobs:
       matrix:
         include:
           - os-name: alpine
-            os-version: '3-20'
+            os-version: "" # uses latest
     steps:
       - uses: actions/checkout@v4
 
