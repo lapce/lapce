@@ -1448,12 +1448,6 @@ checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f25c0e292a7ca6d6498557ff1df68f32c99850012b6ea401cf8daf771f22ff53"
-
-[[package]]
-name = "dpi"
-version = "0.1.1"
 source = "git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe#ee245c569d65fdeacf705ee5eedb564508d10ebe"
 dependencies = [
  "serde",
@@ -3469,7 +3463,7 @@ version = "0.16.1"
 source = "git+https://github.com/tauri-apps/muda?rev=8e986af3cea96a729413abc75c3702dec3990bd2#8e986af3cea96a729413abc75c3702dec3990bd2"
 dependencies = [
  "crossbeam-channel",
- "dpi 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dpi",
  "keyboard-types",
  "objc2 0.6.1",
  "objc2-app-kit 0.3.1",
@@ -7399,7 +7393,7 @@ dependencies = [
  "core-foundation",
  "core-graphics",
  "cursor-icon",
- "dpi 0.1.1 (git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe)",
+ "dpi",
  "js-sys",
  "libc",
  "memmap2",

@@ -128,14 +128,14 @@ jobs:
           cp ./target/linux_arm64/lapce Lapce/
           tar -zcvf ./lapce-linux-arm64.tar.gz Lapce
 
-      # - name: Fetch dependencies
-      #   run: cargo fetch --locked
+      - name: Fetch dependencies
+        run: cargo fetch --locked
 
-      # - name: Vendor dependencies
-      #   run: |
-      #     cargo vendor --frozen > ./vendor-config.toml
-      #     mv ./vendor-config.toml ./vendor/
-      #     tar -zcf vendor.tar.gz ./vendor/
+      - name: Vendor dependencies
+        run: |
+          cargo vendor --frozen > ./vendor-config.toml
+          mv ./vendor-config.toml ./vendor/
+          tar -zcf vendor.tar.gz ./vendor/
 
       - uses: actions/upload-artifact@v4
         with:
