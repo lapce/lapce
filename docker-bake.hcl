@@ -176,6 +176,7 @@ target "fedora" {
       { packages = null, platforms = null, type = "package", version = "39" },
       { packages = null, platforms = null, type = "package", version = "40" },
       { packages = null, platforms = null, type = "package", version = "41" },
+      { packages = null, platforms = null, type = "package", version = "42" },
       { packages = null, platforms = null, type = "package", version = "rawhide" },
     ]
   }
@@ -221,6 +222,8 @@ target "alpine" {
   matrix = {
     os_name = ["alpine"]
     build = [
+      { os_version = "",     packages = null, platforms = null },
+      { os_version = "3.22", packages = null, platforms = null },
       { os_version = "3.20", packages = null, platforms = null },
       { os_version = "3.18", packages = null, platforms = null },
     ]
