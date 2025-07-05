@@ -9,7 +9,7 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
-use lapce_xi_rope::RopeDelta;
+use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CodeAction, CodeActionResponse,
     CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse, FoldingRange,
@@ -72,6 +72,11 @@ pub enum ProxyRequest {
         case_sensitive: bool,
         whole_word: bool,
         is_regex: bool,
+    },
+    AppendSearch {
+        pattern: String,
+        filepath: PathBuf,
+        filecontent: Rope,
     },
     CompletionResolve {
         plugin_id: PluginId,
@@ -451,6 +456,10 @@ pub enum ProxyResponse {
     GetOpenFilesContentResponse {
         items: Vec<TextDocumentItem>,
     },
+    AppendSearchResponse {
+        line_matches: Vec<(usize, (usize, usize), String)>,
+        filepath: PathBuf,
+    },
     GlobalSearchResponse {
         matches: IndexMap<PathBuf, Vec<SearchMatch>>,
     },
@@ -795,6 +804,23 @@ impl ProxyRpcHandler {
                 case_sensitive,
                 whole_word,
                 is_regex,
+            },
+            f,
+        );
+    }
+
+    pub fn append_search(
+        &self,
+        pattern: String,
+        filepath: PathBuf,
+        filecontent: Rope,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::AppendSearch {
+                pattern,
+                filepath,
+                filecontent,
             },
             f,
         );
