@@ -28,8 +28,9 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let (s, read_only) = match load_file(&path) {
-            Ok(s) => (s, false),
+        let (file_str, read_only) = match load_file(&path) {
+            Ok(file_str) => (file_str, false),
+
             Err(err) => {
                 use std::io::ErrorKind;
                 match err.downcast_ref::<std::io::Error>() {
@@ -37,17 +38,23 @@ impl Buffer {
                         ErrorKind::PermissionDenied => {
                             ("Permission Denied".to_string(), true)
                         }
-                        ErrorKind::NotFound => ("".to_string(), false),
+
+                        ErrorKind::NotFound => {
+                            ("Could not open file".to_string(), false)
+                        }
+
                         ErrorKind::OutOfMemory => {
                             ("File too big (out of memory)".to_string(), false)
                         }
                         _ => (format!("Not supported: {err}"), true),
                     },
+
                     None => (format!("Not supported: {err}"), true),
                 }
             }
         };
-        let rope = Rope::from(s);
+
+        let rope = Rope::from(file_str);
         let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
@@ -218,6 +225,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
             match ext.to_str()? {
                 "C" | "H" => "cpp",
                 "M" => "objective-c",
+
                 // stop case-sensitive matching
                 ext => match ext.to_lowercase().as_str() {
                     "bat" => "bat",
@@ -248,7 +256,8 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "jsx" => "javascriptreact",
                     "json" => "json",
                     "jl" => "julia",
-                    "kt" | "kts" => "kotlin",
+                    "kt" => "kotlin",
+                    "kts" => "kotlinbuildscript",
                     "less" => "less",
                     "lua" => "lua",
                     "makefile" | "gnumakefile" => "makefile",
