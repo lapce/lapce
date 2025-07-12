@@ -326,6 +326,8 @@ pub enum LapceLanguage {
     Kdl,
     #[strum(message = "Kotlin")]
     Kotlin,
+    #[strum(message = "Kotlin Build Script")]
+    KotlinBuildScript,
     #[strum(message = "LaTeX")]
     Latex,
     #[strum(message = "Linker Script")]
@@ -1086,7 +1088,22 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Kotlin,
         indent: Indent::space(2),
         files: &[],
-        extensions: &["kt", "kts"],
+        extensions: &["kt"],
+        comment: CommentProperties {
+            single_line_start: Some("//"),
+            single_line_end: None,
+
+            multi_line_start: Some("/*"),
+            multi_line_prefix: None,
+            multi_line_end: Some("*/"),
+        },
+        tree_sitter: TreeSitterProperties::DEFAULT,
+    },
+    SyntaxProperties {
+        id: LapceLanguage::KotlinBuildScript,
+        indent: Indent::space(2),
+        files: &[],
+        extensions: &["kts"],
         comment: CommentProperties {
             single_line_start: Some("//"),
             single_line_end: None,
