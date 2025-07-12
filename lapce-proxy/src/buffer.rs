@@ -39,9 +39,7 @@ impl Buffer {
                             ("Permission Denied".to_string(), true)
                         }
 
-                        ErrorKind::NotFound => {
-                            ("Could not open file".to_string(), false)
-                        }
+                        ErrorKind::NotFound => ("Run configuration file not found. Create a new 'run.toml' for run settings.".to_string(), false),
 
                         ErrorKind::OutOfMemory => {
                             ("File too big (out of memory)".to_string(), false)
