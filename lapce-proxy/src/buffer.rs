@@ -165,11 +165,11 @@ impl Buffer {
         }
     }
 
-    pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
+    pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<'_, str> {
         self.rope.slice_to_cow(range)
     }
 
-    pub fn line_to_cow(&self, line: usize) -> Cow<str> {
+    pub fn line_to_cow(&self, line: usize) -> Cow<'_, str> {
         self.rope
             .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
     }

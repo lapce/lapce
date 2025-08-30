@@ -57,14 +57,14 @@ impl Lens {
         self.0.count::<LensMetric>(line)
     }
 
-    pub fn iter(&self) -> LensIter {
+    pub fn iter(&self) -> LensIter<'_> {
         LensIter {
             cursor: Cursor::new(&self.0, 0),
             end: self.len(),
         }
     }
 
-    pub fn iter_chunks<I: IntervalBounds>(&self, range: I) -> LensIter {
+    pub fn iter_chunks<I: IntervalBounds>(&self, range: I) -> LensIter<'_> {
         let Interval { start, end } = range.into_interval(self.len());
 
         LensIter {

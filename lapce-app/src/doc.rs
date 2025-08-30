@@ -1947,7 +1947,7 @@ impl Styling for DocStyling {
         &self,
         _: EditorId,
         _line: usize,
-    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
+    ) -> std::borrow::Cow<'_, [floem::text::FamilyOwned]> {
         // TODO: cache this
         Cow::Owned(self.config.with_untracked(|config| {
             FamilyOwned::parse_list(&config.editor.font_family).collect()
