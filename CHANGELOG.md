@@ -6,6 +6,19 @@
 
 ### Bug Fixes
 
+## 0.4.4
+
+### Features/Changes
+
+- Update Fedora releases to use 41/42
+- Update Alpine to latest (used for building portable lapce-proxy)
+- Remove Ubuntu Focal (20.04)
+
+### Bug Fixes
+
+- Fix dropdown menu disappearing after releasing mouse button (<https://github.com/lapce/lapce/issues/3786>)
+- Fix issue with cargo vendoring due to duplicate `dpi` crate
+
 ## 0.4.3
 
 ### Features/Changes

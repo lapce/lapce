@@ -23,7 +23,7 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 
 [workspace.package]
-version      = "0.4.3"
+version      = "0.4.4"
 edition      = "2024"
 rust-version = "1.87.0"
 license      = "Apache-2.0"
