@@ -396,7 +396,7 @@ impl EditorData {
 
     pub fn doc(&self) -> Rc<Doc> {
         let doc = self.editor.doc();
-        let Ok(doc) = doc.downcast_rc() else {
+        let Ok(doc) = (doc as Rc<dyn ::std::any::Any>).downcast() else {
             panic!("doc is not Rc<Doc>");
         };
 
@@ -3432,18 +3432,24 @@ pub struct DocSignal {
 impl DocSignal {
     pub fn get(&self) -> Rc<Doc> {
         let doc = self.inner.get();
-        doc.downcast_rc().ok().expect("doc is not Rc<Doc>")
+        (doc as Rc<dyn ::std::any::Any>)
+            .downcast()
+            .expect("doc is not Rc<Doc>")
     }
 
     pub fn get_untracked(&self) -> Rc<Doc> {
         let doc = self.inner.get_untracked();
-        doc.downcast_rc().ok().expect("doc is not Rc<Doc>")
+        (doc as Rc<dyn ::std::any::Any>)
+            .downcast()
+            .expect("doc is not Rc<Doc>")
     }
 
     pub fn with<O>(&self, f: impl FnOnce(&Rc<Doc>) -> O) -> O {
         self.inner.with(|doc| {
             let doc = doc.clone();
-            let doc: Rc<Doc> = doc.downcast_rc().ok().expect("doc is not Rc<Doc>");
+            let doc: Rc<Doc> = (doc as Rc<dyn ::std::any::Any>)
+                .downcast()
+                .expect("doc is not Rc<Doc>");
             f(&doc)
         })
     }
@@ -3451,7 +3457,9 @@ impl DocSignal {
     pub fn with_untracked<O>(&self, f: impl FnOnce(&Rc<Doc>) -> O) -> O {
         self.inner.with_untracked(|doc| {
             let doc = doc.clone();
-            let doc: Rc<Doc> = doc.downcast_rc().ok().expect("doc is not Rc<Doc>");
+            let doc: Rc<Doc> = (doc as Rc<dyn ::std::any::Any>)
+                .downcast()
+                .expect("doc is not Rc<Doc>");
             f(&doc)
         })
     }

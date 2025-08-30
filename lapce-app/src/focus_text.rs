@@ -113,7 +113,7 @@ impl FocusText {
             );
         }
         let mut text_layout = TextLayout::new();
-        text_layout.set_text(&self.text, attrs_list);
+        text_layout.set_text(&self.text, attrs_list, None);
         self.text_layout = Some(text_layout);
 
         if let Some(new_text) = self.available_text.as_ref() {
@@ -155,7 +155,7 @@ impl FocusText {
                 );
             }
             let mut text_layout = TextLayout::new();
-            text_layout.set_text(new_text, attrs_list);
+            text_layout.set_text(new_text, attrs_list, None);
             self.available_text_layout = Some(text_layout);
         }
     }
@@ -248,7 +248,7 @@ impl View for FocusText {
                 if let Some(font_family) = font_family.as_ref() {
                     attrs = attrs.family(font_family);
                 }
-                dots_text.set_text("...", AttrsList::new(attrs));
+                dots_text.set_text("...", AttrsList::new(attrs), None);
 
                 let dots_width = dots_text.size().width as f32;
                 let width_left = layout.size.width - dots_width;

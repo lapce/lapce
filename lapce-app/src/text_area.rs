@@ -36,7 +36,7 @@ pub fn text_area(
         let doc = doc.get();
         let text = doc.buffer.with(|b| b.to_string());
         text_layout.update(|text_layout| {
-            text_layout.set_text(&text, attrs_list);
+            text_layout.set_text(&text, attrs_list, None);
         });
     });
 
@@ -59,7 +59,7 @@ pub fn text_area(
         let doc = doc.get();
         let text = doc.buffer.with(|b| b.to_string());
         text_layout.update(|text_layout| {
-            text_layout.set_text(&text, attrs_list);
+            text_layout.set_text(&text, attrs_list, None);
         });
 
         rev

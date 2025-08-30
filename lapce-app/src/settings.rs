@@ -1044,7 +1044,7 @@ pub fn theme_color_settings_view(
             .family(&family)
             .font_size(config.ui.font_size() as f32);
         let attrs_list = AttrsList::new(attrs);
-        text_layout.set_text("W", attrs_list);
+        text_layout.set_text("W", attrs_list, None);
         text_layout.size().height
     });
 
@@ -1060,14 +1060,14 @@ pub fn theme_color_settings_view(
 
         let mut max_width = 0.0;
         for key in config.color_theme.ui.keys() {
-            text_layout.set_text(key, attrs_list.clone());
+            text_layout.set_text(key, attrs_list.clone(), None);
             let width = text_layout.size().width;
             if width > max_width {
                 max_width = width;
             }
         }
         for key in config.color_theme.syntax.keys() {
-            text_layout.set_text(key, attrs_list.clone());
+            text_layout.set_text(key, attrs_list.clone(), None);
             let width = text_layout.size().width;
             if width > max_width {
                 max_width = width;

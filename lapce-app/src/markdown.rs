@@ -115,7 +115,7 @@ pub fn parse_markdown(
 
                             if builder_dirty {
                                 let mut text_layout = TextLayout::new();
-                                text_layout.set_text(&current_text, attr_list);
+                                text_layout.set_text(&current_text, attr_list, None);
                                 res.push(MarkdownContent::Text(text_layout));
                                 attr_list = AttrsList::new(default_attrs.clone());
                                 current_text.clear();
@@ -192,7 +192,7 @@ pub fn parse_markdown(
 
     if builder_dirty {
         let mut text_layout = TextLayout::new();
-        text_layout.set_text(&current_text, attr_list);
+        text_layout.set_text(&current_text, attr_list, None);
         res.push(MarkdownContent::Text(text_layout));
     }
 
@@ -338,6 +338,7 @@ pub fn from_plaintext(
                 .font_size(config.ui.font_size() as f32)
                 .line_height(LineHeightValue::Normal(line_height as f32)),
         ),
+        None,
     );
     vec![MarkdownContent::Text(text_layout)]
 }

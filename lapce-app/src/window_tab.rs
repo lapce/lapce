@@ -358,7 +358,7 @@ impl WindowTabData {
                 .font_size(config.ui.font_size() as f32)
                 .line_height(LineHeightValue::Normal(1.8));
             let attrs_list = AttrsList::new(attrs);
-            text_layout.set_text("W", attrs_list);
+            text_layout.set_text("W", attrs_list, None);
             text_layout.size().height
         });
 

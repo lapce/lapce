@@ -394,6 +394,7 @@ impl TextInput {
                 self.content.as_str()
             },
             AttrsList::new(attrs.clone()),
+            None,
         );
         self.text_layout.set(Some(text_layout));
 
@@ -404,7 +405,11 @@ impl TextInput {
                 .unwrap_or(Color::BLACK)
                 .multiply_alpha(0.5),
         );
-        placeholder_text_layout.set_text(&self.placeholder, AttrsList::new(attrs));
+        placeholder_text_layout.set_text(
+            &self.placeholder,
+            AttrsList::new(attrs),
+            None,
+        );
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
 

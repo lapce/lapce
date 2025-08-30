@@ -1440,12 +1440,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
-name = "downcast-rs"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
-
-[[package]]
 name = "dpi"
 version = "0.1.1"
 source = "git+https://github.com/rust-windowing/winit?rev=ee245c569d65fdeacf705ee5eedb564508d10ebe#ee245c569d65fdeacf705ee5eedb564508d10ebe"
@@ -1717,12 +1711,11 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "bitflags 2.9.1",
  "clipboard-win",
  "copypasta",
- "downcast-rs 2.0.1",
  "educe",
  "floem-editor-core",
  "floem_reactive",
@@ -1760,7 +1753,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "bitflags 2.9.1",
  "itertools 0.14.0",
@@ -1786,7 +1779,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "smallvec",
 ]
@@ -1794,7 +1787,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "cosmic-text",
  "futures",
@@ -1810,7 +1803,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -1823,7 +1816,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=2055dde9833699b65ff052eb63cadbddec91c7ce#2055dde9833699b65ff052eb63cadbddec91c7ce"
+source = "git+https://github.com/lapce/floem?rev=abe59206013a3d700d861ccff3439d94ad3e2c45#abe59206013a3d700d861ccff3439d94ad3e2c45"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -6695,7 +6688,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "056535ced7a150d45159d3a8dc30f91a2e2d588ca0b23f70e56033622b8016f6"
 dependencies = [
  "cc",
- "downcast-rs 1.2.0",
+ "downcast-rs",
  "rustix",
  "scoped-tls",
  "smallvec",

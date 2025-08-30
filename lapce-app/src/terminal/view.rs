@@ -157,7 +157,7 @@ impl TerminalView {
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
         let attrs_list = AttrsList::new(attrs);
         let mut text_layout = TextLayout::new();
-        text_layout.set_text("W", attrs_list);
+        text_layout.set_text("W", attrs_list, None);
         text_layout.size()
     }
 
@@ -475,7 +475,11 @@ impl TerminalView {
 
         for (char, attr, x, y) in &line_content.chars {
             let mut text_layout = TextLayout::new();
-            text_layout.set_text(&char.to_string(), AttrsList::new(attr.clone()));
+            text_layout.set_text(
+                &char.to_string(),
+                AttrsList::new(attr.clone()),
+                None,
+            );
             cx.draw_text(&text_layout, Point::new(*x, *y));
         }
     }
@@ -642,6 +646,7 @@ impl View for TerminalView {
                 AttrsList::new(
                     attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),
                 ),
+                None,
             );
             cx.draw_text(
                 &text_layout,

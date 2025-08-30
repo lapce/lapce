@@ -105,7 +105,7 @@ impl TextLayoutProvider for TLProv<'_> {
                 text_layout.set_size(px, f32::MAX);
             }
         }
-        text_layout.set_text(&line_content, attrs_list);
+        text_layout.set_text(&line_content, attrs_list, None);
 
         // skip phantom text background styling because it doesn't shift positions
         // skip severity styling
