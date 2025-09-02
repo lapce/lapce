@@ -1,19 +1,52 @@
 version: 2
 updates:
-  - package-ecosystem: 'github-actions'
-    directory: '/'
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: 'monthly'
+      interval: "monthly"
     groups:
-      dependencies:
+      all-dependencies:
         patterns:
-        - '*'
-  - package-ecosystem: 'cargo'
-    directory: '/'
+          - "*"
+  - package-ecosystem: "cargo"
+    directory: "/"
     open-pull-requests-limit: 10
     schedule:
-      interval: 'monthly'
+      interval: "monthly"
     groups:
-      dependencies:
+      all-dependencies:
         patterns:
-        - '*'
+          - "*"
+        exclude-patterns:
+          - "wasmtime*"
+          - "wasi-common"
+          - "wasi-experimental-http-wasmtime"
+          - "tracing*"
+          - "strum*"
+          - "tree-sitter"
+          - "floem*"
+      wasmtime:
+        patterns:
+          - "wasmtime*"
+          - "wasi-common"
+          - "wasi-experimental-http-wasmtime"
+      toml:
+        patterns:
+          - "toml"
+          - "toml_edit"
+      strum:
+        patterns:
+          - "strum"
+          - "strum_macros"
+      tracing:
+        patterns:
+          - "tracing*"
+      floem:
+        patterns:
+          - "floem*"
+      tree-sitter:
+        patterns:
+          - "tree-sitter"
+      windows:
+        patterns:
+          - "windows*"
