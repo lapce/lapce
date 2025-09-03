@@ -57,8 +57,8 @@ reqwest           = { version = "0.11", features = ["blocking", "json", "socks"]
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
 smallvec          = { version = "1.15.1" }
-strum             = { version = "0.27.1" }
-strum_macros      = { version = "0.27.1" }
+strum             = { version = "0.27.2" }
+strum_macros      = { version = "0.27.2" }
 tar               = { version = "0.4" }
 tempfile          = { version = "3.10.1" }
 thiserror         = { version = "1.0" }
