@@ -6,6 +6,14 @@
 
 ### Bug Fixes
 
+## 0.4.5
+
+### Bug Fixes
+
+- Fix missing/incorrect metadata for Linux packages using AppStream metainfo
+- Fix incorrect version in macOS/Windows package metadata
+- Fix rendering issues when using custom scale display (<https://github.com/lapce/lapce/issues/3795>)
+
 ## 0.4.4
 
 ### Features/Changes

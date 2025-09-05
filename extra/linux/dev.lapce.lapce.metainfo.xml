@@ -9,6 +9,10 @@
     <url type="homepage">https://lapce.dev/</url>
     <url type="bugtracker">https://github.com/lapce/lapce/issues</url>
     <url type="help">https://docs.lapce.dev/</url>
+    <categories>
+        <category>IDE</category>
+        <category>Development</category>
+    </categories>
     <description>
         <p>
             Lapce is an open source code editor written in Rust. By utilising native GUI and GPU rendering, and with the performance Rust provides, Lapce is one of the fastest code editors out there.
@@ -25,11 +29,26 @@
     <content_rating type="oars-1.1" />
     <launchable type="desktop-id">dev.lapce.lapce.desktop</launchable>
     <screenshots>
-        <screenshot type="default">
-            <image>https://raw.githubusercontent.com/lapce/lapce/master/extra/images/screenshot.png</image>
+        <screenshot type="default" environment="plasma">
+            <caption>Lapce source project opened in Lapce with Rust source code file opened</caption>
+            <image type="source" width="1000" height="700">https://raw.githubusercontent.com/lapce/lapce/refs/tags/v0.4.5/extra/images/linux/code-with-file-highglight.png</image>
         </screenshot>
     </screenshots>
     <releases>
-        <release version="0.4.2" date="2024-08-07"/>
+        <release version="0.4.5" date="2024-09-05">
+            <url type="details">https://github.com/lapce/lapce/releases/tag/v0.4.5</details>
+            <issues>
+                <issue url="https://github.com/lapce/lapce/issues/3795">#3795</issue>
+            </issues>
+        </release>
+        <release version="0.4.4" date="2024-08-30">
+            <url type="details">https://github.com/lapce/lapce/releases/tag/v0.4.4</details>
+            <issues>
+                <issue url="https://github.com/lapce/lapce/issues/3786">#3795</issue>
+            </issues>
+        </release>
+        <release version="0.4.3" date="2024-06-27">
+            <url type="details">https://github.com/lapce/lapce/releases/tag/v0.4.3</details>
+        </release>
     </releases>
 </component>
