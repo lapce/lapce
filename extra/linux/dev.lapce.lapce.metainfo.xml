@@ -31,7 +31,7 @@
     <screenshots>
         <screenshot type="default" environment="plasma">
             <caption>Lapce source project opened in Lapce with Rust source code file opened</caption>
-            <image type="source" width="1000" height="700">https://raw.githubusercontent.com/lapce/lapce/refs/tags/v0.4.5/extra/images/linux/code-with-file-highglight.png</image>
+            <image type="source" width="1000" height="700">https://raw.githubusercontent.com/lapce/lapce/refs/tags/v0.4.5/extra/images/linux/code-file-with-highlight.png</image>
         </screenshot>
     </screenshots>
     <releases>
