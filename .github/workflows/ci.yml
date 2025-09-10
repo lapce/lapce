@@ -50,7 +50,7 @@ jobs:
         if: matrix.target != ''
         run: |
           rustup toolchain add stable-${{ matrix.target }}
-          rustup default ${{ matrix.target }}
+          rustup default stable-${{ matrix.target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
