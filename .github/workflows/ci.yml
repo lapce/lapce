@@ -49,6 +49,7 @@ jobs:
       - name: Set toolchain
         if: matrix.target != ''
         run: |
+          rustup toolchain add stable-${{ matrix.target }}
           rustup default ${{ matrix.target }}
 
       - name: Cache Rust dependencies
