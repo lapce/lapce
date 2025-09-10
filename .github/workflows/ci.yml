@@ -49,7 +49,7 @@ jobs:
       - name: Set toolchain
         if: matrix.target != ''
         run: |
-          rustup target default ${{ matrix.target }}
+          rustup default ${{ matrix.target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
