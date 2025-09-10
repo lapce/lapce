@@ -8,7 +8,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - lapce-**
-      - .github/wofklows/ci.yml
+      - .github/workflows/ci.yml
   workflow_dispatch:
 
 name: CI
