@@ -162,7 +162,7 @@ jobs:
           - os-name: ubuntu
             os-version: noble
           - os-name: ubuntu
-            os-version: oracular
+            os-version: plucky
     steps:
       - uses: actions/checkout@v4
 
