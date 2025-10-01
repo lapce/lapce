@@ -59,7 +59,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Update rust
         run: rustup update --no-self-update
@@ -110,7 +110,7 @@ jobs:
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
@@ -164,7 +164,7 @@ jobs:
           - os-name: ubuntu
             os-version: oracular
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build deb packages
         run: |
@@ -194,7 +194,7 @@ jobs:
           # - os-name: fedora
           #   os-version: rawhide
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build rpm packages
         run: |
@@ -220,7 +220,7 @@ jobs:
           - os-name: alpine
             os-version: "" # uses latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -252,13 +252,13 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install ARM target
         run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
-        uses: Apple-Actions/import-codesign-certs@v3
+        uses: Apple-Actions/import-codesign-certs@v5
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -321,9 +321,9 @@ jobs:
     steps:
       # Must perform checkout first, since it deletes the target directory
       # before running, and would therefore delete the downloaded artifacts
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
 
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" | tee -a $GITHUB_ENV
