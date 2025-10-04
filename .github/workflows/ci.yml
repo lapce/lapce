@@ -65,7 +65,7 @@ jobs:
         run: cargo fetch --locked --target ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --frozen --target ${{ matrix.target }}
+        run: cargo build --locked --target ${{ matrix.target }}
 
       - name: Build as portable
         if: startsWith(matrix.os, 'windows')
