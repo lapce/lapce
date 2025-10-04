@@ -2519,6 +2519,15 @@ checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
+name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
@@ -4817,9 +4826,10 @@ dependencies = [
 [[package]]
 name = "regalloc2"
 version = "0.9.3"
-source = "git+https://github.com/bytecodealliance/regalloc2?rev=5d79e12d0a93b10fc181f4da409b4671dd365228#5d79e12d0a93b10fc181f4da409b4671dd365228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad156d539c879b7a24a363a2016d77961786e71f48f2e2fc8302a92abd2429a6"
 dependencies = [
- "hashbrown 0.14.5",
+ "hashbrown 0.13.2",
  "log",
  "rustc-hash 1.1.0",
  "slice-group-by",
@@ -8437,3 +8447,8 @@ dependencies = [
  "syn 2.0.94",
  "winnow 0.7.11",
 ]
+
+[[patch.unused]]
+name = "wasi-experimental-http"
+version = "0.9.0"
+source = "git+https://github.com/lapce/wasi-experimental-http?rev=e1149c7f11a8a4037039335a596bd985447b31a0#e1149c7f11a8a4037039335a596bd985447b31a0"

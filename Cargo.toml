@@ -84,7 +84,7 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "e0dd862564e
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
-regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
+wasi-experimental-http = { git = "https://github.com/lapce/wasi-experimental-http",  rev = "e1149c7f11a8a4037039335a596bd985447b31a0" }
 
 # cargo vendor issue: https://github.com/rust-lang/cargo/issues/10310
 # dpi comes from winit (source) and muda (crate)
