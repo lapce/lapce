@@ -45,6 +45,10 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo make ubuntu-deps
 
+      - name: Install dependencies on Ubuntu x86
+        if: startsWith(matrix.os, 'ubuntu') && startsWith(matrix.target, 'i686')
+        run: sudo apt-get -yq crossbuild-essential-i386 libc6-dev-i386 gcc-multilib-i686-linux-gnu
+
       - name: Update toolchain & add llvm-tools
         run: |
           rustup update --no-self-update
