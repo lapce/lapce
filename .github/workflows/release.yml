@@ -162,7 +162,7 @@ jobs:
           - os-name: ubuntu
             os-version: noble
           - os-name: ubuntu
-            os-version: oracular
+            os-version: plucky
     steps:
       - uses: actions/checkout@v4
 
@@ -290,6 +290,7 @@ jobs:
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
           primary-bundle-id: "io.lapce"
+          verbose: true
 
       - name: "Staple Release Build"
         uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
