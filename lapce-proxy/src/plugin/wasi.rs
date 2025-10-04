@@ -29,8 +29,8 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
 use serde_json::Value;
+use wasi_common::sync::WasiCtxBuilder;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
-use wasmtime_wasi::WasiCtxBuilder;
 
 use super::{
     PluginCatalogRpcHandler, client_capabilities,
@@ -267,9 +267,9 @@ pub fn load_all_volts(
     }
 }
 
-/// Find all installed volts.  
+/// Find all installed volts.
 /// `plugin_dev_path` allows launching Lapce with a plugin on your local system for testing
-/// purposes.  
+/// purposes.
 /// As well, this function skips any volt in the typical plugin directory that match the name
 /// of the dev plugin so as to support developing a plugin you actively use.
 pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
@@ -427,7 +427,7 @@ pub fn start_volt(
             .ok_or_else(|| anyhow!("no wasm in plugin"))?,
     )?;
     let mut linker = wasmtime::Linker::new(&engine);
-    wasmtime_wasi::add_to_linker(&mut linker, |s| s)?;
+    wasi_common::sync::add_to_linker(&mut linker, |s| s)?;
     HttpState::new()?.add_to_linker(&mut linker, |_| HttpCtx {
         allowed_hosts: Some(vec!["insecure:allow-all".to_string()]),
         max_concurrent_requests: Some(100),
@@ -485,9 +485,9 @@ pub fn start_volt(
             stderr.clone(),
         )))
         .preopened_dir(
-            wasmtime_wasi::Dir::open_ambient_dir(
+            wasi_common::sync::Dir::open_ambient_dir(
                 volt_path,
-                wasmtime_wasi::ambient_authority(),
+                wasi_common::sync::ambient_authority(),
             )?,
             "/",
         )?
