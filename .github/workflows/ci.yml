@@ -19,7 +19,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_PROFILE_dev_DEBUG: 0
+  CARGO_PROFILE_DEV_DEBUG: none
+  CARGO_PROFILE_TEST_DEBUG: none
+  CARGO_PROFILE_BENCH_DEBUG: none
 
 jobs:
   build:
