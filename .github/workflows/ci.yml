@@ -52,21 +52,20 @@ jobs:
       - name: Set toolchain
         if: matrix.target != ''
         run: |
-          rustup toolchain add stable-${{ matrix.target }}
-          rustup default stable-${{ matrix.target }}
+          rustup target add --toolchain=stable ${{ matrix.target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Fetch dependencies
-        run: cargo fetch --locked
+        run: cargo fetch --locked --target ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --frozen
+        run: cargo build --frozen --target ${{ matrix.target }}
 
       - name: Build as portable
         if: startsWith(matrix.os, 'windows')
-        run: cargo build --frozen --features lapce-app/portable
+        run: cargo build --frozen --target ${{ matrix.target }} --features lapce-app/portable
 
       - name: Free space on Windows
         if: startsWith(matrix.os, 'windows')
