@@ -917,42 +917,6 @@ fn editor_tab_header(
                 .on_event_stop(EventListener::DragEnd, move |_| {
                     dragging.set(None);
                 })
-                .on_event_stop(EventListener::DragOver, move |event| {
-                    if dragging.with_untracked(|dragging| dragging.is_some()) {
-                        if let Event::PointerMove(pointer_event) = event {
-                            let new_left = pointer_event.pos.x
-                                < header_content_size.get_untracked().width / 2.0;
-                            if drag_over_left.get_untracked() != Some(new_left) {
-                                drag_over_left.set(Some(new_left));
-                            }
-                        }
-                    }
-                })
-                .on_event(EventListener::Drop, move |event| {
-                    if let Some((from_index, from_editor_tab_id)) =
-                        dragging.get_untracked()
-                    {
-                        drag_over_left.set(None);
-                        if let Event::PointerUp(pointer_event) = event {
-                            let left = pointer_event.pos.x
-                                < header_content_size.get_untracked().width / 2.0;
-                            let index = i.get_untracked();
-                            let new_index = if left { index } else { index + 1 };
-                            main_split.move_editor_tab_child(
-                                from_editor_tab_id,
-                                editor_tab_id,
-                                from_index.get_untracked(),
-                                new_index,
-                            );
-                        }
-                        EventPropagation::Stop
-                    } else {
-                        EventPropagation::Continue
-                    }
-                })
-                .on_event_stop(EventListener::DragLeave, move |_| {
-                    drag_over_left.set(None);
-                })
                 .on_resize(move |rect| {
                     header_content_size.set(rect.size());
                 })
@@ -1035,6 +999,41 @@ fn editor_tab_header(
                 .hover(|s| s.background(config.color(LapceColor::HOVER_BACKGROUND)))
         })
         .debug_name("Tab and Active Indicator")
+        .on_event_stop(EventListener::DragOver, move |event| {
+            if dragging.with_untracked(|dragging| dragging.is_some()) {
+                if let Event::PointerMove(pointer_event) = event {
+                    let new_left = pointer_event.pos.x
+                        < header_content_size.get_untracked().width / 2.0;
+                    if drag_over_left.get_untracked() != Some(new_left) {
+                        drag_over_left.set(Some(new_left));
+                    }
+                }
+            }
+        })
+        .on_event(EventListener::Drop, move |event| {
+            if let Some((from_index, from_editor_tab_id)) = dragging.get_untracked()
+            {
+                drag_over_left.set(None);
+                if let Event::PointerUp(pointer_event) = event {
+                    let left = pointer_event.pos.x
+                        < header_content_size.get_untracked().width / 2.0;
+                    let index = i.get_untracked();
+                    let new_index = if left { index } else { index + 1 };
+                    main_split.move_editor_tab_child(
+                        from_editor_tab_id,
+                        editor_tab_id,
+                        from_index.get_untracked(),
+                        new_index,
+                    );
+                }
+                EventPropagation::Stop
+            } else {
+                EventPropagation::Continue
+            }
+        })
+        .on_event_stop(EventListener::DragLeave, move |_| {
+            drag_over_left.set(None);
+        })
     };
 
     let content_size = create_rw_signal(Size::ZERO);
