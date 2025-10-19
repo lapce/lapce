@@ -231,15 +231,13 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
             .to_string();
         let style_path = path.clone();
         stack((
-            checkbox(move || checked, config)
-                .style(|s| s.hover(|s| s.cursor(CursorStyle::Pointer)))
-                .on_click_stop(move |_| {
-                    file_diffs.update(|diffs| {
-                        if let Some((_, checked)) = diffs.get_mut(&full_path) {
-                            *checked = !*checked;
-                        }
-                    });
-                }),
+            checkbox(move || checked, config).on_click_stop(move |_| {
+                file_diffs.update(|diffs| {
+                    if let Some((_, checked)) = diffs.get_mut(&full_path) {
+                        *checked = !*checked;
+                    }
+                });
+            }),
             svg(move || config.get().file_svg(&path).0).style(move |s| {
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
@@ -339,6 +337,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 .padding_right(10.0 + size + 6.0)
                 .width_pct(100.0)
                 .items_center()
+                .cursor(CursorStyle::Pointer)
                 .hover(|s| {
                     s.background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
                 })
