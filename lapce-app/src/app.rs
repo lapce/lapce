@@ -932,7 +932,7 @@ fn editor_tab_header(
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
-                .style(|s| s.align_items(Some(AlignItems::Center))),
+                .style(|s| s.align_items(Some(AlignItems::Center)).flex_grow(1.0)),
             empty()
                 .style(move |s| {
                     s.size_full()
