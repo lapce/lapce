@@ -14,10 +14,7 @@ use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
-    app::{
-        clickable_icon, mac_os_settings_popout, not_clickable_icon, tooltip_label,
-        window_menu,
-    },
+    app::{clickable_icon, not_clickable_icon, tooltip_label, window_menu},
     command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
     config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     listener::Listener,
@@ -27,7 +24,6 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-#[allow(clippy::too_many_arguments)]
 fn left(
     workspace: Arc<LapceWorkspace>,
     lapce_command: Listener<LapceCommand>,
@@ -35,8 +31,6 @@ fn left(
     config: ReadSignal<Arc<LapceConfig>>,
     proxy_status: RwSignal<Option<ProxyStatus>>,
     num_window_tabs: Memo<usize>,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    update_in_progress: RwSignal<bool>,
 ) -> impl View {
     let is_local = workspace.kind.is_local();
     let is_macos = cfg!(target_os = "macos");
@@ -60,21 +54,11 @@ fn left(
         ))
         .style(move |s| s.margin_horiz(10.0).apply_if(is_macos, |s| s.hide())),
         title_button(
-            stack((
-                lapce_icon(move || LapceIcons::MENU, config),
-                update_indicator(config, latest_release, true),
-            )),
+            lapce_icon(move || LapceIcons::MENU, config),
             || "Menu",
             config,
         )
-        .popout_menu(move || {
-            window_menu(
-                lapce_command,
-                workbench_command,
-                latest_release,
-                update_in_progress,
-            )
-        })
+        .popout_menu(move || window_menu(lapce_command, workbench_command))
         .style(move |s| s.apply_if(is_macos, |s| s.hide())),
         title_button(
             lapce_icon(move || LapceIcons::REMOTE, config).style(move |s| {
@@ -323,7 +307,18 @@ fn right(
     window_maximized: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let is_macos = cfg!(target_os = "macos");
+    let latest_version = create_memo(move |_| {
+        let latest_release = latest_release.get();
+        let latest_version =
+            latest_release.as_ref().as_ref().map(|r| r.version.clone());
+        if latest_version.is_some()
+            && latest_version.as_deref() != Some(meta::VERSION)
+        {
+            latest_version
+        } else {
+            None
+        }
+    });
 
     stack((
         drag_window_area(empty())
@@ -337,20 +332,50 @@ fn right(
                 config,
             )
             .popout_menu(move || {
-                mac_os_settings_popout(
-                    workbench_command,
-                    latest_release,
-                    update_in_progress,
-                )
+                Menu::new("")
+                    .entry(MenuItem::new("Command Palette").action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::PaletteCommand)
+                    }))
+                    .separator()
+                    .entry(MenuItem::new("Open Settings").action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::OpenSettings)
+                    }))
+                    .entry(MenuItem::new("Open Keyboard Shortcuts").action(
+                        move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenKeyboardShortcuts)
+                        },
+                    ))
+                    .entry(MenuItem::new("Open Theme Color Settings").action(
+                        move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenThemeColorSettings)
+                        },
+                    ))
+                    .separator()
+                    .entry(if let Some(v) = latest_version.get_untracked() {
+                        if update_in_progress.get_untracked() {
+                            MenuItem::new(format!("Update in progress ({v})"))
+                                .enabled(false)
+                        } else {
+                            MenuItem::new(format!("Restart to update ({v})")).action(
+                                move || {
+                                    workbench_command
+                                        .send(LapceWorkbenchCommand::RestartToUpdate)
+                                },
+                            )
+                        }
+                    } else {
+                        MenuItem::new("No update available").enabled(false)
+                    })
+                    .separator()
+                    .entry(MenuItem::new("About Lapce").action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                    }))
             }),
             update_indicator(config, latest_release, false),
         )))
-        .style(move |s| {
-            s.margin_horiz(6.0)
-                .justify_center()
-                .items_center()
-                .apply_if(!is_macos, |s| s.hide())
-        }),
+        .style(move |s| s.margin_horiz(6.0).justify_center().items_center()),
         window_controls_view(
             window_command,
             true,
@@ -464,8 +489,6 @@ pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
             config,
             proxy_status,
             num_window_tabs,
-            latest_release,
-            update_in_progress,
         ),
         middle(
             workspace,

@@ -4,9 +4,7 @@
 
 ### Features/Changes
 
-- Increased the size of primary title bar buttons to take the full height of the bar, just like the "Connect to Remote" button.
-- The right side "Settings" button is removed outside of macOS, with options moved to the "Menu" button
-- Added "New Window" button above "Close Window"
+- Increased the size of primary title bar buttons to take the full height of the bar.
 
 ### Bug Fixes
 

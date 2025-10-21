@@ -3697,12 +3697,9 @@ fn window(window_data: WindowData) -> impl View {
         let window_tab = window_tabs.get(active).or_else(|| window_tabs.last());
         if let Some((_, window_tab)) = window_tab {
             window_tab.common.keypress.track();
-            window_menu(
-                window_tab.common.lapce_command,
-                window_tab.common.workbench_command,
-                window_tab.common.window_common.latest_release,
-                window_tab.update_in_progress,
-            )
+            let workbench_command = window_tab.common.workbench_command;
+            let lapce_command = window_tab.common.lapce_command;
+            window_menu(lapce_command, workbench_command)
         } else {
             Menu::new("Lapce")
         }
@@ -4166,211 +4163,114 @@ fn listen_local_socket(tx: SyncSender<CoreNotification>) -> Result<()> {
 pub fn window_menu(
     lapce_command: Listener<LapceCommand>,
     workbench_command: Listener<LapceWorkbenchCommand>,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    update_in_progress: RwSignal<bool>,
 ) -> Menu {
-    let mut menu = Menu::new("Lapce");
-
-    if cfg!(target_os = "macos") {
-        menu = menu.entry(
-            Menu::new("Lapce")
+    Menu::new("Lapce")
+        .entry({
+            let mut menu = Menu::new("Lapce")
                 .entry(MenuItem::new("About Lapce").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ShowAbout)
                 }))
                 .separator()
-                .entry(preferences_menu(workbench_command))
+                .entry(
+                    Menu::new("Settings...")
+                        .entry(MenuItem::new("Open Settings").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenSettings);
+                        }))
+                        .entry(MenuItem::new("Open Keyboard Shortcuts").action(
+                            move || {
+                                workbench_command.send(
+                                    LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                );
+                            },
+                        )),
+                )
                 .separator()
                 .entry(MenuItem::new("Quit Lapce").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::Quit);
+                }));
+            if cfg!(target_os = "macos") {
+                menu = menu
+                    .separator()
+                    .entry(MenuItem::new("Hide Lapce"))
+                    .entry(MenuItem::new("Hide Others"))
+                    .entry(MenuItem::new("Show All"))
+            }
+            menu
+        })
+        .separator()
+        .entry(
+            Menu::new("File")
+                .entry(MenuItem::new("New File").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::NewFile);
                 }))
                 .separator()
-                .entry(MenuItem::new("Hide Lapce"))
-                .entry(MenuItem::new("Hide Others"))
-                .entry(MenuItem::new("Show All")),
-        );
-    }
-
-    menu = menu
-        .entry(file_menu_entry(lapce_command, workbench_command))
-        .entry(edit_menu_entry(lapce_command));
-
-    if !cfg!(target_os = "macos") {
-        menu = menu
-            .separator()
-            .entry(preferences_menu(workbench_command))
-            .separator()
-            .entry(MenuItem::new("About").action(move || {
-                workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-            }))
-            .entry(update_menu_item(
-                workbench_command,
-                latest_release,
-                update_in_progress,
-            ))
-            .entry(MenuItem::new("Quit").action(move || {
-                workbench_command.send(LapceWorkbenchCommand::Quit);
-            }));
-    }
-
-    menu
+                .entry(MenuItem::new("Open").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::OpenFile);
+                }))
+                .entry(MenuItem::new("Open Folder").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
+                }))
+                .separator()
+                .entry(MenuItem::new("Save").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::Save),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Save All").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::SaveAll);
+                }))
+                .separator()
+                .entry(MenuItem::new("Close Folder").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::CloseFolder);
+                }))
+                .entry(MenuItem::new("Close Window").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::CloseWindow);
+                })),
+        )
+        .entry(
+            Menu::new("Edit")
+                .entry(MenuItem::new("Cut").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Copy").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Paste").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                        data: None,
+                    });
+                }))
+                .separator()
+                .entry(MenuItem::new("Undo").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::Undo),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Redo").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::Redo),
+                        data: None,
+                    });
+                }))
+                .separator()
+                .entry(MenuItem::new("Find").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::Search),
+                        data: None,
+                    });
+                })),
+        )
 }
-
-pub fn mac_os_settings_popout(
-    workbench_command: Listener<LapceWorkbenchCommand>,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    update_in_progress: RwSignal<bool>,
-) -> Menu {
-    let mut menu = Menu::new("Lapce")
-        .entry(MenuItem::new("Command Palette").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::PaletteCommand)
-        }))
-        .separator();
-
-    menu = append_preferences_menu_items(menu, workbench_command);
-
-    menu = menu
-        .separator()
-        .entry(MenuItem::new("About").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-        }))
-        .entry(update_menu_item(
-            workbench_command,
-            latest_release,
-            update_in_progress,
-        ));
-
-    menu
-}
-
-fn update_menu_item(
-    workbench_command: Listener<LapceWorkbenchCommand>,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    update_in_progress: RwSignal<bool>,
-) -> MenuItem {
-    let latest_version = create_memo(move |_| {
-        let latest_release = latest_release.get();
-        let latest_version =
-            latest_release.as_ref().as_ref().map(|r| r.version.clone());
-        if latest_version.is_some()
-            && latest_version.as_deref() != Some(meta::VERSION)
-        {
-            latest_version
-        } else {
-            None
-        }
-    });
-
-    if let Some(v) = latest_version.get_untracked() {
-        if update_in_progress.get_untracked() {
-            MenuItem::new(format!("Update in progress ({v})")).enabled(false)
-        } else {
-            MenuItem::new(format!("Restart to update ({v})")).action(move || {
-                workbench_command.send(LapceWorkbenchCommand::RestartToUpdate)
-            })
-        }
-    } else {
-        MenuItem::new("No update available").enabled(false)
-    }
-}
-
-fn file_menu_entry(
-    lapce_command: Listener<LapceCommand>,
-    workbench_command: Listener<LapceWorkbenchCommand>,
-) -> Menu {
-    Menu::new("File")
-        .entry(MenuItem::new("New File").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::NewFile);
-        }))
-        .separator()
-        .entry(MenuItem::new("Open").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::OpenFile);
-        }))
-        .entry(MenuItem::new("Open Folder").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::OpenFolder);
-        }))
-        .entry(MenuItem::new("Close Folder").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::CloseFolder);
-        }))
-        .separator()
-        .entry(MenuItem::new("Save").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Focus(FocusCommand::Save),
-                data: None,
-            });
-        }))
-        .entry(MenuItem::new("Save All").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::SaveAll);
-        }))
-        .separator()
-        .entry(MenuItem::new("New Window").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::NewWindow);
-        }))
-        .entry(MenuItem::new("Close Window").action(move || {
-            workbench_command.send(LapceWorkbenchCommand::CloseWindow);
-        }))
-}
-
-fn edit_menu_entry(lapce_command: Listener<LapceCommand>) -> Menu {
-    Menu::new("Edit")
-        .entry(MenuItem::new("Cut").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                data: None,
-            });
-        }))
-        .entry(MenuItem::new("Copy").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                data: None,
-            });
-        }))
-        .entry(MenuItem::new("Paste").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                data: None,
-            });
-        }))
-        .separator()
-        .entry(MenuItem::new("Undo").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Edit(EditCommand::Undo),
-                data: None,
-            });
-        }))
-        .entry(MenuItem::new("Redo").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Edit(EditCommand::Redo),
-                data: None,
-            });
-        }))
-        .separator()
-        .entry(MenuItem::new("Find").action(move || {
-            lapce_command.send(LapceCommand {
-                kind: CommandKind::Focus(FocusCommand::Search),
-                data: None,
-            });
-        }))
-}
-
-fn preferences_menu(workbench_command: Listener<LapceWorkbenchCommand>) -> Menu {
-    append_preferences_menu_items(Menu::new("Preferences"), workbench_command)
-}
-
-fn append_preferences_menu_items(
-    menu: Menu,
-    workbench_command: Listener<LapceWorkbenchCommand>,
-) -> Menu {
-    menu.entry(MenuItem::new("Settings").action(move || {
-        workbench_command.send(LapceWorkbenchCommand::OpenSettings);
-    }))
-    .entry(MenuItem::new("Keyboard Shortcuts").action(move || {
-        workbench_command.send(LapceWorkbenchCommand::OpenKeyboardShortcuts);
-    }))
-    .entry(MenuItem::new("Colors").action(move || {
-        workbench_command.send(LapceWorkbenchCommand::OpenThemeColorSettings)
-    }))
-}
-
 fn tab_secondary_click(
     internal_command: Listener<InternalCommand>,
     editor_tab_id: EditorTabId,
