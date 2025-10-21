@@ -324,10 +324,8 @@ fn right(
         drag_window_area(empty())
             .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
         container(stack((
-            not_clickable_icon(
-                || LapceIcons::SETTINGS,
-                || false,
-                || false,
+            title_button(
+                lapce_icon(|| LapceIcons::SETTINGS, config),
                 || "Settings",
                 config,
             )
@@ -374,8 +372,7 @@ fn right(
                     }))
             }),
             update_indicator(config, latest_release, false),
-        )))
-        .style(move |s| s.margin_horiz(6.0).justify_center().items_center()),
+        ))),
         window_controls_view(
             window_command,
             true,
