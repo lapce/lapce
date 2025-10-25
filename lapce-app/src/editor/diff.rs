@@ -528,6 +528,7 @@ pub fn diff_show_more_section_view(
                     (section.visual_line * config.editor.line_height()) as f32
                         - viewport.get().y0 as f32,
                 )
+                .pointer_events_auto()
                 .hover(|s| s.cursor(CursorStyle::Default))
         })
     };
@@ -542,6 +543,11 @@ pub fn diff_show_more_section_view(
         )
         .style(|s| s.size_pct(100.0, 100.0)),
     ))
-    .style(|s| s.absolute().flex_col().size_pct(100.0, 100.0))
+    .style(|s| {
+        s.absolute()
+            .flex_col()
+            .size_pct(100.0, 100.0)
+            .pointer_events_none()
+    })
     .debug_name("Diff Show More Section")
 }
