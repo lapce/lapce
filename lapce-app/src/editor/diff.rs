@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::atomic};
 
 use floem::{
     View,
-    event::EventListener,
+    event::{Event, EventListener},
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
@@ -318,6 +318,7 @@ pub fn diff_show_more_section_view(
 ) -> impl View + use<> {
     let left_editor_view = left_editor.kind;
     let right_editor_view = right_editor.kind;
+    let right_scroll_delta = right_editor.editor.scroll_delta;
     let viewport = right_editor.viewport();
     let config = right_editor.common.config;
 
@@ -517,6 +518,11 @@ pub fn diff_show_more_section_view(
                     .hover(|s| s.cursor(CursorStyle::Pointer))
             }),
         ))
+        .on_event_cont(EventListener::PointerWheel, move |event| {
+            if let Event::PointerWheel(event) = event {
+                right_scroll_delta.update(|d| *d += event.delta);
+            }
+        })
         .style(move |s| {
             let config = config.get();
             s.absolute()
