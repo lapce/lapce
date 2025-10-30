@@ -490,7 +490,7 @@ pub fn diff_show_more_section_view(
         ))
         .on_event_cont(EventListener::PointerWheel, move |event| {
             if let Event::PointerWheel(event) = event {
-                right_scroll_delta.update(|d| *d += event.delta);
+                right_scroll_delta.set(event.delta);
             }
         })
         .style(move |s| {
