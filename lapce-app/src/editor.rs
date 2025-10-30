@@ -3780,7 +3780,8 @@ pub(crate) fn compute_screen_lines(
                                 start_rvline,
                                 false,
                             )
-                            .take_while(|info| info.rvline.line < start + len);
+                            .take_while(|info| info.rvline.line < start + len)
+                            .peekable();
                         while let Some(rvline_info) = iter.next() {
                             let line = rvline_info.rvline.line;
 
@@ -3788,10 +3789,17 @@ pub(crate) fn compute_screen_lines(
                             if let Some(skip) = bothinfo.skip.as_ref() {
                                 if Some(skip.start) == line.checked_sub(start) {
                                     y_idx += 1;
-                                    // Skip by `skip` count
-                                    for _ in 0..skip.len().saturating_sub(1) {
+
+                                    // skip until we're past the end
+                                    let end = skip.end + start;
+
+                                    while let Some(rvline_info) = iter.peek() {
+                                        if rvline_info.rvline.line >= end {
+                                            break;
+                                        }
                                         iter.next();
                                     }
+
                                     continue;
                                 }
                             }
