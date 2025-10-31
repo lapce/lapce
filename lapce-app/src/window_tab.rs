@@ -2993,3 +2993,65 @@ fn open_uri(path: &Path) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use floem::reactive::provide_context;
+
+    use super::*;
+
+    #[test]
+    fn default_terminal_follows_terminal_profile() {
+        let cx = Scope::new();
+
+        let (release_read_signal, _) = cx.create_signal(Arc::new(None));
+        let window_common_data = WindowCommonData {
+            window_command: Listener::new_empty(cx),
+            window_scale: cx.create_rw_signal(1.0),
+            size: cx.create_rw_signal(Size::ZERO),
+            num_window_tabs: cx.create_memo(|_| 1),
+            window_maximized: cx.create_rw_signal(false),
+            window_tab_header_height: cx.create_rw_signal(0.0),
+            latest_release: release_read_signal,
+            ime_allowed: cx.create_rw_signal(false),
+            cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
+            hide_cursor: cx.create_rw_signal(false),
+            app_view_id: cx.create_rw_signal(ViewId::new()),
+            extra_plugin_paths: Arc::new(vec![]),
+        };
+
+        // WindowTabData uses the db underwater, so we need to provide it.
+        // TODO (2024-06-21): The db uses the config directory. For tests this should not be the system-wide config dirs.
+        //                    But currently, it is.
+        let db = Arc::new(LapceDb::new().unwrap());
+        provide_context(db);
+
+        // TODO (2024-06-21): Provide a custom terminal config, so that when we check the name of the config, we know it wasn't by accident.
+        //                    Problem: WindowTabData currently loads the config itself. Maybe add the config as parameter?
+
+        let tab_data = WindowTabData::new(
+            cx,
+            Arc::new(LapceWorkspace::default()),
+            Rc::new(window_common_data),
+        );
+
+        let active_tab = tab_data
+            .terminal
+            .active_tab(false)
+            .expect("Terminal tab should be open");
+        let terminal = active_tab
+            .active_terminal(false)
+            .expect("There should be an active terminal");
+
+        let terminal_config = tab_data
+            .common
+            .config
+            .get_untracked()
+            .terminal
+            .get_default_profile()
+            .expect("Config should be available");
+
+        assert_eq!(terminal.title.get_untracked(), terminal_config.name);
+        // TODO (2024-06-21): What other tests can be done here?
+    }
+}
