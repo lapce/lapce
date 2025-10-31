@@ -183,6 +183,7 @@ fn installed_view(plugin: PluginData) -> impl View {
             s.width_pct(100.0)
                 .padding_horiz(10.0)
                 .padding_vert(5.0)
+                .cursor(CursorStyle::Pointer)
                 .hover(|s| {
                     s.background(
                         config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -323,6 +324,7 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
             s.width_pct(100.0)
                 .padding_horiz(10.0)
                 .padding_vert(5.0)
+                .cursor(CursorStyle::Pointer)
                 .hover(|s| {
                     s.background(
                         config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
