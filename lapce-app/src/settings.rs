@@ -832,7 +832,7 @@ fn color_section_list(
         }),
         virtual_stack(
             move || BTreeMapVirtualList(list()),
-            move |(key, _)| (key.to_owned()),
+            move |(key, _)| key.to_owned(),
             move |(key, value)| {
                 let cx = Scope::current();
                 let text_input_view = TextInputBuilder::new()
