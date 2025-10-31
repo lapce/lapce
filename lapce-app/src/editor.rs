@@ -3780,18 +3780,35 @@ pub(crate) fn compute_screen_lines(
                                 start_rvline,
                                 false,
                             )
-                            .take_while(|info| info.rvline.line < start + len);
+                            .peekable();
                         while let Some(rvline_info) = iter.next() {
                             let line = rvline_info.rvline.line;
+
+                            if line >= start + len {
+                                break;
+                            }
 
                             // Skip over the lines
                             if let Some(skip) = bothinfo.skip.as_ref() {
                                 if Some(skip.start) == line.checked_sub(start) {
                                     y_idx += 1;
-                                    // Skip by `skip` count
-                                    for _ in 0..skip.len().saturating_sub(1) {
-                                        iter.next();
-                                    }
+
+                                    // restart iterator after the skip
+                                    let start_rvline = lines.rvline_of_line(
+                                        &text_prov,
+                                        start + skip.end,
+                                    );
+
+                                    iter = lines
+                                        .iter_rvlines_init(
+                                            &text_prov,
+                                            cache_rev,
+                                            config_id,
+                                            start_rvline,
+                                            false,
+                                        )
+                                        .peekable();
+
                                     continue;
                                 }
                             }

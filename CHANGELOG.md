@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix mouse wheel scrolling when viewing diff
+
 ## 0.4.5
 
 ### Bug Fixes
