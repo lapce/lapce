@@ -22,8 +22,8 @@ use crate::{
     command::{InternalCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
     debug::RunDebugMode,
+    dyn_reorderable::dyn_h_reorderable,
     listener::Listener,
-    tab_headers::dyn_h_reorderable,
     terminal::{
         panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
     },

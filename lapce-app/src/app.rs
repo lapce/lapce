@@ -79,6 +79,7 @@ use crate::{
     },
     db::LapceDb,
     debug::RunDebugMode,
+    dyn_reorderable::dyn_h_reorderable,
     editor::{
         diff::diff_show_more_section_view,
         location::{EditorLocation, EditorPosition},
@@ -102,7 +103,6 @@ use crate::{
     plugin::{PluginData, plugin_info_view},
     settings::{settings_view, theme_color_settings_view},
     status::status,
-    tab_headers::dyn_h_reorderable,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
     tracing::*,

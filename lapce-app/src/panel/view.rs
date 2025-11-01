@@ -29,13 +29,13 @@ use super::{
 use crate::{
     app::{clickable_icon, clickable_icon_base},
     config::{LapceConfig, color::LapceColor, icon::LapceIcons},
+    dyn_reorderable::dyn_reorderable,
     file_explorer::view::file_explorer_panel,
     panel::{
         call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,
         implementation_view::implementation_panel,
         references_view::references_panel,
     },
-    tab_headers::dyn_reorderable,
     window_tab::WindowTabData,
 };
 
