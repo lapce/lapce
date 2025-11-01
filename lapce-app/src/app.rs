@@ -79,6 +79,7 @@ use crate::{
     },
     db::LapceDb,
     debug::RunDebugMode,
+    dyn_reorderable::dyn_h_reorderable,
     editor::{
         diff::diff_show_more_section_view,
         location::{EditorLocation, EditorPosition},
@@ -680,7 +681,7 @@ fn editor_tab_header(
     window_tab_data: Rc<WindowTabData>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
+    dragging: RwSignal<Option<(EditorTabId, usize)>>,
 ) -> impl View {
     let main_split = window_tab_data.main_split.clone();
     let plugin = window_tab_data.plugin.clone();
@@ -725,7 +726,6 @@ fn editor_tab_header(
         let child_for_close = child.clone();
         let child_for_mouse_close = child.clone();
         let child_for_mouse_close_2 = child.clone();
-        let main_split = main_split.clone();
         let plugin = plugin.clone();
         let child_view = {
             let info = child.view_info(editors, diff_editors, plugin, config);
@@ -871,7 +871,7 @@ fn editor_tab_header(
         };
 
         let header_content_size = create_rw_signal(Size::ZERO);
-        let drag_over_left: RwSignal<Option<bool>> = create_rw_signal(None);
+
         stack((
             child_view
                 .on_double_click_stop(move |_| {
@@ -911,16 +911,9 @@ fn editor_tab_header(
                         child_for_mouse_close_2.clone(),
                     );
                 })
-                .on_event_stop(EventListener::DragStart, move |_| {
-                    dragging.set(Some((i, editor_tab_id)));
-                })
-                .on_event_stop(EventListener::DragEnd, move |_| {
-                    dragging.set(None);
-                })
                 .on_resize(move |rect| {
                     header_content_size.set(rect.size());
                 })
-                .draggable()
                 .dragging_style(move |s| {
                     let config = config.get();
                     s.border(1.0)
@@ -953,37 +946,6 @@ fn editor_tab_header(
                         .size_full()
                         .pointer_events_none()
                 })
-                .debug_name("Drop Indicator"),
-            empty()
-                .style(move |s| {
-                    let i = i.get();
-                    let drag_over_left = drag_over_left.get();
-                    s.absolute()
-                        .margin_left(if i == 0 { 0.0 } else { -2.0 })
-                        .height_full()
-                        .width(
-                            header_content_size.get().width as f32
-                                + if i == 0 { 1.0 } else { 3.0 },
-                        )
-                        .apply_if(drag_over_left.is_none(), |s| s.hide())
-                        .apply_if(drag_over_left.is_some(), |s| {
-                            if let Some(drag_over_left) = drag_over_left {
-                                if drag_over_left {
-                                    s.border_left(3.0)
-                                } else {
-                                    s.border_right(3.0)
-                                }
-                            } else {
-                                s
-                            }
-                        })
-                        .border_color(
-                            config
-                                .get()
-                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                                .multiply_alpha(0.5),
-                        )
-                })
                 .debug_name("Active Tab Indicator"),
         ))
         .on_resize(move |rect| {
@@ -995,45 +957,9 @@ fn editor_tab_header(
                 .flex_col()
                 .items_center()
                 .justify_center()
-                .cursor(CursorStyle::Pointer)
                 .hover(|s| s.background(config.color(LapceColor::HOVER_BACKGROUND)))
         })
         .debug_name("Tab and Active Indicator")
-        .on_event_stop(EventListener::DragOver, move |event| {
-            if dragging.with_untracked(|dragging| dragging.is_some()) {
-                if let Event::PointerMove(pointer_event) = event {
-                    let new_left = pointer_event.pos.x
-                        < header_content_size.get_untracked().width / 2.0;
-                    if drag_over_left.get_untracked() != Some(new_left) {
-                        drag_over_left.set(Some(new_left));
-                    }
-                }
-            }
-        })
-        .on_event(EventListener::Drop, move |event| {
-            if let Some((from_index, from_editor_tab_id)) = dragging.get_untracked()
-            {
-                drag_over_left.set(None);
-                if let Event::PointerUp(pointer_event) = event {
-                    let left = pointer_event.pos.x
-                        < header_content_size.get_untracked().width / 2.0;
-                    let index = i.get_untracked();
-                    let new_index = if left { index } else { index + 1 };
-                    main_split.move_editor_tab_child(
-                        from_editor_tab_id,
-                        editor_tab_id,
-                        from_index.get_untracked(),
-                        new_index,
-                    );
-                }
-                EventPropagation::Stop
-            } else {
-                EventPropagation::Continue
-            }
-        })
-        .on_event_stop(EventListener::DragLeave, move |_| {
-            drag_over_left.set(None);
-        })
     };
 
     let content_size = create_rw_signal(Size::ZERO);
@@ -1096,15 +1022,31 @@ fn editor_tab_header(
         .style(|s| s.flex_shrink(0.)),
         container(
             scroll({
-                dyn_stack(items, key, view_fn)
-                    .on_resize(move |rect| {
-                        let size = rect.size();
-                        if content_size.get_untracked() != size {
-                            content_size.set(size);
-                        }
-                    })
-                    .debug_name("Horizontal Tab Stack")
-                    .style(|s| s.height_full().items_center())
+                dyn_h_reorderable(
+                    editor_tab_id,
+                    dragging,
+                    config,
+                    items,
+                    key,
+                    move |(from_editor_tab_id, from_index),
+                          (editor_tab_id, new_index)| {
+                        main_split.move_editor_tab_child(
+                            from_editor_tab_id,
+                            editor_tab_id,
+                            from_index,
+                            new_index,
+                        );
+                    },
+                    view_fn,
+                )
+                .on_resize(move |rect| {
+                    let size = rect.size();
+                    if content_size.get_untracked() != size {
+                        content_size.set(size);
+                    }
+                })
+                .debug_name("Horizontal Tab Stack")
+                .style(|s| s.height_full())
             })
             .on_scroll(move |rect| {
                 scroll_offset.set(rect);
@@ -1427,7 +1369,7 @@ fn editor_tab(
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
+    dragging: RwSignal<Option<(EditorTabId, usize)>>,
 ) -> impl View {
     let main_split = window_tab_data.main_split.clone();
     let common = main_split.common.clone();
@@ -1536,7 +1478,7 @@ fn editor_tab(
                     drag_over.set(None);
                 })
                 .on_event(EventListener::Drop, move |_| {
-                    if let Some((from_index, from_editor_tab_id)) =
+                    if let Some((from_editor_tab_id, from_index)) =
                         dragging.get_untracked()
                     {
                         if let Some(pos) = drag_over.get_untracked() {
@@ -1544,7 +1486,7 @@ fn editor_tab(
                                 DragOverPosition::Top => {
                                     main_split.move_editor_tab_child_to_new_split(
                                         from_editor_tab_id,
-                                        from_index.get_untracked(),
+                                        from_index,
                                         editor_tab_id,
                                         SplitMoveDirection::Up,
                                     );
@@ -1552,7 +1494,7 @@ fn editor_tab(
                                 DragOverPosition::Bottom => {
                                     main_split.move_editor_tab_child_to_new_split(
                                         from_editor_tab_id,
-                                        from_index.get_untracked(),
+                                        from_index,
                                         editor_tab_id,
                                         SplitMoveDirection::Down,
                                     );
@@ -1560,7 +1502,7 @@ fn editor_tab(
                                 DragOverPosition::Left => {
                                     main_split.move_editor_tab_child_to_new_split(
                                         from_editor_tab_id,
-                                        from_index.get_untracked(),
+                                        from_index,
                                         editor_tab_id,
                                         SplitMoveDirection::Left,
                                     );
@@ -1568,7 +1510,7 @@ fn editor_tab(
                                 DragOverPosition::Right => {
                                     main_split.move_editor_tab_child_to_new_split(
                                         from_editor_tab_id,
-                                        from_index.get_untracked(),
+                                        from_index,
                                         editor_tab_id,
                                         SplitMoveDirection::Right,
                                     );
@@ -1577,7 +1519,7 @@ fn editor_tab(
                                     main_split.move_editor_tab_child(
                                         from_editor_tab_id,
                                         editor_tab_id,
-                                        from_index.get_untracked(),
+                                        from_index,
                                         editor_tab.with_untracked(|editor_tab| {
                                             editor_tab.active + 1
                                         }),
@@ -1895,7 +1837,7 @@ fn split_list(
     split: ReadSignal<SplitData>,
     window_tab_data: Rc<WindowTabData>,
     plugin: PluginData,
-    dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
+    dragging: RwSignal<Option<(EditorTabId, usize)>>,
 ) -> impl View {
     let main_split = window_tab_data.main_split.clone();
     let editor_tabs = main_split.editor_tabs.read_only();
@@ -2029,8 +1971,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.main_split.common.config;
     let panel = window_tab_data.panel.clone();
     let plugin = window_tab_data.plugin.clone();
-    let dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>> =
-        create_rw_signal(None);
+    let dragging: RwSignal<Option<(EditorTabId, usize)>> = create_rw_signal(None);
     split_list(
         root_split,
         window_tab_data.clone(),
@@ -2179,8 +2120,14 @@ fn tooltip_tip<V: View + 'static>(
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
+    let dragging = create_rw_signal(None);
+
     stack((
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left),
+        panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Left,
+            dragging,
+        ),
         {
             let window_tab_data = window_tab_data.clone();
             stack((
@@ -2188,6 +2135,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                 panel_container_view(
                     window_tab_data,
                     PanelContainerPosition::Bottom,
+                    dragging,
                 ),
             ))
             .on_resize(move |rect| {
@@ -2198,7 +2146,11 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             })
             .style(|s| s.flex_col().flex_grow(1.0))
         },
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
+        panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Right,
+            dragging,
+        ),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
     ))
     .on_resize(move |rect| {
@@ -3401,163 +3353,94 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     });
 
     let local_window_data = window_data.clone();
-    let dragging_index: RwSignal<Option<RwSignal<usize>>> = create_rw_signal(None);
+    let dragging: RwSignal<Option<((), usize)>> = create_rw_signal(None);
     let view_fn = move |(index, tab): (RwSignal<usize>, Rc<WindowTabData>)| {
-        let drag_over_left = create_rw_signal(None);
-        let window_data = local_window_data.clone();
-        stack((
-            container({
+        stack((container({
+            stack((
                 stack((
-                    stack((
-                        text(
-                            workspace_title(&tab.workspace)
-                                .unwrap_or_else(|| String::from("New Tab")),
-                        )
-                        .style(|s| {
-                            s.margin_left(10.0)
-                                .min_width(0.0)
-                                .flex_basis(0.0)
-                                .flex_grow(1.0)
-                                .selectable(false)
-                                .text_ellipsis()
-                        }),
-                        {
-                            let window_data = local_window_data.clone();
-                            clickable_icon(
-                                || LapceIcons::WINDOW_CLOSE,
-                                move || {
-                                    window_data.run_window_command(
-                                        WindowCommand::CloseWorkspaceTab {
-                                            index: Some(index.get_untracked()),
-                                        },
-                                    );
-                                },
-                                || false,
-                                || false,
-                                || "Close",
-                                config.read_only(),
-                            )
-                            .style(|s| s.margin_horiz(6.0))
-                        },
-                    ))
-                    .on_event_stop(EventListener::DragOver, move |event| {
-                        if dragging_index.get_untracked().is_some() {
-                            if let Event::PointerMove(pointer_event) = event {
-                                let left = pointer_event.pos.x
-                                    < tab_width.get_untracked() / 2.0;
-                                if drag_over_left.get_untracked() != Some(left) {
-                                    drag_over_left.set(Some(left));
-                                }
-                            }
-                        }
-                    })
-                    .on_event(EventListener::Drop, move |event| {
-                        if dragging_index.get_untracked().is_some() {
-                            drag_over_left.set(None);
-                            if let Event::PointerUp(pointer_event) = event {
-                                let left = pointer_event.pos.x
-                                    < tab_width.get_untracked() / 2.0;
-                                let index = index.get_untracked();
-                                let new_index = if left { index } else { index + 1 };
-                                if let Some(from_index) =
-                                    dragging_index.get_untracked()
-                                {
-                                    window_data.move_tab(
-                                        from_index.get_untracked(),
-                                        new_index,
-                                    );
-                                }
-                                dragging_index.set(None);
-                            }
-                            EventPropagation::Stop
-                        } else {
-                            EventPropagation::Continue
-                        }
-                    })
-                    .on_event_stop(EventListener::DragLeave, move |_| {
-                        drag_over_left.set(None);
-                    })
-                    .style(move |s| {
-                        let config = config.get();
-                        s.width_full()
+                    text(
+                        workspace_title(&tab.workspace)
+                            .unwrap_or_else(|| String::from("New Tab")),
+                    )
+                    .style(|s| {
+                        s.margin_left(10.0)
                             .min_width(0.0)
-                            .items_center()
-                            .border_right(1.0)
-                            .border_color(config.color(LapceColor::LAPCE_BORDER))
-                            .apply_if(
-                                cfg!(target_os = "macos") && index.get() == 0,
-                                |s| s.border_left(1.0),
-                            )
+                            .flex_basis(0.0)
+                            .flex_grow(1.0)
+                            .selectable(false)
+                            .text_ellipsis()
                     }),
-                    container(empty().style(move |s| {
-                        s.size_full()
-                            .apply_if(active.get() == index.get(), |s| {
-                                s.border_bottom(2.0)
-                            })
-                            .border_color(
-                                config
-                                    .get()
-                                    .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
-                            )
-                    }))
-                    .style(move |s| {
-                        s.position(Position::Absolute)
-                            .padding_horiz(3.0)
-                            .size_full()
-                            .pointer_events_none()
-                    }),
+                    {
+                        let window_data = local_window_data.clone();
+                        clickable_icon(
+                            || LapceIcons::WINDOW_CLOSE,
+                            move || {
+                                window_data.run_window_command(
+                                    WindowCommand::CloseWorkspaceTab {
+                                        index: Some(index.get_untracked()),
+                                    },
+                                );
+                            },
+                            || false,
+                            || false,
+                            || "Close",
+                            config.read_only(),
+                        )
+                        .style(|s| s.margin_horiz(6.0))
+                    },
                 ))
-                .style(move |s| s.size_full().items_center())
-            })
-            .draggable()
-            .on_event_stop(EventListener::DragStart, move |_| {
-                dragging_index.set(Some(index));
-            })
-            .on_event_stop(EventListener::DragEnd, move |_| {
-                dragging_index.set(None);
-            })
-            .dragging_style(move |s| {
-                let config = config.get();
-                s.border(1.0)
-                    .border_radius(6.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .color(
-                        config
-                            .color(LapceColor::EDITOR_FOREGROUND)
-                            .multiply_alpha(0.7),
-                    )
-                    .background(
-                        config
-                            .color(LapceColor::PANEL_BACKGROUND)
-                            .multiply_alpha(0.7),
-                    )
-            })
-            .on_click_stop(move |_| {
-                active.set(index.get_untracked());
-            })
-            .style(move |s| s.size_full()),
-            empty().style(move |s| {
-                let index = index.get();
-                s.absolute()
-                    .margin_left(if index == 0 { 0.0 } else { -2.0 })
-                    .width(
-                        tab_width.get() as f32 + if index == 0 { 1.0 } else { 3.0 },
-                    )
-                    .height_full()
-                    .border_color(
-                        config.get().color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
-                    )
-                    .apply_if(drag_over_left.get().is_some(), move |s| {
-                        let drag_over_left = drag_over_left.get_untracked().unwrap();
-                        if drag_over_left {
-                            s.border_left(3.0)
-                        } else {
-                            s.border_right(3.0)
-                        }
-                    })
-                    .apply_if(drag_over_left.get().is_none(), move |s| s.hide())
-            }),
-        ))
+                .style(move |s| {
+                    let config = config.get();
+                    s.width_full()
+                        .min_width(0.0)
+                        .items_center()
+                        .border_right(1.0)
+                        .border_color(config.color(LapceColor::LAPCE_BORDER))
+                        .apply_if(
+                            cfg!(target_os = "macos") && index.get() == 0,
+                            |s| s.border_left(1.0),
+                        )
+                }),
+                container(empty().style(move |s| {
+                    s.size_full()
+                        .apply_if(active.get() == index.get(), |s| {
+                            s.border_bottom(2.0)
+                        })
+                        .border_color(
+                            config
+                                .get()
+                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                        )
+                }))
+                .style(move |s| {
+                    s.position(Position::Absolute)
+                        .padding_horiz(3.0)
+                        .size_full()
+                        .pointer_events_none()
+                }),
+            ))
+            .style(move |s| s.size_full().items_center())
+        })
+        .dragging_style(move |s| {
+            let config = config.get();
+            s.border(1.0)
+                .border_radius(6.0)
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .color(
+                    config
+                        .color(LapceColor::EDITOR_FOREGROUND)
+                        .multiply_alpha(0.7),
+                )
+                .background(
+                    config
+                        .color(LapceColor::PANEL_BACKGROUND)
+                        .multiply_alpha(0.7),
+                )
+        })
+        .on_click_stop(move |_| {
+            active.set(index.get_untracked());
+        })
+        .style(move |s| s.size_full()),))
         .style(move |s| s.height_full().width(tab_width.get() as f32))
     };
 
@@ -3568,7 +3451,10 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 .width(75.0)
                 .apply_if(!is_macos, |s| s.hide())
         }),
-        dyn_stack(
+        dyn_h_reorderable(
+            (),
+            dragging,
+            config.read_only(),
             move || {
                 let tabs = tabs.get();
                 for (i, (index, _)) in tabs.iter().enumerate() {
@@ -3579,6 +3465,10 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 tabs
             },
             |(_, tab)| tab.window_tab_id,
+            {
+                let window_data = window_data.clone();
+                move |(_, from), (_, to)| window_data.move_tab(from, to)
+            },
             view_fn,
         )
         .style(|s| s.height_full()),

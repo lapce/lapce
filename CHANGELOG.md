@@ -4,10 +4,12 @@
 
 ### Features/Changes
 
+- Implement tab reordering for panes and terminals
+
 ### Bug Fixes
 
 - Fix editor tabs not selectable while appearing selectable
-- Fix flickering when reordering editor tabs
+- Fix flickering when reordering tabs
 
 ## 0.4.5
 

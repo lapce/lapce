@@ -65,7 +65,6 @@ use crate::{
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
     editor::location::{EditorLocation, EditorPosition},
-    editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
     global_search::GlobalSearchData,
@@ -107,18 +106,6 @@ pub enum Focus {
 }
 
 #[derive(Clone)]
-pub enum DragContent {
-    Panel(PanelKind),
-    EditorTab(EditorTabChild),
-}
-
-impl DragContent {
-    pub fn is_panel(&self) -> bool {
-        matches!(self, DragContent::Panel(_))
-    }
-}
-
-#[derive(Clone)]
 pub struct WorkProgress {
     pub token: ProgressToken,
     pub title: String,
@@ -147,7 +134,6 @@ pub struct CommonData {
     pub proxy: ProxyRpcHandler,
     pub view_id: RwSignal<ViewId>,
     pub ui_line_height: Memo<f64>,
-    pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
     pub mouse_hover_timer: RwSignal<TimerToken>,
@@ -380,7 +366,6 @@ impl WindowTabData {
             proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
-            dragging: cx.create_rw_signal(None),
             workbench_size: cx.create_rw_signal(Size::ZERO),
             config,
             proxy_status,
