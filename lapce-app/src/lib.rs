@@ -34,6 +34,7 @@ pub mod settings;
 pub mod snippet;
 pub mod source_control;
 pub mod status;
+pub mod tab_headers;
 pub mod terminal;
 pub mod text_area;
 pub mod text_input;
