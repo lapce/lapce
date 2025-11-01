@@ -5,6 +5,7 @@ use floem::kurbo::Size;
 use floem::prelude::*;
 use floem::reactive::{ReadSignal, Scope};
 use floem::style::CursorStyle;
+use floem::taffy::AbsoluteAxis;
 use floem::views::{Decorators, dyn_stack, empty};
 use floem::{IntoView, View};
 use im::HashMap;
@@ -74,7 +75,9 @@ where
         })
 }
 
-pub fn dyn_h_reorderable<TabGroup, I, T, K, V>(
+#[allow(clippy::too_many_arguments)]
+pub fn dyn_reorderable<TabGroup, I, T, K, V>(
+    axis: AbsoluteAxis,
     tab_group: TabGroup,
     dragging: RwSignal<Option<(TabGroup, usize)>>,
     config: ReadSignal<Arc<LapceConfig>>,
@@ -103,7 +106,7 @@ where
     let swap_fn = Rc::new(swap_fn);
 
     let view_fn = move |(i, value): (RwSignal<usize>, T)| {
-        let drag_over_left: RwSignal<Option<bool>> = create_rw_signal(None);
+        let drag_over_prev: RwSignal<Option<bool>> = create_rw_signal(None);
         let tab_size = create_rw_signal(Size::ZERO);
         let swap_fn = swap_fn.clone();
 
@@ -116,10 +119,11 @@ where
                 .on_event_stop(EventListener::DragEnd, move |_| {
                     dragging.set(None);
                 }),
-            h_drop_indicator(
+            drop_indicator(
+                axis,
                 i.read_only(),
                 tab_size.read_only(),
-                drag_over_left.read_only(),
+                drag_over_prev.read_only(),
                 config,
             ),
         ))
@@ -128,74 +132,154 @@ where
             tab_size.set(rect.size());
         })
         .on_event_stop(EventListener::DragOver, move |event| {
-            if dragging.with_untracked(|dragging| dragging.is_some()) {
-                if let Event::PointerMove(pointer_event) = event {
-                    let new_left =
-                        pointer_event.pos.x < tab_size.get_untracked().width / 2.0;
-                    if drag_over_left.get_untracked() != Some(new_left) {
-                        drag_over_left.set(Some(new_left));
-                    }
-                }
+            let Event::PointerMove(pointer_event) = event else {
+                return;
+            };
+
+            if dragging.with_untracked(|dragging| dragging.is_none()) {
+                return;
+            }
+
+            let new_prev = if axis == AbsoluteAxis::Horizontal {
+                pointer_event.pos.x < tab_size.get_untracked().width / 2.0
+            } else {
+                pointer_event.pos.y < tab_size.get_untracked().height / 2.0
+            };
+
+            if drag_over_prev.get_untracked() != Some(new_prev) {
+                drag_over_prev.set(Some(new_prev));
             }
         })
         .on_event(EventListener::Drop, move |event| {
-            if let Some(from) = dragging.get_untracked() {
-                drag_over_left.set(None);
-                if let Event::PointerUp(pointer_event) = event {
-                    let left =
-                        pointer_event.pos.x < tab_size.get_untracked().width / 2.0;
-                    let index = i.get_untracked();
-                    let new_index = if left { index } else { index + 1 };
-                    swap_fn(from, (tab_group, new_index));
-                }
-                EventPropagation::Stop
-            } else {
-                EventPropagation::Continue
+            let Some(from) = dragging.get_untracked() else {
+                return EventPropagation::Continue;
+            };
+
+            drag_over_prev.set(None);
+
+            if let Event::PointerUp(pointer_event) = event {
+                let left = if axis == AbsoluteAxis::Horizontal {
+                    pointer_event.pos.x < tab_size.get_untracked().width / 2.0
+                } else {
+                    pointer_event.pos.y < tab_size.get_untracked().height / 2.0
+                };
+
+                let index = i.get_untracked();
+                let new_index = if left { index } else { index + 1 };
+                swap_fn(from, (tab_group, new_index));
             }
+
+            EventPropagation::Stop
         })
         .on_event_stop(EventListener::DragLeave, move |_| {
-            drag_over_left.set(None);
+            drag_over_prev.set(None);
         })
     };
 
-    dyn_stack(each_fn, key_fn, view_fn).debug_name("Horizontal Tab Stack")
+    dyn_stack(each_fn, key_fn, view_fn).debug_name("Tab Stack")
 }
 
-fn h_drop_indicator(
+fn drop_indicator(
+    axis: AbsoluteAxis,
     i: ReadSignal<usize>,
     tab_size: ReadSignal<Size>,
-    drag_over_left: ReadSignal<Option<bool>>,
+    drag_over_prev: ReadSignal<Option<bool>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    empty()
-        .style(move |s| {
-            let i = i.get();
-            let drag_over_left = drag_over_left.get();
+    if axis == AbsoluteAxis::Horizontal {
+        empty()
+            .style(move |s| {
+                let i = i.get();
+                let drag_over_prev = drag_over_prev.get();
 
-            s.absolute()
-                .margin_left(if i == 0 { 0.0 } else { -2.0 })
-                .height_full()
-                .width(tab_size.get().width as f32 + if i == 0 { 1.0 } else { 3.0 })
-                .apply_if(drag_over_left.is_none(), |s| s.hide())
-                .apply_if(drag_over_left.is_some(), |s| {
-                    if let Some(drag_over_left) = drag_over_left {
-                        if drag_over_left {
-                            s.border_left(3.0)
+                s.absolute()
+                    .margin_left(if i == 0 { 0.0 } else { -2.0 })
+                    .height_full()
+                    .width(
+                        tab_size.get().width as f32 + if i == 0 { 1.0 } else { 3.0 },
+                    )
+                    .apply_if(drag_over_prev.is_none(), |s| s.hide())
+                    .apply_if(drag_over_prev.is_some(), |s| {
+                        if let Some(drag_over_prev) = drag_over_prev {
+                            if drag_over_prev {
+                                s.border_left(3.0)
+                            } else {
+                                s.border_right(3.0)
+                            }
                         } else {
-                            s.border_right(3.0)
+                            s
                         }
-                    } else {
-                        s
-                    }
-                })
-                .border_color(
-                    config
-                        .get()
-                        .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                        .multiply_alpha(0.5),
-                )
-        })
-        .debug_name("Drop Indicator")
+                    })
+                    .border_color(
+                        config
+                            .get()
+                            .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
+                            .multiply_alpha(0.5),
+                    )
+            })
+            .debug_name("Drop Indicator")
+    } else {
+        empty()
+            .style(move |s| {
+                let i = i.get();
+                let drag_over_prev = drag_over_prev.get();
+
+                s.absolute()
+                    .margin_top(if i == 0 { 0.0 } else { -2.0 })
+                    .width_full()
+                    .height(
+                        tab_size.get().height as f32
+                            + if i == 0 { 1.0 } else { 3.0 },
+                    )
+                    .apply_if(drag_over_prev.is_none(), |s| s.hide())
+                    .apply_if(drag_over_prev.is_some(), |s| {
+                        if let Some(drag_over_prev) = drag_over_prev {
+                            if drag_over_prev {
+                                s.border_top(3.0)
+                            } else {
+                                s.border_bottom(3.0)
+                            }
+                        } else {
+                            s
+                        }
+                    })
+                    .border_color(
+                        config
+                            .get()
+                            .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
+                            .multiply_alpha(0.5),
+                    )
+            })
+            .debug_name("Drop Indicator")
+    }
+}
+
+pub fn dyn_h_reorderable<TabGroup, I, T, K, V>(
+    tab_group: TabGroup,
+    dragging: RwSignal<Option<(TabGroup, usize)>>,
+    config: ReadSignal<Arc<LapceConfig>>,
+    each_fn: impl Fn() -> I + 'static,
+    key_fn: impl Fn(&T) -> K + 'static,
+    swap_fn: impl Fn((TabGroup, usize), (TabGroup, usize)) + 'static,
+    view_fn: impl Fn(T) -> V + 'static,
+) -> impl View
+where
+    TabGroup: Clone + Copy + 'static,
+    I: IntoIterator<Item = T>,
+    T: 'static,
+    K: Eq + Hash + Clone + 'static,
+    V: IntoView + 'static,
+{
+    dyn_reorderable(
+        AbsoluteAxis::Horizontal,
+        tab_group,
+        dragging,
+        config,
+        each_fn,
+        key_fn,
+        swap_fn,
+        view_fn,
+    )
 }
 
 struct OnIterDrop<I, F: FnOnce()> {

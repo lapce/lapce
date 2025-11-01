@@ -2120,8 +2120,14 @@ fn tooltip_tip<V: View + 'static>(
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
+    let dragging = create_rw_signal(None);
+
     stack((
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left),
+        panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Left,
+            dragging,
+        ),
         {
             let window_tab_data = window_tab_data.clone();
             stack((
@@ -2129,6 +2135,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                 panel_container_view(
                     window_tab_data,
                     PanelContainerPosition::Bottom,
+                    dragging,
                 ),
             ))
             .on_resize(move |rect| {
@@ -2139,7 +2146,11 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             })
             .style(|s| s.flex_col().flex_grow(1.0))
         },
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
+        panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Right,
+            dragging,
+        ),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
     ))
     .on_resize(move |rect| {
