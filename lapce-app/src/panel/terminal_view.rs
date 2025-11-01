@@ -23,6 +23,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     debug::RunDebugMode,
     listener::Listener,
+    tab_headers::dyn_h_reorderable,
     terminal::{
         panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
     },
@@ -54,10 +55,14 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     let header_height = create_rw_signal(0.0);
     let icon_width = create_rw_signal(0.0);
     let scroll_size = create_rw_signal(Size::ZERO);
+    let dragging = create_rw_signal(None);
     let workbench_command = window_tab_data.common.workbench_command;
 
     stack((
-        scroll(dyn_stack(
+        scroll(dyn_h_reorderable(
+            (),
+            dragging,
+            config,
             move || {
                 let tabs = terminal.tab_info.with(|info| info.tabs.clone());
                 for (i, (index, _)) in tabs.iter().enumerate() {
@@ -68,6 +73,12 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                 tabs
             },
             |(_, tab)| tab.terminal_tab_id,
+            {
+                let terminal = terminal.clone();
+                move |(_, from), (_, to)| {
+                    terminal.move_tab(from, to);
+                }
+            },
             move |(index, tab)| {
                 let terminal = terminal.clone();
                 let local_terminal = terminal.clone();
