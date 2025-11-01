@@ -272,7 +272,6 @@ pub fn panel_container_view(
         let panel = panel.clone();
         let panel_size = panel.size;
         move |position: PanelContainerPosition| {
-            panel.panel_info();
             let view = empty();
             let view_id = view.id();
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
