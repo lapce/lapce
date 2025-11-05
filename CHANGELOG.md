@@ -6,7 +6,7 @@
 
 ### Bug Fixes
 
-- Fix mouse wheel scrolling when viewing diff
+- Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
 
 ## 0.4.5
 
