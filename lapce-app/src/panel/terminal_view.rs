@@ -7,6 +7,7 @@ use floem::{
     kurbo::Size,
     menu::{Menu, MenuItem},
     reactive::{SignalGet, SignalUpdate, SignalWith, create_rw_signal},
+    style::CursorStyle,
     views::{
         Decorators, container, dyn_stack, empty, label,
         scroll::{Thickness, VerticalScrollAsHorizontal, scroll},
@@ -189,6 +190,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .pointer_events_none()
                     }),
                 ))
+                .style(|s| s.cursor(CursorStyle::Pointer))
                 .on_event_cont(
                     EventListener::PointerDown,
                     move |_| {

@@ -564,6 +564,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
             let config = config.get();
             s.items_center()
                 .width_pct(100.0)
+                .cursor(CursorStyle::Pointer)
                 .apply_if(
                     active_editor_tab.get() == Some(editor_tab_id)
                         && editor_tab.with(|editor_tab| editor_tab.active)

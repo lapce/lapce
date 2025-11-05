@@ -7,6 +7,8 @@
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
+- Fix editor tabs not selectable while appearing selectable
+- Fix flickering when reordering editor tabs
 
 ## 0.4.5
 
@@ -41,12 +43,14 @@
 - Implement "Go To Implementation" panel
 
 ### Bug Fixes
+
 - Fix pointer event not working on plugin panel
 - Fix rename/new file editor in file explorer is too small
 
 ## 0.4.2
 
 ### Features/Changes
+
 - Implement "Run in terminal"
 - Implement document symbols in a panel
 - Implement "Go To Location" functionality in the Diff editor.
@@ -55,12 +59,14 @@
 - Implement "Reveal in system file explorer"
 
 ### Bug Fixes
+
 - Fix markdown syntax highlighting
 - Fix click issue on window error message
 
 ## 0.4.1
 
 ### Features/Changes
+
 - Add fedora builds
 - Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
 - Saves scale configuration in settings to restore at startup
@@ -78,6 +84,7 @@
 - Implement the drag-and-drop to open file/folder
 
 ### Bug Fixes
+
 - [#3203](https://github.com/lapce/lapce/pull/3203): Fallback to default theme is theme key is not found
 - use windows subsystem to prevent console running
 - reimplement gotodefinition on cmd/ctrl+click
@@ -88,6 +95,7 @@
 ## 0.4.0
 
 ### Features/Changes
+
 - [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 - [#1277](https://github.com/lapce/lapce/pull/1277): Error message prompted on missing git user.email and/or user.name
 - [#2910](https://github.com/lapce/lapce/pull/2910): Files can be compared in the diff editor
@@ -104,6 +112,7 @@
 - [#3123](https://github.com/lapce/lapce/pull/3123): Swap sled to plain text file for db
 
 ### Bug Fixes
+
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
 - [#3031](https://github.com/lapce/lapce/pull/3031): Fix find not receiving inputs when clicked
 - [#3142](https://github.com/lapce/lapce/pull/3142): Fix terminal default profile saving incorrectly
@@ -115,12 +124,14 @@
 ### Features/Changes
 
 ### Bug Fixes
+
 - [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)
 - [#2819](https://github.com/lapce/lapce/issues/2819): `Save Without Formatting` doesn't save the file
 
 ## 0.3.0
 
 ### Features/Changes
+
 - [#2190](https://github.com/lapce/lapce/pull/2190): Rewrite with Floem UI
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
 - [#2498](https://github.com/lapce/lapce/pull/2498): Show Lapce as an option when doing "Open With..." on Linux
@@ -146,6 +157,7 @@
 ### Features/Changes
 
 ### Bug Fixes
+
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
 - [#2228](https://github.com/lapce/lapce/pull/2228): Fix `.desktop` entry to properly associate with Lapce on Wayland
 
@@ -157,6 +169,7 @@
 - [#1988](https://github.com/lapce/lapce/pull/1987): Replace modal status background with background/foreground theme keys
 
 ### Features/Changes
+
 - [#1899](https://github.com/lapce/lapce/pull/1899): Improve sorting files with numbers
 - [#1831](https://github.com/lapce/lapce/pull/1831): Plugin settings shown on right click
 - [#1830](https://github.com/lapce/lapce/pull/1830): Adds Clojure language support
@@ -180,6 +193,7 @@
   - ![image](https://user-images.githubusercontent.com/4404609/211232461-293e3b31-4e17-457e-825c-3018699a6fc2.png)
 
 ### Bug Fixes
+
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 - [#1939](https://github.com/lapce/lapce/pull/1939): Fix saving/editing newly saved-as files
 - [#1971](https://github.com/lapce/lapce/pull/1971): Fix up/down movement on first/last line
@@ -197,6 +211,7 @@
 - [#1726](https://github.com/lapce/lapce/pull/1726): Add more panel theme keys, apply hover first, then current item colour
 
 ### Features/Changes
+
 - [#1791](https://github.com/lapce/lapce/pull/1791): Add highlighting for scope lines
 - [#1767](https://github.com/lapce/lapce/pull/1767): Added CMake tree-sitter syntax highlighting
 - [#1759](https://github.com/lapce/lapce/pull/1759): Update C tree-sitter and highlight queries
@@ -206,11 +221,12 @@
 - [#1723](https://github.com/lapce/lapce/pull/1723): In the palette, display the keybind for a command adjacent to it
 - [#1722](https://github.com/lapce/lapce/pull/1722): Add 'Save without Formatting'; Add option to disable formatting on autosave
 - [#1741](https://github.com/lapce/lapce/pull/1741): Add syntax highlighting for glsl
-- [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with ```[user@]host[:port]```
+- [#1756](https://github.com/lapce/lapce/pull/1756): Add support for ssh port with `[user@]host[:port]`
 - [#1760](https://github.com/lapce/lapce/pull/1760): Add vim motions `cw`, `ce`, `cc`, `S`, and QOL modal bind `gf`
 - [#1770](https://github.com/lapce/lapce/pull/1770): Add support for terminal tabs
 
 ### Bug Fixes
+
 - [#1771](https://github.com/lapce/lapce/pull/1771): Update tree-sitter-bash
 - [#1737](https://github.com/lapce/lapce/pull/1726): Fix an issue that plugins can't be upgraded
 - [#1724](https://github.com/lapce/lapce/pull/1724): Files and hidden folders no longer will be considered when trying to open a plugin base folder
@@ -220,6 +236,7 @@
 ## 0.2.4
 
 ### Features/Changes
+
 - [#1700](https://github.com/lapce/lapce/pull/1700): Add prisma syntax and highlighting
 - [#1702](https://github.com/lapce/lapce/pull/1702): Improved svelte treesitter queries
 - [#1690](https://github.com/lapce/lapce/pull/1690): Add codelens and sticky headers for Dart
@@ -227,6 +244,7 @@
 - [#1715](https://github.com/lapce/lapce/pull/1715): Add support for requests from plugins
 
 ### Bug Fixes
+
 - [#1710](https://github.com/lapce/lapce/pull/1710): Fix autosave trying to save scratch files
 - [#1709](https://github.com/lapce/lapce/pull/1709): Fix search result ordering
 - [#1708](https://github.com/lapce/lapce/pull/1708): Fix visual issue when search panel is placed to either side panel
