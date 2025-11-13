@@ -56,7 +56,7 @@ impl KeyInput {
                     }
                     Key::Character(c) => {
                         if c == " " {
-                            KeyMapKey::Logical(Key::Named(NamedKey::Space))
+                            KeyMapKey::Logical(Key::Character(c.clone()))
                         } else if c.len() == 1 && c.is_ascii() {
                             KeyMapKey::Logical(Key::Character(
                                 c.to_lowercase().into(),

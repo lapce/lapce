@@ -242,7 +242,7 @@ pub fn editor_view(
                     ime_allowed.set(true);
                     set_ime_allowed(true);
                 }
-                let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity));
+                let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity()));
                 let (_, point_below) = ed1.points_of_offset(offset, affinity);
                 let window_origin = editor_window_origin.get();
                 let viewport = editor_viewport.get();
@@ -450,16 +450,16 @@ impl EditorView {
 
         cursor.with_untracked(|cursor| {
             let highlight_current_line = match cursor.mode {
-                CursorMode::Normal(_) | CursorMode::Insert(_) => true,
+                CursorMode::Normal { .. } | CursorMode::Insert(_) => true,
                 CursorMode::Visual { .. } => false,
             };
 
             if let Some(current_line_color) = current_line_color {
                 // Highlight the current line
                 if !is_local && highlight_current_line {
-                    for (_, end) in cursor.regions_iter() {
+                    for (_, end, affinity) in cursor.regions_iter() {
                         // TODO: unsure if this is correct for wrapping lines
-                        let rvline = ed.rvline_of_offset(end, cursor.affinity);
+                        let rvline = ed.rvline_of_offset(end, affinity);
 
                         if let Some(info) = screen_lines
                             .info(rvline)
@@ -1805,7 +1805,7 @@ fn editor_gutter_code_actions(
     let code_action_vline = create_memo(move |_| {
         let doc = doc.get();
         let (offset, affinity) =
-            cursor.with(|cursor| (cursor.offset(), cursor.affinity));
+            cursor.with(|cursor| (cursor.offset(), cursor.affinity()));
         let has_code_actions = doc
             .code_actions()
             .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
@@ -2158,7 +2158,7 @@ fn editor_content(
             &e_data.editor,
             offset,
             !cursor.is_insert(),
-            cursor.affinity,
+            cursor.affinity(),
         );
         let config = config.get_untracked();
         let line_height = config.editor.line_height();

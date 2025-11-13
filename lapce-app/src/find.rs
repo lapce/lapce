@@ -5,6 +5,7 @@ use floem::{
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
 };
 use lapce_core::{
+    cursor::CursorAffinity,
     selection::{SelRegion, Selection},
     word::WordCursor,
 };
@@ -394,7 +395,7 @@ impl Find {
                 continue;
             }
 
-            let region = SelRegion::new(start, end, None);
+            let region = SelRegion::new(start, end, CursorAffinity::Backward, None);
             let (_, e) = occurrences.add_range_distinct(region);
             // in case of ambiguous search results (e.g. search "aba" in "ababa"),
             // the search result closer to the beginning of the file wins
@@ -482,7 +483,7 @@ impl Find {
                 continue;
             }
 
-            let region = SelRegion::new(start, end, None);
+            let region = SelRegion::new(start, end, CursorAffinity::Backward, None);
             let (_, e) = occurrences.add_range_distinct(region);
             // in case of ambiguous search results (e.g. search "aba" in "ababa"),
             // the search result closer to the beginning of the file wins

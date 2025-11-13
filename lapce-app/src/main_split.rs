@@ -15,8 +15,12 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
-    rope_text_pos::RopeTextPosition, selection::Selection, syntax::Syntax,
+    buffer::rope_text::RopeText,
+    command::FocusCommand,
+    cursor::{Cursor, CursorAffinity},
+    rope_text_pos::RopeTextPosition,
+    selection::Selection,
+    syntax::Syntax,
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -2404,9 +2408,13 @@ impl MainSplitData {
             .doc()
             .buffer
             .with_untracked(|buffer| buffer.len());
-        self.find_editor
-            .cursor()
-            .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
+        self.find_editor.cursor().update(|cursor| {
+            cursor.set_insert(Selection::region(
+                0,
+                pattern_len,
+                CursorAffinity::Backward,
+            ))
+        });
     }
 
     pub fn open_volt_view(&self, id: VoltID) {

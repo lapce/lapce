@@ -4,7 +4,7 @@ use floem::{
     View,
     action::show_context_menu,
     event::{Event, EventListener},
-    menu::{Menu, MenuItem},
+    menu::Menu,
     peniko::kurbo::Rect,
     prelude::SignalTrack,
     reactive::{SignalGet, SignalUpdate, SignalWith, create_memo, create_rw_signal},
@@ -125,7 +125,7 @@ pub fn source_control_panel(
                         &e_data.editor,
                         offset,
                         !cursor.is_insert(),
-                        cursor.affinity,
+                        cursor.affinity(),
                     );
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
@@ -324,8 +324,9 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
 
             if let Event::PointerDown(pointer_event) = event {
                 if pointer_event.button.is_secondary() {
-                    let menu = Menu::new("")
-                        .entry(MenuItem::new("Discard Changes").action(discard));
+                    let menu = Menu::new().item("Discard Changes", move |builder| {
+                        builder.action(discard)
+                    });
                     show_context_menu(menu, None);
                 }
             }

@@ -15,7 +15,7 @@ use floem::{
         virtual_stack,
     },
 };
-use lapce_core::selection::Selection;
+use lapce_core::{cursor::CursorAffinity, selection::Selection};
 use lapce_rpc::{
     file::{FileNodeViewData, FileNodeViewKind, Naming},
     source_control::FileDiffKind,
@@ -115,9 +115,13 @@ fn initialize_naming_editor(
 
     let doc = data.naming_editor_data.doc();
     doc.reload(text, true);
-    data.naming_editor_data
-        .cursor()
-        .update(|cursor| cursor.set_insert(Selection::region(0, selection_end)));
+    data.naming_editor_data.cursor().update(|cursor| {
+        cursor.set_insert(Selection::region(
+            0,
+            selection_end,
+            CursorAffinity::Backward,
+        ))
+    });
 
     data.naming
         .update(|naming| naming.set_editor_needs_reset(false));

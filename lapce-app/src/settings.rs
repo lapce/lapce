@@ -832,7 +832,7 @@ fn color_section_list(
         }),
         virtual_stack(
             move || BTreeMapVirtualList(list()),
-            move |(key, _)| (key.to_owned()),
+            move |(key, _)| key.to_owned(),
             move |(key, value)| {
                 let cx = Scope::current();
                 let text_input_view = TextInputBuilder::new()
@@ -1199,7 +1199,8 @@ fn dropdown_view(
             if expanded.get() {
                 let item = item.clone();
                 let dropdown = dropdown.clone();
-                let id = add_overlay(Point::ZERO, move |_| {
+                let id = add_overlay(
+                    Point::ZERO,
                     dropdown_scroll(
                         &item.clone(),
                         current_value,
@@ -1211,8 +1212,8 @@ fn dropdown_view(
                         size,
                         window_size,
                         config,
-                    )
-                });
+                    ),
+                );
                 overlay_id.set(Some(id));
             } else if let Some(id) = overlay_id.get_untracked() {
                 remove_overlay(id);

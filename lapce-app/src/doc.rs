@@ -688,6 +688,7 @@ impl Doc {
                     let selection = lapce_core::selection::Selection::region(
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
+                        CursorAffinity::Backward,
                     );
                     (selection, edit.new_text.as_str())
                 })

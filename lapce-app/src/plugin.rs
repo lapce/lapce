@@ -11,7 +11,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     kurbo::Rect,
-    menu::{Menu, MenuItem},
+    menu::Menu,
     reactive::{
         RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, create_effect,
         create_memo, create_rw_signal, use_context,
@@ -609,29 +609,33 @@ impl PluginData {
 
     pub fn plugin_controls(&self, meta: VoltMetadata, latest: VoltInfo) -> Menu {
         let volt_id = meta.id();
-        let mut menu = Menu::new("");
+        let mut menu = Menu::new();
         if meta.version != latest.version {
             menu = menu
-                .entry(MenuItem::new("Upgrade Plugin").action({
-                    let plugin = self.clone();
-                    let info = latest.clone();
-                    move || {
-                        plugin.install_volt(info.clone());
-                    }
-                }))
+                .item("Upgrade Plugin", move |builder| {
+                    builder.action({
+                        let plugin = self.clone();
+                        let info = latest.clone();
+                        move || {
+                            plugin.install_volt(info.clone());
+                        }
+                    })
+                })
                 .separator();
         }
         menu = menu
-            .entry(MenuItem::new("Reload Plugin").action({
-                let plugin = self.clone();
-                let meta = meta.clone();
-                move || {
-                    plugin.reload_volt(meta.clone());
-                }
-            }))
+            .item("Reload Plugin", |builder| {
+                builder.action({
+                    let plugin = self.clone();
+                    let meta = meta.clone();
+                    move || {
+                        plugin.reload_volt(meta.clone());
+                    }
+                })
+            })
             .separator()
-            .entry(
-                MenuItem::new("Enable")
+            .item("Enable", |builder| {
+                builder
                     .enabled(
                         self.disabled
                             .with_untracked(|disabled| disabled.contains(&volt_id)),
@@ -642,10 +646,10 @@ impl PluginData {
                         move || {
                             plugin.enable_volt(volt.clone());
                         }
-                    }),
-            )
-            .entry(
-                MenuItem::new("Disable")
+                    })
+            })
+            .item("Disable", |builder| {
+                builder
                     .enabled(
                         self.disabled
                             .with_untracked(|disabled| !disabled.contains(&volt_id)),
@@ -656,11 +660,11 @@ impl PluginData {
                         move || {
                             plugin.disable_volt(volt.clone());
                         }
-                    }),
-            )
+                    })
+            })
             .separator()
-            .entry(
-                MenuItem::new("Enable For Workspace")
+            .item("Enable For Workspace", |builder| {
+                builder
                     .enabled(
                         self.workspace_disabled
                             .with_untracked(|disabled| disabled.contains(&volt_id)),
@@ -671,10 +675,10 @@ impl PluginData {
                         move || {
                             plugin.enable_volt_for_ws(volt.clone());
                         }
-                    }),
-            )
-            .entry(
-                MenuItem::new("Disable For Workspace")
+                    })
+            })
+            .item("Disable For Workspace", |builder| {
+                builder
                     .enabled(
                         self.workspace_disabled
                             .with_untracked(|disabled| !disabled.contains(&volt_id)),
@@ -685,15 +689,17 @@ impl PluginData {
                         move || {
                             plugin.disable_volt_for_ws(volt.clone());
                         }
-                    }),
-            )
+                    })
+            })
             .separator()
-            .entry(MenuItem::new("Uninstall").action({
-                let plugin = self.clone();
-                move || {
-                    plugin.uninstall_volt(meta.clone());
-                }
-            }));
+            .item("Uninstall", move |builder| {
+                builder.action({
+                    let plugin = self.clone();
+                    move || {
+                        plugin.uninstall_volt(meta.clone());
+                    }
+                })
+            });
         menu
     }
 }

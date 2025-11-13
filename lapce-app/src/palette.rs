@@ -23,9 +23,9 @@ use floem::{
 use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
-    buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
-    line_ending::LineEnding, mode::Mode, movement::Movement, selection::Selection,
-    syntax::Syntax,
+    buffer::rope_text::RopeText, command::FocusCommand, cursor::CursorAffinity,
+    language::LapceLanguage, line_ending::LineEnding, mode::Mode,
+    movement::Movement, selection::Selection, syntax::Syntax,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -336,9 +336,10 @@ impl PaletteData {
         self.kind.set(kind);
         // Refresh the palette input with only the symbol prefix, losing old content.
         self.input_editor.doc().reload(Rope::from(symbol), true);
-        self.input_editor
-            .cursor()
-            .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
+        self.input_editor.cursor().update(|cursor| {
+            cursor
+                .set_insert(Selection::caret(symbol.len(), CursorAffinity::Backward))
+        });
     }
 
     /// Get the placeholder text to use in the palette input field.
@@ -1489,9 +1490,9 @@ impl PaletteData {
         self.has_preview.set(false);
         self.items.update(|items| items.clear());
         self.input_editor.doc().reload(Rope::from(""), true);
-        self.input_editor
-            .cursor()
-            .update(|cursor| cursor.set_insert(Selection::caret(0)));
+        self.input_editor.cursor().update(|cursor| {
+            cursor.set_insert(Selection::caret(0, CursorAffinity::Backward))
+        });
     }
 
     /// Move to the next entry in the palette list, wrapping around if needed.

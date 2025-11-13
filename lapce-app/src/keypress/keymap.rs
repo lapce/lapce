@@ -61,9 +61,8 @@ impl KeyMapPress {
         if let KeyMapKey::Physical(physical) = &self.key {
             matches!(
                 physical,
-                PhysicalKey::Code(KeyCode::Meta)
-                    | PhysicalKey::Code(KeyCode::SuperLeft)
-                    | PhysicalKey::Code(KeyCode::SuperRight)
+                PhysicalKey::Code(KeyCode::MetaLeft)
+                    | PhysicalKey::Code(KeyCode::MetaRight)
                     | PhysicalKey::Code(KeyCode::ShiftLeft)
                     | PhysicalKey::Code(KeyCode::ShiftRight)
                     | PhysicalKey::Code(KeyCode::ControlLeft)
@@ -75,7 +74,6 @@ impl KeyMapPress {
             matches!(
                 key,
                 NamedKey::Meta
-                    | NamedKey::Super
                     | NamedKey::Shift
                     | NamedKey::Control
                     | NamedKey::Alt
@@ -174,12 +172,11 @@ impl FromStr for KeyMapKey {
                 "control" => KeyCode::ControlLeft,
                 "fn" => KeyCode::Fn,
                 "fnlock" => KeyCode::FnLock,
-                "meta" => KeyCode::Meta,
+                "meta" => KeyCode::MetaLeft,
                 "numlock" => KeyCode::NumLock,
                 "scrolllock" => KeyCode::ScrollLock,
                 "shift" => KeyCode::ShiftLeft,
-                "hyper" => KeyCode::Hyper,
-                "super" => KeyCode::Meta,
+                "super" => KeyCode::MetaLeft,
                 "enter" => KeyCode::Enter,
                 "tab" => KeyCode::Tab,
                 "arrowdown" => KeyCode::ArrowDown,
@@ -239,7 +236,7 @@ impl FromStr for KeyMapKey {
         } else {
             let key = match s.to_lowercase().as_str() {
                 "esc" => Key::Named(NamedKey::Escape),
-                "space" => Key::Named(NamedKey::Space),
+                "space" => Key::Character(" ".into()),
                 "bs" => Key::Named(NamedKey::Backspace),
                 "up" => Key::Named(NamedKey::ArrowUp),
                 "down" => Key::Named(NamedKey::ArrowDown),
@@ -256,7 +253,7 @@ impl FromStr for KeyMapKey {
                 "numlock" => Key::Named(NamedKey::NumLock),
                 "scrolllock" => Key::Named(NamedKey::ScrollLock),
                 "shift" => Key::Named(NamedKey::Shift),
-                "hyper" => Key::Named(NamedKey::Hyper),
+                "hyper" => Key::Named(NamedKey::Meta),
                 "super" => Key::Named(NamedKey::Meta),
                 "enter" => Key::Named(NamedKey::Enter),
                 "tab" => Key::Named(NamedKey::Tab),
@@ -428,8 +425,6 @@ impl Display for KeyMapKey {
                     PhysicalKey::Code(KeyCode::ControlLeft) => f.write_str("Ctrl"),
                     PhysicalKey::Code(KeyCode::ControlRight) => f.write_str("Ctrl"),
                     PhysicalKey::Code(KeyCode::Enter) => f.write_str("Enter"),
-                    PhysicalKey::Code(KeyCode::SuperLeft) => f.write_str("Meta"),
-                    PhysicalKey::Code(KeyCode::SuperRight) => f.write_str("Meta"),
                     PhysicalKey::Code(KeyCode::ShiftLeft) => f.write_str("Shift"),
                     PhysicalKey::Code(KeyCode::ShiftRight) => f.write_str("Shift"),
                     PhysicalKey::Code(KeyCode::Space) => f.write_str("Space"),
@@ -594,13 +589,13 @@ impl Display for KeyMapKey {
                         f.write_str("AudioVolumeUp")
                     }
                     PhysicalKey::Code(KeyCode::WakeUp) => f.write_str("WakeUp"),
-                    PhysicalKey::Code(KeyCode::Meta) => match std::env::consts::OS {
-                        "macos" => f.write_str("Cmd"),
-                        "windows" => f.write_str("Win"),
-                        _ => f.write_str("Meta"),
-                    },
-                    PhysicalKey::Code(KeyCode::Hyper) => f.write_str("Hyper"),
-                    PhysicalKey::Code(KeyCode::Turbo) => f.write_str("Turbo"),
+                    PhysicalKey::Code(KeyCode::MetaLeft | KeyCode::MetaRight) => {
+                        match std::env::consts::OS {
+                            "macos" => f.write_str("Cmd"),
+                            "windows" => f.write_str("Win"),
+                            _ => f.write_str("Meta"),
+                        }
+                    }
                     PhysicalKey::Code(KeyCode::Abort) => f.write_str("Abort"),
                     PhysicalKey::Code(KeyCode::Resume) => f.write_str("Resume"),
                     PhysicalKey::Code(KeyCode::Suspend) => f.write_str("Suspend"),
@@ -670,10 +665,8 @@ impl Display for KeyMapKey {
                     NamedKey::ArrowRight => f.write_str("ArrowRight"),
                     NamedKey::Escape => f.write_str("Escape"),
                     NamedKey::Fn => f.write_str("Fn"),
-                    NamedKey::Space => f.write_str("Space"),
                     NamedKey::Shift => f.write_str("Shift"),
                     NamedKey::Meta => f.write_str("Meta"),
-                    NamedKey::Super => f.write_str("Meta"),
                     NamedKey::Control => f.write_str("Ctrl"),
                     NamedKey::Alt => f.write_str("Alt"),
                     NamedKey::AltGraph => f.write_str("AltGraph"),
@@ -692,7 +685,13 @@ impl Display for KeyMapKey {
                     NamedKey::F12 => f.write_str("F12"),
                     _ => f.write_str("Unidentified"),
                 },
-                Key::Character(s) => f.write_str(s),
+                Key::Character(s) => {
+                    if s == " " {
+                        f.write_str("Space")
+                    } else {
+                        f.write_str(s)
+                    }
+                }
                 Key::Unidentified(_) => f.write_str("Unidentified"),
                 Key::Dead(_) => f.write_str("dead"),
             },

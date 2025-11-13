@@ -8,7 +8,7 @@ use std::{path::PathBuf, rc::Rc, str::FromStr, time::SystemTime};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
+    keyboard::{Key, KeyEvent, Modifiers, NamedKey},
     pointer::{MouseButton, PointerButton, PointerInputEvent},
     reactive::{RwSignal, Scope, SignalUpdate, SignalWith},
 };
@@ -262,7 +262,7 @@ impl KeyPressData {
                 key: KeyInput::Keyboard {
                     logical: ev.key.logical_key.to_owned(),
                     physical: ev.key.physical_key,
-                    key_without_modifiers: ev.key.key_without_modifiers(),
+                    key_without_modifiers: ev.key.key_without_modifiers.clone(),
                     location: ev.key.location,
                     repeat: ev.key.repeat,
                 },
@@ -436,7 +436,7 @@ impl KeyPressData {
                         keymatch,
                         keypress,
                     };
-                } else if let Key::Named(NamedKey::Space) = logical {
+                } else if matches!(logical, Key::Character(s) if s == " ") {
                     focus.receive_char(" ");
                     self.count.set(None);
                     return KeyPressHandle {

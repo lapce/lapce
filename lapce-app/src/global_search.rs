@@ -7,7 +7,7 @@ use floem::{
     views::VirtualVector,
 };
 use indexmap::IndexMap;
-use lapce_core::{mode::Mode, selection::Selection};
+use lapce_core::{cursor::CursorAffinity, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
 use lapce_xi_rope::Rope;
 
@@ -193,8 +193,12 @@ impl GlobalSearchData {
     pub fn set_pattern(&self, pattern: String) {
         let pattern_len = pattern.len();
         self.editor.doc().reload(Rope::from(pattern), true);
-        self.editor
-            .cursor()
-            .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
+        self.editor.cursor().update(|cursor| {
+            cursor.set_insert(Selection::region(
+                0,
+                pattern_len,
+                CursorAffinity::Backward,
+            ))
+        });
     }
 }

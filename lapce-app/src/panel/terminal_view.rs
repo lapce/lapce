@@ -5,7 +5,7 @@ use floem::{
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
     kurbo::Size,
-    menu::{Menu, MenuItem},
+    menu::Menu,
     reactive::{SignalGet, SignalUpdate, SignalWith, create_rw_signal},
     style::CursorStyle,
     views::{
@@ -368,20 +368,25 @@ fn tab_secondary_click(
     terminal_index: usize,
     term_id: TermId,
 ) {
-    let mut menu = Menu::new("");
-    menu = menu
-        .entry(MenuItem::new("Stop").action(move || {
-            internal_command.send(InternalCommand::StopTerminal { term_id });
-        }))
-        .entry(MenuItem::new("Restart").action(move || {
-            internal_command.send(InternalCommand::RestartTerminal { term_id });
-        }))
-        .entry(MenuItem::new("Clear All").action(move || {
-            internal_command.send(InternalCommand::ClearTerminalBuffer {
-                view_id,
-                tab_index,
-                terminal_index,
-            });
-        }));
+    let menu = Menu::new()
+        .item("Stop", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::StopTerminal { term_id });
+            })
+        })
+        .item("Restart", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::RestartTerminal { term_id });
+            })
+        })
+        .item("Clear All", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::ClearTerminalBuffer {
+                    view_id,
+                    tab_index,
+                    terminal_index,
+                });
+            })
+        });
     show_context_menu(menu, None);
 }

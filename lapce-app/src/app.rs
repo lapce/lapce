@@ -20,7 +20,7 @@ use floem::{
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
-    menu::{Menu, MenuItem},
+    menu::Menu,
     peniko::{
         Color,
         kurbo::{Point, Rect, Size},
@@ -649,25 +649,27 @@ impl AppData {
                 app_command.send(AppCommand::WindowClosed(window_id));
             })
             .on_event_stop(EventListener::DroppedFile, move |event: &Event| {
-                if let Event::DroppedFile(file) = event {
-                    if file.path.is_dir() {
-                        app_command.send(AppCommand::NewWindow {
-                            folder: Some(file.path.clone()),
-                        });
-                    } else if let Some(win_tab_data) =
-                        window_data.active_window_tab()
-                    {
-                        win_tab_data.common.internal_command.send(
-                            InternalCommand::GoToLocation {
-                                location: EditorLocation {
-                                    path: file.path.clone(),
-                                    position: None,
-                                    scroll_offset: None,
-                                    ignore_unconfirmed: false,
-                                    same_editor_tab: false,
+                if let Event::DroppedFiles(event) = event {
+                    for path in &event.path {
+                        if path.is_dir() {
+                            app_command.send(AppCommand::NewWindow {
+                                folder: Some(path.clone()),
+                            });
+                        } else if let Some(win_tab_data) =
+                            window_data.active_window_tab()
+                        {
+                            win_tab_data.common.internal_command.send(
+                                InternalCommand::GoToLocation {
+                                    location: EditorLocation {
+                                        path: path.clone(),
+                                        position: None,
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: false,
+                                        same_editor_tab: false,
+                                    },
                                 },
-                            },
-                        )
+                            )
+                        }
                     }
                 }
             })
@@ -3700,7 +3702,7 @@ fn window(window_data: WindowData) -> impl View {
             let lapce_command = window_tab.common.lapce_command;
             window_menu(lapce_command, workbench_command)
         } else {
-            Menu::new("Lapce")
+            Menu::new()
         }
     })
     .style(|s| s.size_full())
@@ -4163,152 +4165,195 @@ pub fn window_menu(
     lapce_command: Listener<LapceCommand>,
     workbench_command: Listener<LapceWorkbenchCommand>,
 ) -> Menu {
-    Menu::new("Lapce")
-        .entry({
-            let mut menu = Menu::new("Lapce")
-                .entry(MenuItem::new("About Lapce").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-                }))
+    Menu::new()
+        .submenu("Lapce", |mut submenu| {
+            submenu = submenu
+                .item("About Lapce", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                    })
+                })
                 .separator()
-                .entry(
-                    Menu::new("Settings...")
-                        .entry(MenuItem::new("Open Settings").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::OpenSettings);
-                        }))
-                        .entry(MenuItem::new("Open Keyboard Shortcuts").action(
-                            move || {
+                .submenu("Settings...", move |submenu| {
+                    submenu
+                        .item("Open Settings", move |builder| {
+                            builder.action(move || {
+                                workbench_command
+                                    .send(LapceWorkbenchCommand::OpenSettings);
+                            })
+                        })
+                        .item("Open Keyboard Shortcuts", move |builder| {
+                            builder.action(move || {
                                 workbench_command.send(
                                     LapceWorkbenchCommand::OpenKeyboardShortcuts,
                                 );
-                            },
-                        )),
-                )
+                            })
+                        })
+                })
                 .separator()
-                .entry(MenuItem::new("Quit Lapce").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::Quit);
-                }));
+                .item("Quit Lapce", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::Quit);
+                    })
+                });
             if cfg!(target_os = "macos") {
-                menu = menu
+                submenu = submenu
                     .separator()
-                    .entry(MenuItem::new("Hide Lapce"))
-                    .entry(MenuItem::new("Hide Others"))
-                    .entry(MenuItem::new("Show All"))
+                    .item("Hide Lapce", |builder| builder)
+                    .item("Hide Others", |builder| builder)
+                    .item("Show All", |builder| builder)
             }
-            menu
+            submenu
         })
         .separator()
-        .entry(
-            Menu::new("File")
-                .entry(MenuItem::new("New File").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::NewFile);
-                }))
+        .submenu("File", move |submenu| {
+            submenu
+                .item("New File", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::NewFile);
+                    })
+                })
                 .separator()
-                .entry(MenuItem::new("Open").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::OpenFile);
-                }))
-                .entry(MenuItem::new("Open Folder").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
-                }))
+                .item("Open", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::OpenFile);
+                    })
+                })
+                .item("Open Folder", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::OpenFolder);
+                    })
+                })
                 .separator()
-                .entry(MenuItem::new("Save").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::Save),
-                        data: None,
-                    });
-                }))
-                .entry(MenuItem::new("Save All").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::SaveAll);
-                }))
+                .item("Save", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Save),
+                            data: None,
+                        });
+                    })
+                })
+                .item("Save All", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::SaveAll);
+                    })
+                })
                 .separator()
-                .entry(MenuItem::new("Close Folder").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::CloseFolder);
-                }))
-                .entry(MenuItem::new("Close Window").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::CloseWindow);
-                })),
-        )
-        .entry(
-            Menu::new("Edit")
-                .entry(MenuItem::new("Cut").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                        data: None,
-                    });
-                }))
-                .entry(MenuItem::new("Copy").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                        data: None,
-                    });
-                }))
-                .entry(MenuItem::new("Paste").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                        data: None,
-                    });
-                }))
+                .item("Close Folder", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::CloseFolder);
+                    })
+                })
+                .item("Close Window", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::CloseWindow);
+                    })
+                })
+        })
+        .submenu("Edit", |submenu| {
+            submenu
+                .item("Cut", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                            data: None,
+                        });
+                    })
+                })
+                .item("Copy", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                            data: None,
+                        });
+                    })
+                })
+                .item("Paste", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                            data: None,
+                        });
+                    })
+                })
                 .separator()
-                .entry(MenuItem::new("Undo").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Edit(EditCommand::Undo),
-                        data: None,
-                    });
-                }))
-                .entry(MenuItem::new("Redo").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Edit(EditCommand::Redo),
-                        data: None,
-                    });
-                }))
+                .item("Undo", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Undo),
+                            data: None,
+                        });
+                    })
+                })
+                .item("Redo", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Edit(EditCommand::Redo),
+                            data: None,
+                        });
+                    })
+                })
                 .separator()
-                .entry(MenuItem::new("Find").action(move || {
-                    lapce_command.send(LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::Search),
-                        data: None,
-                    });
-                })),
-        )
+                .item("Find", move |builder| {
+                    builder.action(move || {
+                        lapce_command.send(LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::Search),
+                            data: None,
+                        });
+                    })
+                })
+        })
 }
 fn tab_secondary_click(
     internal_command: Listener<InternalCommand>,
     editor_tab_id: EditorTabId,
     child: EditorTabChild,
 ) {
-    let mut menu = Menu::new("");
+    let mut menu = Menu::new();
     let child_other = child.clone();
     let child_right = child.clone();
     let child_left = child.clone();
     menu = menu
-        .entry(MenuItem::new("Close").action(move || {
-            internal_command.send(InternalCommand::EditorTabChildClose {
-                editor_tab_id,
-                child: child.clone(),
-            });
-        }))
-        .entry(MenuItem::new("Close Other Tabs").action(move || {
-            internal_command.send(InternalCommand::EditorTabCloseByKind {
-                editor_tab_id,
-                child: child_other.clone(),
-                kind: TabCloseKind::CloseOther,
-            });
-        }))
-        .entry(MenuItem::new("Close All Tabs").action(move || {
-            internal_command.send(InternalCommand::EditorTabClose { editor_tab_id });
-        }))
-        .entry(MenuItem::new("Close Tabs to the Right").action(move || {
-            internal_command.send(InternalCommand::EditorTabCloseByKind {
-                editor_tab_id,
-                child: child_right.clone(),
-                kind: TabCloseKind::CloseToRight,
-            });
-        }))
-        .entry(MenuItem::new("Close Tabs to the Left").action(move || {
-            internal_command.send(InternalCommand::EditorTabCloseByKind {
-                editor_tab_id,
-                child: child_left.clone(),
-                kind: TabCloseKind::CloseToLeft,
-            });
-        }));
+        .item("Close", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::EditorTabChildClose {
+                    editor_tab_id,
+                    child: child.clone(),
+                });
+            })
+        })
+        .item("Close Other Tabs", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::EditorTabCloseByKind {
+                    editor_tab_id,
+                    child: child_other.clone(),
+                    kind: TabCloseKind::CloseOther,
+                });
+            })
+        })
+        .item("Close All Tabs", move |builder| {
+            builder.action(move || {
+                internal_command
+                    .send(InternalCommand::EditorTabClose { editor_tab_id });
+            })
+        })
+        .item("Close Tabs to the Right", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::EditorTabCloseByKind {
+                    editor_tab_id,
+                    child: child_right.clone(),
+                    kind: TabCloseKind::CloseToRight,
+                });
+            })
+        })
+        .item("Close Tabs to the Left", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::EditorTabCloseByKind {
+                    editor_tab_id,
+                    child: child_left.clone(),
+                    kind: TabCloseKind::CloseToLeft,
+                });
+            })
+        });
     show_context_menu(menu, None);
 }

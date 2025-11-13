@@ -6,6 +6,7 @@ use lapce_core::{
         Buffer,
         rope_text::{RopeText, RopeTextRef},
     },
+    cursor::CursorAffinity,
     rope_text_pos::RopeTextPosition,
     selection::Selection,
 };
@@ -53,9 +54,9 @@ impl InlineCompletionItem {
             .unwrap_or(InsertTextFormat::PLAIN_TEXT);
 
         let selection = if let Some(range) = &self.range {
-            Selection::region(range.start, range.end)
+            Selection::region(range.start, range.end, CursorAffinity::Backward)
         } else {
-            Selection::caret(start_offset)
+            Selection::caret(start_offset, CursorAffinity::Backward)
         };
 
         match text_format {
