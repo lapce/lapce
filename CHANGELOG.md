@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Implement file/folder dragging support in file explorer
+
 ### Bug Fixes
 
 - Fix editor tabs not selectable while appearing selectable
