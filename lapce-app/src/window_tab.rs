@@ -217,6 +217,10 @@ impl KeyPressFocus for WindowTabData {
                 self.common.focus.get_untracked()
                     == Focus::Panel(PanelKind::SourceControl)
             }
+            Condition::FileExplorerFocus => {
+                self.common.focus.get_untracked()
+                    == Focus::Panel(PanelKind::FileExplorer)
+            }
             _ => false,
         }
     }
@@ -2629,7 +2633,6 @@ impl WindowTabData {
     /// Toggle a specific kind of panel.
     fn toggle_panel_focus(&self, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer
             | PanelKind::Plugin
             | PanelKind::Problem
             | PanelKind::Debug
@@ -2641,7 +2644,7 @@ impl WindowTabData {
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
             }
-            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
+            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search | PanelKind::FileExplorer => {
                 self.is_panel_focused(kind)
             }
         };

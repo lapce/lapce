@@ -65,8 +65,12 @@ impl KeyPressFocus for FileExplorerData {
     }
 
     fn check_condition(&self, condition: Condition) -> bool {
-        self.naming.with_untracked(Naming::is_accepting_input)
-            && condition == Condition::ModalFocus
+        (self.naming.with_untracked(Naming::is_accepting_input)
+            && condition == Condition::ModalFocus)
+            || matches!(
+                condition,
+                Condition::PanelFocus | Condition::FileExplorerFocus
+            )
     }
 
     fn run_command(
