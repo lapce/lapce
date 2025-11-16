@@ -150,6 +150,32 @@ impl FileExplorerData {
         data
     }
 
+    /// Rename the currently selected file, if it exists.
+    pub fn rename_selected(&self) {
+        if let Some(file) = self.select.get_untracked() {
+            if let Some(path) = file.path() {
+                self.naming.set(Naming::Renaming(Renaming {
+                    state: NamingState::Naming,
+                    path: path.to_path_buf(),
+                    editor_needs_reset: true,
+                }));
+            }
+        }
+    }
+
+    /// Trash the currently selected file, if it exists.
+    pub fn trash_selected(&self) {
+        if let Some(file) = self.select.get_untracked() {
+            if let Some(path) = file.path() {
+                self.common.proxy.trash_path(path.to_path_buf(), |res| {
+                    if let Err(err) = res {
+                        tracing::warn!("Failed to trash path: {:?}", err);
+                    }
+                })
+            }
+        }
+    }
+
     /// Reload the file explorer data via reading the root directory.  
     /// Note that this will not update immediately.
     pub fn reload(&self) {
