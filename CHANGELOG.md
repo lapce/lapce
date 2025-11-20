@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Added `PANEL_BACKGROUND_SIDE` and `PANEL_BACKGROUND_BOTTOM` theme keys
+
 ### Bug Fixes
 
 - Fix editor tabs not selectable while appearing selectable
