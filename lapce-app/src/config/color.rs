@@ -153,6 +153,10 @@ impl LapceColor {
     pub const TOOLTIP_FOREGROUND: [&'static str; 1] = ["tooltip.foreground"];
 
     pub const PANEL_BACKGROUND: [&'static str; 1] = ["panel.background"];
+    pub const PANEL_BACKGROUND_SIDE: [&'static str; 2] =
+        ["panel.background.side", "panel.background"];
+    pub const PANEL_BACKGROUND_BOTTOM: [&'static str; 2] =
+        ["panel.background.bottom", "editor.background"];
     pub const PANEL_FOREGROUND: [&'static str; 1] = ["panel.foreground"];
     pub const PANEL_FOREGROUND_DIM: [&'static str; 1] = ["panel.foreground.dim"];
     pub const PANEL_CURRENT_BACKGROUND: [&'static str; 1] =
