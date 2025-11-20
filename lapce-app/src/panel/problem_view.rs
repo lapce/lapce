@@ -36,7 +36,7 @@ pub fn problem_panel(
             problem_section(window_tab_data.clone(), DiagnosticSeverity::ERROR),
             window_tab_data.panel.section_open(PanelSection::Error),
             move |s| {
-                s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                s.border_color(config.get().color(&LapceColor::LAPCE_BORDER))
                     .apply_if(is_bottom, |s| s.border_right(1.0))
                     .apply_if(!is_bottom, |s| s.border_bottom(1.0))
             },
@@ -143,8 +143,8 @@ fn file_view(
     let icon_color = move || {
         let config = config.get();
         match severity {
-            DiagnosticSeverity::ERROR => config.color(LapceColor::LAPCE_ERROR),
-            _ => config.color(LapceColor::LAPCE_WARN),
+            DiagnosticSeverity::ERROR => config.color(&LapceColor::LAPCE_ERROR),
+            _ => config.color(&LapceColor::LAPCE_WARN),
         }
     };
 
@@ -171,7 +171,7 @@ fn file_view(
                             .selectable(false)
                     }),
                     label(move || folder.clone()).style(move |s| {
-                        s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .text_ellipsis()
                             .selectable(false)
@@ -190,7 +190,7 @@ fn file_view(
                     .padding_right(10.0)
                     .hover(|s| {
                         s.cursor(CursorStyle::Pointer).background(
-                            config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            config.color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                         )
                     })
             }),
@@ -207,7 +207,7 @@ fn file_view(
                     let size = config.ui.icon_size() as f32;
                     s.margin_right(6.0)
                         .size(size, size)
-                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                 }),
                 svg(move || config.get().file_svg(&path).0).style(move |s| {
                     let config = config.get();
@@ -301,7 +301,7 @@ fn item_view(
             .style(move |s| {
                 s.width_pct(100.0).min_width(0.0).hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             })
@@ -367,7 +367,7 @@ fn related_view(
                         .min_width(0.0)
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
-                                config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                config.color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                 })
@@ -379,7 +379,7 @@ fn related_view(
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
                 s.size(size, size)
-                    .color(config.color(LapceColor::EDITOR_DIM))
+                    .color(config.color(&LapceColor::EDITOR_DIM))
             }),
             label(|| " ".to_string()).style(move |s| s.selectable(false)),
         ))
@@ -393,7 +393,7 @@ fn related_view(
         s.width_pct(100.0)
             .min_width(0.0)
             .items_start()
-            .color(config.get().color(LapceColor::EDITOR_DIM))
+            .color(config.get().color(&LapceColor::EDITOR_DIM))
             .apply_if(is_empty, |s| s.hide())
     })
 }

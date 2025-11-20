@@ -331,7 +331,7 @@ impl TerminalView {
         char_size: Size,
         config: &LapceConfig,
     ) {
-        let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
+        let term_bg = config.color(&LapceColor::TERMINAL_BACKGROUND);
 
         let font_size = config.terminal_font_size();
         let font_family = config.terminal_font_family();
@@ -459,12 +459,12 @@ impl TerminalView {
                 if self.run_config.with_untracked(|run_config| {
                     run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
                 }) {
-                    config.color(LapceColor::LAPCE_ERROR)
+                    config.color(&LapceColor::LAPCE_ERROR)
                 } else {
-                    config.color(LapceColor::TERMINAL_CURSOR)
+                    config.color(&LapceColor::TERMINAL_CURSOR)
                 }
             } else {
-                config.color(LapceColor::EDITOR_CARET)
+                config.color(&LapceColor::EDITOR_CARET)
             };
             if self.is_focused {
                 cx.fill(&rect, cursor_color, 0.0);
@@ -644,7 +644,7 @@ impl View for TerminalView {
             text_layout.set_text(
                 &format!("Terminal failed to launch. Error: {error}"),
                 AttrsList::new(
-                    attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),
+                    attrs.color(config.color(&LapceColor::EDITOR_FOREGROUND)),
                 ),
                 None,
             );
@@ -692,7 +692,7 @@ impl View for TerminalView {
                 let y1 = y0 + line_height;
                 cx.fill(
                     &Rect::new(x0, y0, x1, y1),
-                    config.color(LapceColor::EDITOR_SELECTION),
+                    config.color(&LapceColor::EDITOR_SELECTION),
                     0.0,
                 );
             }
@@ -702,7 +702,7 @@ impl View for TerminalView {
                 * line_height;
             cx.fill(
                 &Rect::new(0.0, y, self.size.width, y + line_height),
-                config.color(LapceColor::EDITOR_CURRENT_LINE),
+                config.color(&LapceColor::EDITOR_CURRENT_LINE),
                 0.0,
             );
         }
@@ -750,7 +750,7 @@ impl View for TerminalView {
         //                     ));
         //                 cx.stroke(
         //                     &rect,
-        //                     config.get_color(LapceColor::TERMINAL_FOREGROUND),
+        //                     config.get_color(&LapceColor::TERMINAL_FOREGROUND),
         //                     1.0,
         //                 );
         //                 start = *m.end();

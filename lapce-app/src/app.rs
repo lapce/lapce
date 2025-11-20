@@ -747,7 +747,7 @@ fn editor_tab_header(
                                 !info.with(|info| info.is_pristine)
                                     && config.ui.tab_close_button
                                         == TabCloseButton::Off,
-                                |s| s.color(config.color(LapceColor::LAPCE_WARN)),
+                                |s| s.color(config.color(&LapceColor::LAPCE_WARN)),
                             )
                     })
             })
@@ -844,7 +844,7 @@ fn editor_tab_header(
                     .justify_center()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
-                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.get().color(&LapceColor::LAPCE_BORDER))
                     .padding_horiz(6.)
                     .gap(6.)
                     .grid()
@@ -927,10 +927,10 @@ fn editor_tab_header(
                         .border_radius(6.0)
                         .background(
                             config
-                                .color(LapceColor::PANEL_BACKGROUND)
+                                .color(&LapceColor::PANEL_BACKGROUND)
                                 .multiply_alpha(0.7),
                         )
-                        .border_color(config.color(LapceColor::LAPCE_BORDER))
+                        .border_color(config.color(&LapceColor::LAPCE_BORDER))
                 })
                 .style(|s| s.align_items(Some(AlignItems::Center)).flex_grow(1.0)),
             empty()
@@ -942,9 +942,9 @@ fn editor_tab_header(
                             0.0
                         })
                         .border_color(config.get().color(if is_focused() {
-                            LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
+                            &LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
                         } else {
-                            LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
+                            &LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
                         }))
                 })
                 .style(|s| {
@@ -980,7 +980,7 @@ fn editor_tab_header(
                         .border_color(
                             config
                                 .get()
-                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
+                                .color(&LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
                                 .multiply_alpha(0.5),
                         )
                 })
@@ -996,7 +996,7 @@ fn editor_tab_header(
                 .items_center()
                 .justify_center()
                 .cursor(CursorStyle::Pointer)
-                .hover(|s| s.background(config.color(LapceColor::HOVER_BACKGROUND)))
+                .hover(|s| s.background(config.color(&LapceColor::HOVER_BACKGROUND)))
         })
         .debug_name("Tab and Active Indicator")
         .on_event_stop(EventListener::DragOver, move |event| {
@@ -1047,10 +1047,10 @@ fn editor_tab_header(
                     s.absolute()
                         .height_full()
                         .width(size.get().width as f32)
-                        .background(config.color(LapceColor::PANEL_BACKGROUND))
+                        .background(config.color(&LapceColor::PANEL_BACKGROUND))
                         .box_shadow_blur(3.0)
                         .box_shadow_color(
-                            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+                            config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW),
                         )
                 }))
                 .style(move |s| {
@@ -1134,10 +1134,10 @@ fn editor_tab_header(
                             .height_full()
                             .margin_left(30.0)
                             .width(size.get().width as f32)
-                            .background(config.color(LapceColor::PANEL_BACKGROUND))
+                            .background(config.color(&LapceColor::PANEL_BACKGROUND))
                             .box_shadow_blur(3.0)
                             .box_shadow_color(
-                                config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+                                config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW),
                             )
                     })
                 })
@@ -1208,8 +1208,8 @@ fn editor_tab_header(
         s.items_center()
             .max_width_full()
             .border_bottom(1.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::PANEL_BACKGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::PANEL_BACKGROUND))
             .height(config.ui.header_height() as i32)
     })
     .debug_name("Editor Tab Header")
@@ -1356,7 +1356,7 @@ fn editor_tab_content(
                                 .flex_basis(0.0)
                                 .border_right(1.0)
                                 .border_color(
-                                    config.get().color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(&LapceColor::LAPCE_BORDER),
                                 )
                         }),
                         container(
@@ -1505,7 +1505,7 @@ fn editor_tab(
                         .background(
                             config
                                 .get()
-                                .color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
+                                .color(&LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
                         )
                 })
                 .debug_name("Drag Over Handle"),
@@ -1794,14 +1794,14 @@ fn split_resize_border(
                             SplitDirection::Vertical => CursorStyle::ColResize,
                             SplitDirection::Horizontal => CursorStyle::RowResize,
                         })
-                        .background(config.get().color(LapceColor::EDITOR_CARET))
+                        .background(config.get().color(&LapceColor::EDITOR_CARET))
                     })
                     .hover(|s| {
                         s.cursor(match direction {
                             SplitDirection::Vertical => CursorStyle::ColResize,
                             SplitDirection::Horizontal => CursorStyle::RowResize,
                         })
-                        .background(config.get().color(LapceColor::EDITOR_CARET))
+                        .background(config.get().color(&LapceColor::EDITOR_CARET))
                     })
                     .pointer_events_auto()
             })
@@ -1836,7 +1836,7 @@ fn split_border(
                     SplitDirection::Vertical => PxPctAuto::Pct(100.0),
                     SplitDirection::Horizontal => PxPctAuto::Px(1.0),
                 })
-                .background(config.get().color(LapceColor::LAPCE_BORDER))
+                .background(config.get().color(&LapceColor::LAPCE_BORDER))
             }))
             .style(move |s| {
                 let rect = match &content {
@@ -2041,8 +2041,8 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
         let config = config.get();
         let is_hidden = panel.panel_bottom_maximized(true)
             && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
-        s.border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+        s.border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
             .apply_if(is_hidden, |s| s.display(Display::None))
             .width_full()
             .flex_grow(1.0)
@@ -2100,9 +2100,9 @@ pub fn clickable_icon_base(
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
                 s.size(size, size)
-                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                    .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                     .disabled(|s| {
-                        s.color(config.color(LapceColor::LAPCE_ICON_INACTIVE))
+                        s.color(config.color(&LapceColor::LAPCE_ICON_INACTIVE))
                             .cursor(CursorStyle::Default)
                     })
             })
@@ -2116,15 +2116,15 @@ pub fn clickable_icon_base(
             .border(1.0)
             .border_color(Color::TRANSPARENT)
             .apply_if(active_fn(), |s| {
-                s.border_color(config.color(LapceColor::EDITOR_CARET))
+                s.border_color(config.color(&LapceColor::EDITOR_CARET))
             })
             .hover(|s| {
                 s.cursor(CursorStyle::Pointer)
-                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_HOVERED_BACKGROUND))
             })
             .active(|s| {
                 s.background(
-                    config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    config.color(&LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                 )
             })
     });
@@ -2164,13 +2164,13 @@ fn tooltip_tip<V: View + 'static>(
             .padding_vert(5.0)
             .font_size(config.ui.font_size() as f32)
             .font_family(config.ui.font_family.clone())
-            .color(config.color(LapceColor::TOOLTIP_FOREGROUND))
-            .background(config.color(LapceColor::TOOLTIP_BACKGROUND))
+            .color(config.color(&LapceColor::TOOLTIP_FOREGROUND))
+            .background(config.color(&LapceColor::TOOLTIP_BACKGROUND))
             .border(1)
             .border_radius(6)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
             .box_shadow_blur(3.0)
-            .box_shadow_color(config.color(LapceColor::LAPCE_DROPDOWN_SHADOW))
+            .box_shadow_color(config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW))
             .margin_left(0.0)
             .margin_top(4.0)
     })
@@ -2274,16 +2274,16 @@ fn palette_item(
                     focus_text(
                         move || file_name.clone(),
                         move || file_name_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(|s| s.margin_right(6.0).max_width_full()),
                     focus_text(
                         move || folder.clone(),
                         move || folder_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(move |s| {
-                        s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .flex_grow(1.0)
                             .flex_basis(0.0)
@@ -2334,23 +2334,23 @@ fn palette_item(
                         let size = config.ui.icon_size() as f32;
                         s.min_width(size).size(size, size).margin_right(5.0).color(
                             config.symbol_color(&kind).unwrap_or_else(|| {
-                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                config.color(&LapceColor::LAPCE_ICON_ACTIVE)
                             }),
                         )
                     }),
                     focus_text(
                         move || text.clone(),
                         move || text_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(|s| s.margin_right(6.0).max_width_full()),
                     focus_text(
                         move || hint.clone(),
                         move || hint_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(move |s| {
-                        s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .flex_grow(1.0)
                             .flex_basis(0.0)
@@ -2413,21 +2413,21 @@ fn palette_item(
                         s.min_width(size)
                             .size(size, size)
                             .margin_right(5.0)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                            .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                     }),
                     focus_text(
                         move || text.clone(),
                         move || text_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(|s| s.margin_right(6.0).max_width_full()),
                     focus_text(
                         move || hint.clone(),
                         move || hint_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(move |s| {
-                        s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .flex_grow(1.0)
                             .flex_basis(0.0)
@@ -2482,21 +2482,21 @@ fn palette_item(
                         s.min_width(size)
                             .size(size, size)
                             .margin_right(5.0)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                            .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                     }),
                     focus_text(
                         move || text.clone(),
                         move || text_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(|s| s.margin_right(6.0).max_width_full()),
                     focus_text(
                         move || hint.clone(),
                         move || hint_indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(move |s| {
-                        s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .flex_grow(1.0)
                             .flex_basis(0.0)
@@ -2524,7 +2524,7 @@ fn palette_item(
                     focus_text(
                         move || text.clone(),
                         move || indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .style(|s| {
                         s.flex_row()
@@ -2542,7 +2542,9 @@ fn palette_item(
                                     .border(1.0)
                                     .border_radius(3.0)
                                     .border_color(
-                                        config.get().color(LapceColor::LAPCE_BORDER),
+                                        config
+                                            .get()
+                                            .color(&LapceColor::LAPCE_BORDER),
                                     )
                                     .selectable(false)
                             })
@@ -2567,7 +2569,7 @@ fn palette_item(
                 focus_text(
                     move || text.clone(),
                     move || indices.clone(),
-                    move || config.get().color(LapceColor::EDITOR_FOCUS),
+                    move || config.get().color(&LapceColor::EDITOR_FOCUS),
                 )
                 .style(|s| s.align_items(Some(AlignItems::Center)).max_width_full()),
             )
@@ -2580,7 +2582,7 @@ fn palette_item(
                 focus_text(
                     move || text.clone(),
                     move || indices.clone(),
-                    move || config.get().color(LapceColor::EDITOR_FOCUS),
+                    move || config.get().color(&LapceColor::EDITOR_FOCUS),
                 )
                 .style(|s| s.align_items(Some(AlignItems::Center)).max_width_full()),
             )
@@ -2592,7 +2594,7 @@ fn palette_item(
             .padding_horiz(10.0)
             .apply_if(index.get() == i, |style| {
                 style.background(
-                    config.get().color(LapceColor::PALETTE_CURRENT_BACKGROUND),
+                    config.get().color(&LapceColor::PALETTE_CURRENT_BACKGROUND),
                 )
             })
     })
@@ -2616,8 +2618,8 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
             .height(25.0)
             .items_center()
             .border_bottom(1.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
     }))
     .style(|s| s.padding_bottom(5.0))
 }
@@ -2703,7 +2705,7 @@ fn palette_content(
                             s.background(
                                 config
                                     .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                     })
@@ -2764,9 +2766,9 @@ fn palette_preview(window_tab_data: Rc<WindowTabData>) -> impl View {
             let config = config.get();
             s.position(Position::Absolute)
                 .border_top(1.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(&LapceColor::LAPCE_BORDER))
                 .size_full()
-                .background(config.color(LapceColor::EDITOR_BACKGROUND))
+                .background(config.color(&LapceColor::EDITOR_BACKGROUND))
         }),
     )
     .style(move |s| {
@@ -2809,9 +2811,9 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
                 .margin_top(4.0)
                 .border(1.0)
                 .border_radius(6.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(&LapceColor::LAPCE_BORDER))
                 .flex_col()
-                .background(config.color(LapceColor::PALETTE_BACKGROUND))
+                .background(config.color(&LapceColor::PALETTE_BACKGROUND))
                 .pointer_events_auto()
         }),
     )
@@ -2848,9 +2850,9 @@ fn window_message_view(
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     let color = if let MessageType::ERROR = message.typ {
-                        config.color(LapceColor::LAPCE_ERROR)
+                        config.color(&LapceColor::LAPCE_ERROR)
                     } else {
-                        config.color(LapceColor::LAPCE_WARN)
+                        config.color(&LapceColor::LAPCE_WARN)
                     };
                     s.min_width(size)
                         .size(size, size)
@@ -2905,8 +2907,8 @@ fn window_message_view(
                     .padding(10.0)
                     .border(1.0)
                     .border_radius(6.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .border_color(config.color(&LapceColor::LAPCE_BORDER))
+                    .background(config.color(&LapceColor::PANEL_BACKGROUND))
                     .apply_if(i > 0, |s| s.margin_top(10.0))
             })
         };
@@ -3005,7 +3007,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
                     s.width_full()
                         .margin_vert(5.0)
                         .height(1.0)
-                        .background(config.get().color(LapceColor::LAPCE_BORDER))
+                        .background(config.get().color(&LapceColor::LAPCE_BORDER))
                 })),
             },
         )
@@ -3029,8 +3031,8 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .max_height(300.0)
                     .border(1.0)
                     .border_radius(6.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .border_color(config.color(&LapceColor::LAPCE_BORDER))
+                    .background(config.color(&LapceColor::PANEL_BACKGROUND))
                     .set(PropagatePointerWheel, false)
             } else {
                 s.hide()
@@ -3087,7 +3089,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                             }
                         },
                         move || item.indices.clone(),
-                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                        move || config.get().color(&LapceColor::EDITOR_FOCUS),
                     )
                     .on_click_stop(move |_| {
                         active.set(i);
@@ -3105,13 +3107,14 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
                                 s.background(
-                                    config.color(LapceColor::COMPLETION_CURRENT),
+                                    config.color(&LapceColor::COMPLETION_CURRENT),
                                 )
                             })
                             .hover(move |s| {
                                 s.background(
-                                    config
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    config.color(
+                                        &LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
                                 )
                             })
                     }),
@@ -3154,7 +3157,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
             .max_height(400.0)
             .margin_left(origin.x as f32)
             .margin_top(origin.y as f32)
-            .background(config.color(LapceColor::COMPLETION_BACKGROUND))
+            .background(config.color(&LapceColor::COMPLETION_BACKGROUND))
             .font_family(config.editor.font_family.clone())
             .font_size(config.editor.font_size() as f32)
             .border_radius(6.0)
@@ -3200,13 +3203,14 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
                                 s.background(
-                                    config.color(LapceColor::COMPLETION_CURRENT),
+                                    config.color(&LapceColor::COMPLETION_CURRENT),
                                 )
                             })
                             .hover(move |s| {
                                 s.background(
-                                    config
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    config.color(
+                                        &LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
                                 )
                             })
                     })
@@ -3243,7 +3247,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
         .max_height(400.0)
         .margin_left(origin.x as f32)
         .margin_top(origin.y as f32)
-        .background(config.get().color(LapceColor::COMPLETION_BACKGROUND))
+        .background(config.get().color(&LapceColor::COMPLETION_BACKGROUND))
         .border_radius(6.0)
     })
     .debug_name("Code Action Layer")
@@ -3268,8 +3272,8 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
                 .font_size(config.editor.font_size() as f32)
                 .border(1.0)
                 .border_radius(6.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
-                .background(config.color(LapceColor::EDITOR_BACKGROUND))
+                .border_color(config.color(&LapceColor::LAPCE_BORDER))
+                .background(config.color(&LapceColor::EDITOR_BACKGROUND))
         }),
     )
     .on_resize(move |rect| {
@@ -3283,7 +3287,7 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
             .apply_if(!active.get(), |s| s.hide())
             .margin_left(origin.x as f32)
             .margin_top(origin.y as f32)
-            .background(config.get().color(LapceColor::PANEL_BACKGROUND))
+            .background(config.get().color(&LapceColor::PANEL_BACKGROUND))
             .border_radius(6.0)
             .padding(6.0)
     })
@@ -3339,14 +3343,14 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     .style(move |s| {
         let config = config.get();
         s.size_full()
-            .color(config.color(LapceColor::EDITOR_FOREGROUND))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .color(config.color(&LapceColor::EDITOR_FOREGROUND))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
             .font_size(config.ui.font_size() as f32)
             .apply_if(!config.ui.font_family.is_empty(), |s| {
                 s.font_family(config.ui.font_family.clone())
             })
             .class(floem::views::scroll::Handle, |s| {
-                s.background(config.color(LapceColor::LAPCE_SCROLL_BAR))
+                s.background(config.color(&LapceColor::LAPCE_SCROLL_BAR))
             })
     })
     .debug_name("Window Tab");
@@ -3483,7 +3487,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             .min_width(0.0)
                             .items_center()
                             .border_right(1.0)
-                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .border_color(config.color(&LapceColor::LAPCE_BORDER))
                             .apply_if(
                                 cfg!(target_os = "macos") && index.get() == 0,
                                 |s| s.border_left(1.0),
@@ -3497,7 +3501,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             .border_color(
                                 config
                                     .get()
-                                    .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                                    .color(&LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
                             )
                     }))
                     .style(move |s| {
@@ -3520,15 +3524,15 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 let config = config.get();
                 s.border(1.0)
                     .border_radius(6.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.color(&LapceColor::LAPCE_BORDER))
                     .color(
                         config
-                            .color(LapceColor::EDITOR_FOREGROUND)
+                            .color(&LapceColor::EDITOR_FOREGROUND)
                             .multiply_alpha(0.7),
                     )
                     .background(
                         config
-                            .color(LapceColor::PANEL_BACKGROUND)
+                            .color(&LapceColor::PANEL_BACKGROUND)
                             .multiply_alpha(0.7),
                     )
             })
@@ -3545,7 +3549,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     )
                     .height_full()
                     .border_color(
-                        config.get().color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                        config.get().color(&LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
                     )
                     .apply_if(drag_over_left.get().is_some(), move |s| {
                         let drag_over_left = drag_over_left.get_untracked().unwrap();
@@ -3640,9 +3644,9 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 s.font_family(config.ui.font_family.clone())
             })
             .apply_if(tabs.with(|tabs| tabs.len() < 2), |s| s.hide())
-            .color(config.color(LapceColor::EDITOR_FOREGROUND))
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::PANEL_BACKGROUND))
+            .color(config.color(&LapceColor::EDITOR_FOREGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::PANEL_BACKGROUND))
             .items_center()
     })
     .debug_name("Workspace Tab Header")

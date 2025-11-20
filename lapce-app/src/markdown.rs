@@ -28,7 +28,7 @@ pub fn parse_markdown(
         FamilyOwned::parse_list(&config.editor.font_family).collect();
 
     let default_attrs = Attrs::new()
-        .color(config.color(LapceColor::EDITOR_FOREGROUND))
+        .color(config.color(&LapceColor::EDITOR_FOREGROUND))
         .font_size(config.ui.font_size() as f32)
         .line_height(LineHeightValue::Normal(line_height as f32));
     let mut attr_list = AttrsList::new(default_attrs.clone());
@@ -165,7 +165,7 @@ pub fn parse_markdown(
                     default_attrs
                         .clone()
                         .family(&code_font_family)
-                        .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),
+                        .color(config.color(&LapceColor::MARKDOWN_BLOCKQUOTE)),
                 );
                 current_text.push_str(&text);
                 pos += text.len();
@@ -233,7 +233,7 @@ fn attribute_for_tag<'a>(
         Tag::BlockQuote(_block_quote) => Some(
             default_attrs
                 .style(Style::Italic)
-                .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),
+                .color(config.color(&LapceColor::MARKDOWN_BLOCKQUOTE)),
         ),
         Tag::CodeBlock(_) => Some(default_attrs.family(code_font_family)),
         Tag::Emphasis => Some(default_attrs.style(Style::Italic)),
@@ -246,7 +246,7 @@ fn attribute_for_tag<'a>(
             id: _,
         } => {
             // TODO: Link support
-            Some(default_attrs.color(config.color(LapceColor::EDITOR_LINK)))
+            Some(default_attrs.color(config.color(&LapceColor::EDITOR_LINK)))
         }
         // All other tags are currently ignored
         _ => None,

@@ -66,7 +66,7 @@ pub fn foldable_panel_section(
                 .padding_vert(6.0)
                 .width_pct(100.0)
                 .cursor(CursorStyle::Pointer)
-                .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+                .background(config.get().color(&LapceColor::EDITOR_BACKGROUND))
         })
         .on_click_stop(move |_| {
             open.update(|open| *open = !*open);
@@ -258,7 +258,7 @@ pub fn panel_container_view(
                         s.background(
                             config
                                 .get()
-                                .color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
+                                .color(&LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
                         )
                     })
                 })
@@ -365,7 +365,7 @@ pub fn panel_container_view(
                         s.width(4.0).margin_left(-2.0).height_pct(100.0)
                     })
                     .apply_if(is_dragging, |s| {
-                        s.background(config.color(LapceColor::EDITOR_CARET))
+                        s.background(config.color(&LapceColor::EDITOR_CARET))
                             .apply_if(
                                 position == PanelContainerPosition::Bottom,
                                 |s| s.cursor(CursorStyle::RowResize),
@@ -377,7 +377,7 @@ pub fn panel_container_view(
                             .z_index(2)
                     })
                     .hover(|s| {
-                        s.background(config.color(LapceColor::EDITOR_CARET))
+                        s.background(config.color(&LapceColor::EDITOR_CARET))
                             .apply_if(
                                 position == PanelContainerPosition::Bottom,
                                 |s| s.cursor(CursorStyle::RowResize),
@@ -435,17 +435,17 @@ pub fn panel_container_view(
                 s.border_right(1.0)
                     .width(size as f32)
                     .height_pct(100.0)
-                    .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
                     .width(size as f32)
                     .height_pct(100.0)
-                    .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(!is_bottom, |s| s.flex_col())
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .color(config.color(LapceColor::PANEL_FOREGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .color(config.color(&LapceColor::PANEL_FOREGROUND))
     })
     .debug_name(format!("{:?} Pannel Container View", position))
 }
@@ -528,7 +528,7 @@ pub fn panel_header(
         s.padding_horiz(10.0)
             .padding_vert(6.0)
             .width_pct(100.0)
-            .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+            .background(config.get().color(&LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -600,11 +600,11 @@ fn panel_picker(
                     let config = config.get();
                     s.border(1.0)
                         .border_radius(6.0)
-                        .border_color(config.color(LapceColor::LAPCE_BORDER))
+                        .border_color(config.color(&LapceColor::LAPCE_BORDER))
                         .padding(6.0)
                         .background(
                             config
-                                .color(LapceColor::PANEL_BACKGROUND)
+                                .color(&LapceColor::PANEL_BACKGROUND)
                                 .multiply_alpha(0.7),
                         )
                 })
@@ -631,7 +631,7 @@ fn panel_picker(
                         .border_color(
                             config
                                 .get()
-                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                                .color(&LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
                         )
                 }),
             )))
@@ -639,7 +639,7 @@ fn panel_picker(
         },
     )
     .style(move |s| {
-        s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+        s.border_color(config.get().color(&LapceColor::LAPCE_BORDER))
             .apply_if(
                 panels.with(|p| {
                     p.get(&position).map(|p| p.is_empty()).unwrap_or(true)

@@ -415,16 +415,16 @@ pub fn settings_view(
             s.padding_horiz(20.0)
                 .width_pct(100.0)
                 .apply_if(kind == current_kind.get(), |s| {
-                    s.background(config.color(LapceColor::PANEL_CURRENT_BACKGROUND))
+                    s.background(config.color(&LapceColor::PANEL_CURRENT_BACKGROUND))
                 })
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
                 .active(|s| {
                     s.background(
-                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        config.color(&LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
                 })
         })
@@ -482,7 +482,7 @@ pub fn settings_view(
             s.height_pct(100.0)
                 .width(200.0)
                 .border_right(1.0)
-                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(&LapceColor::LAPCE_BORDER))
         }),
         stack((
             container({
@@ -495,7 +495,7 @@ pub fn settings_view(
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
-                                config.get().color(LapceColor::LAPCE_BORDER),
+                                config.get().color(&LapceColor::LAPCE_BORDER),
                             )
                     })
                     .request_focus(|| {})
@@ -642,7 +642,7 @@ fn settings_item_view(
                     .keyboard_navigable()
                     .style(move |s| {
                         s.width(300.0).border(1.0).border_radius(6.0).border_color(
-                            config.get().color(LapceColor::LAPCE_BORDER),
+                            config.get().color(&LapceColor::LAPCE_BORDER),
                         )
                     })
                     .into_any()
@@ -674,7 +674,7 @@ fn settings_item_view(
                             .width_pct(100.0)
                             .padding_horiz(10.0)
                             .font_size(config.ui.font_size() as f32 + 2.0)
-                            .background(config.color(LapceColor::PANEL_BACKGROUND))
+                            .background(config.color(&LapceColor::PANEL_BACKGROUND))
                     })
                     .into_any()
             } else {
@@ -772,7 +772,7 @@ pub fn checkbox(
     svg(svg_str).style(move |s| {
         let config = config.get();
         let size = config.ui.font_size() as f32;
-        let color = config.color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(&LapceColor::EDITOR_FOREGROUND);
 
         s.min_width(size)
             .size(size, size)
@@ -947,7 +947,7 @@ fn color_section_list(
                             .border(1)
                             .border_radius(6)
                             .border_color(
-                                config.get().color(LapceColor::LAPCE_BORDER),
+                                config.get().color(&LapceColor::LAPCE_BORDER),
                             )
                     }),
                     empty().style(move |s| {
@@ -963,9 +963,9 @@ fn color_section_list(
                             .border_radius(6)
                             .size(size, size)
                             .margin_left(10)
-                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .border_color(config.color(&LapceColor::LAPCE_BORDER))
                             .background(color.unwrap_or_else(|| {
-                                config.color(LapceColor::EDITOR_FOREGROUND)
+                                config.color(&LapceColor::EDITOR_FOREGROUND)
                             }))
                     }),
                     {
@@ -1008,13 +1008,14 @@ fn color_section_list(
                                     .border(1)
                                     .border_radius(6)
                                     .border_color(
-                                        config.color(LapceColor::LAPCE_BORDER),
+                                        config.color(&LapceColor::LAPCE_BORDER),
                                     )
                                     .apply_if(same, |s| s.hide())
                                     .active(|s| {
                                         s.background(
-                                            config
-                                                .color(LapceColor::PANEL_BACKGROUND),
+                                            config.color(
+                                                &LapceColor::PANEL_BACKGROUND,
+                                            ),
                                         )
                                     })
                             })
@@ -1092,7 +1093,7 @@ pub fn theme_color_settings_view(
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
-                                config.get().color(LapceColor::LAPCE_BORDER),
+                                config.get().color(&LapceColor::LAPCE_BORDER),
                             )
                     })
                     .request_focus(|| {})
@@ -1240,7 +1241,7 @@ fn dropdown_view(
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
                 s.size(size, size)
-                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                    .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
             }),
         )
         .style(|s| s.padding_right(4.0)),
@@ -1262,7 +1263,7 @@ fn dropdown_view(
     .style(move |s| {
         s.items_center()
             .cursor(CursorStyle::Pointer)
-            .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+            .border_color(config.get().color(&LapceColor::LAPCE_BORDER))
             .border(1.0)
             .border_radius(6.0)
             .width(250.0)
@@ -1320,7 +1321,7 @@ fn dropdown_scroll(
             .style(move |s| {
                 s.text_ellipsis().padding_horiz(10.0).hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             })
@@ -1380,16 +1381,16 @@ fn dropdown_scroll(
             .line_height(1.8)
             .font_size(config.ui.font_size() as f32)
             .font_family(config.ui.font_family.clone())
-            .color(config.color(LapceColor::EDITOR_FOREGROUND))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .color(config.color(&LapceColor::EDITOR_FOREGROUND))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
             .class(floem::views::scroll::Handle, |s| {
-                s.background(config.color(LapceColor::LAPCE_SCROLL_BAR))
+                s.background(config.color(&LapceColor::LAPCE_SCROLL_BAR))
             })
             .border(1)
             .border_radius(6.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
             .box_shadow_blur(3.0)
-            .box_shadow_color(config.color(LapceColor::LAPCE_DROPDOWN_SHADOW))
+            .box_shadow_color(config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW))
             .inset_left(x)
             .inset_top(y)
     })
