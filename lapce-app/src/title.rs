@@ -104,7 +104,7 @@ fn left(
             }
             #[cfg(windows)]
             {
-                menu = menu.entry("Connect to WSL Host", |builder| {
+                menu = menu.item("Connect to WSL Host", |builder| {
                     builder.action(move || {
                         workbench_command
                             .send(LapceWorkbenchCommand::ConnectWslHost);
