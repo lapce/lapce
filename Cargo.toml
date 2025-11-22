@@ -41,7 +41,7 @@ flate2            = { version = "1.0" }
 git2              = { version = "0.20.0", features = ["vendored-openssl"] }
 globset           = { version = "0.4.14" }
 hashbrown         = { version = "0.14.5", features = ["serde"] }
-im                = { version = "15.0.0", features = ["serde"] }
+imbl              = { version = "6.1.0", features = ["serde"] }
 include_dir       = { version = "0.7" }
 indexmap          = { version = "2.0", features = ["serde"] }
 interprocess      = { version = "1.2.1" }
@@ -76,8 +76,8 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem = { git = "https://github.com/lapce/floem", rev = "597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9", features = ["serde"] }
+floem = { git = "https://github.com/lapce/floem", rev = "85f9af7a02c122a95a44d2424cd5f47e626b79a5", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "85f9af7a02c122a95a44d2424cd5f47e626b79a5", features = ["serde"] }
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug

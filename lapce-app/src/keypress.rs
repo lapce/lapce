@@ -8,9 +8,9 @@ use std::{path::PathBuf, rc::Rc, str::FromStr, time::SystemTime};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{Key, KeyEvent, Modifiers, NamedKey},
-    pointer::{MouseButton, PointerButton, PointerInputEvent},
     reactive::{RwSignal, Scope, SignalUpdate, SignalWith},
+    ui_events::keyboard::{Key, KeyboardEvent, Modifiers, NamedKey},
+    ui_events::pointer::{PointerButton, PointerButtonEvent},
 };
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -122,18 +122,18 @@ impl KeyPressFocus for Box<dyn KeyPressFocus> {
 
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {
-    Keyboard(&'a floem::keyboard::KeyEvent),
-    Pointer(&'a floem::pointer::PointerInputEvent),
+    Keyboard(&'a KeyboardEvent),
+    Pointer(&'a PointerButtonEvent),
 }
 
-impl<'a> From<&'a KeyEvent> for EventRef<'a> {
-    fn from(ev: &'a KeyEvent) -> Self {
+impl<'a> From<&'a KeyboardEvent> for EventRef<'a> {
+    fn from(ev: &'a KeyboardEvent) -> Self {
         Self::Keyboard(ev)
     }
 }
 
-impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
-    fn from(ev: &'a PointerInputEvent) -> Self {
+impl<'a> From<&'a PointerButtonEvent> for EventRef<'a> {
+    fn from(ev: &'a PointerButtonEvent) -> Self {
         Self::Pointer(ev)
     }
 }
@@ -260,17 +260,17 @@ impl KeyPressData {
         let keypress = match event {
             EventRef::Keyboard(ev) => KeyPress {
                 key: KeyInput::Keyboard {
-                    logical: ev.key.logical_key.to_owned(),
-                    physical: ev.key.physical_key,
-                    key_without_modifiers: ev.key.key_without_modifiers.clone(),
-                    location: ev.key.location,
-                    repeat: ev.key.repeat,
+                    logical: ev.key.clone(),
+                    physical: ev.code,
+                    key_without_modifiers: ev.key.clone(), //.key_without_modifiers.clone(),
+                    location: ev.location,
+                    repeat: ev.repeat,
                 },
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
-                key: KeyInput::Pointer(ev.button),
-                mods: ev.modifiers,
+                key: KeyInput::Pointer(ev.button?),
+                mods: ev.state.modifiers,
             },
         };
         Some(keypress)
@@ -288,9 +288,7 @@ impl KeyPressData {
                     handled: false,
                     keymatch: KeymapMatch::None,
                     keypress: KeyPress {
-                        key: KeyInput::Pointer(PointerButton::Mouse(
-                            MouseButton::Primary,
-                        )),
+                        key: KeyInput::Pointer(PointerButton::Primary),
                         mods: Modifiers::empty(),
                     },
                 };
@@ -424,7 +422,7 @@ impl KeyPressData {
         #[cfg(not(target_os = "macos"))]
         {
             mods.set(Modifiers::SHIFT, false);
-            mods.set(Modifiers::ALTGR, false);
+            mods.set(Modifiers::ALT_GRAPH, false);
         }
         if mods.is_empty() {
             if let KeyInput::Keyboard { logical, .. } = &keypress.key {
@@ -455,15 +453,15 @@ impl KeyPressData {
         }
     }
 
-    fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
+    fn get_key_modifiers(key_event: &KeyboardEvent) -> Modifiers {
         let mut mods = key_event.modifiers;
 
-        match &key_event.key.logical_key {
+        match &key_event.key {
             Key::Named(NamedKey::Shift) => mods.set(Modifiers::SHIFT, false),
             Key::Named(NamedKey::Alt) => mods.set(Modifiers::ALT, false),
             Key::Named(NamedKey::Meta) => mods.set(Modifiers::META, false),
             Key::Named(NamedKey::Control) => mods.set(Modifiers::CONTROL, false),
-            Key::Named(NamedKey::AltGraph) => mods.set(Modifiers::ALTGR, false),
+            Key::Named(NamedKey::AltGraph) => mods.set(Modifiers::ALT_GRAPH, false),
             _ => (),
         }
 

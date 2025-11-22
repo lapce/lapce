@@ -10,14 +10,16 @@ use floem::{
     ViewId,
     action::{TimerToken, exec_after, show_context_menu},
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::Menu,
-    pointer::{MouseButton, PointerInputEvent, PointerMoveEvent},
     prelude::SignalTrack,
     reactive::{
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, batch,
         use_context,
+    },
+    ui_events::{
+        keyboard::Modifiers,
+        pointer::{PointerButton, PointerButtonEvent, PointerUpdate},
     },
     views::editor::{
         Editor,
@@ -2279,7 +2281,7 @@ impl EditorData {
 
         // insert some empty data, so that we won't make the request again
         doc.code_actions().update(|c| {
-            c.insert(offset, (PluginId(0), im::Vector::new()));
+            c.insert(offset, (PluginId(0), imbl::Vector::new()));
         });
 
         let (position, rev, diagnostics) = doc.buffer.with_untracked(|buffer| {
@@ -2706,7 +2708,7 @@ impl EditorData {
         self.common.find.replace_focus.set(false);
     }
 
-    pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
+    pub fn pointer_down(&self, pointer_event: &PointerButtonEvent) {
         self.cancel_completion();
         self.cancel_inline_completion();
         if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
@@ -2722,13 +2724,13 @@ impl EditorData {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
-        match pointer_event.button.mouse_button() {
-            MouseButton::Primary => {
+        match pointer_event.button {
+            Some(PointerButton::Primary) => {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
-                let y =
-                    pointer_event.pos.y - self.editor.viewport.get_untracked().y0;
+                let pointer_pos = pointer_event.state.logical_point();
+                let y = pointer_pos.y - self.editor.viewport.get_untracked().y0;
                 if self.sticky_header_height.get_untracked() > y {
                     let index = y as usize
                         / self.common.config.get_untracked().editor.line_height();
@@ -2754,11 +2756,12 @@ impl EditorData {
                     }
                 }
 
-                if (cfg!(target_os = "macos") && pointer_event.modifiers.meta())
-                    || (cfg!(not(target_os = "macos"))
-                        && pointer_event.modifiers.control())
+                let pointer_modifiers = pointer_event.state.modifiers;
+
+                if (cfg!(target_os = "macos") && pointer_modifiers.meta())
+                    || (cfg!(not(target_os = "macos")) && pointer_modifiers.ctrl())
                 {
-                    let rs = self.find_hint(pointer_event.pos);
+                    let rs = self.find_hint(pointer_pos);
                     match rs {
                         FindHintRs::NoMatchBreak
                         | FindHintRs::NoMatchContinue { .. } => {
@@ -2791,7 +2794,7 @@ impl EditorData {
                     }
                 }
             }
-            MouseButton::Secondary => {
+            Some(PointerButton::Secondary) => {
                 self.right_click(pointer_event);
             }
             _ => {}
@@ -2833,8 +2836,8 @@ impl EditorData {
     }
 
     #[instrument]
-    fn left_click(&self, pointer_event: &PointerInputEvent) {
-        match pointer_event.count {
+    fn left_click(&self, pointer_event: &PointerButtonEvent) {
+        match pointer_event.state.count {
             1 => {
                 self.single_click(pointer_event);
             }
@@ -2849,25 +2852,26 @@ impl EditorData {
     }
 
     #[instrument]
-    fn single_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.single_click(pointer_event);
+    fn single_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.single_click(&pointer_event.state);
     }
 
     #[instrument]
-    fn double_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.double_click(pointer_event);
+    fn double_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.double_click(&pointer_event.state);
     }
 
     #[instrument]
-    fn triple_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.triple_click(pointer_event);
+    fn triple_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.triple_click(&pointer_event.state);
     }
 
     #[instrument]
-    pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
+    pub fn pointer_move(&self, pointer_event: &PointerUpdate) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
+        let pointer_pos = pointer_event.current.logical_point();
         let (offset, is_inside, affinity) =
-            self.editor.offset_of_point(mode, pointer_event.pos);
+            self.editor.offset_of_point(mode, pointer_pos);
         if self.active().get_untracked()
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
@@ -2876,7 +2880,7 @@ impl EditorData {
                     offset,
                     affinity,
                     true,
-                    pointer_event.modifiers.alt(),
+                    pointer_event.current.modifiers.alt(),
                 )
             });
         }
@@ -2921,8 +2925,8 @@ impl EditorData {
     }
 
     #[instrument]
-    pub fn pointer_up(&self, pointer_event: &PointerInputEvent) {
-        self.editor.pointer_up(pointer_event);
+    pub fn pointer_up(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.pointer_up(&pointer_event.state);
     }
 
     #[instrument]
@@ -2931,9 +2935,10 @@ impl EditorData {
     }
 
     #[instrument]
-    fn right_click(&self, pointer_event: &PointerInputEvent) {
+    fn right_click(&self, pointer_event: &PointerButtonEvent) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
-        let (offset, ..) = self.editor.offset_of_point(mode, pointer_event.pos);
+        let pointer_pos = pointer_event.state.logical_point();
+        let (offset, ..) = self.editor.offset_of_point(mode, pointer_pos);
         let doc = self.doc();
         let pointer_inside_selection = doc.buffer.with_untracked(|buffer| {
             self.cursor()

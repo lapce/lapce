@@ -14,7 +14,7 @@ pub struct TerminalTabData {
     pub scope: Scope,
     pub terminal_tab_id: TerminalTabId,
     pub active: RwSignal<usize>,
-    pub terminals: RwSignal<im::Vector<(RwSignal<usize>, TerminalData)>>,
+    pub terminals: RwSignal<imbl::Vector<(RwSignal<usize>, TerminalData)>>,
 }
 
 impl TerminalTabData {
@@ -36,7 +36,7 @@ impl TerminalTabData {
         let cx = common.scope.create_child();
         let terminal_data =
             TerminalData::new_run_debug(cx, workspace, run_debug, profile, common);
-        let terminals = im::vector![(cx.create_rw_signal(0), terminal_data)];
+        let terminals = imbl::vector![(cx.create_rw_signal(0), terminal_data)];
         let terminals = cx.create_rw_signal(terminals);
         let active = cx.create_rw_signal(0);
         let terminal_tab_id = TerminalTabId::next();

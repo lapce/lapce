@@ -235,10 +235,10 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
                     "Install".to_string()
                 }
             })
-            .disabled(move || installed.get() || installing.get())
             .on_click_stop(move |_| {
                 plugin.install_volt(info.get_untracked());
             })
+            .style(move |s| s.set_disabled(installed.get() || installing.get()))
             .style(move |s| {
                 let config = config.get();
                 s.color(config.color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND))

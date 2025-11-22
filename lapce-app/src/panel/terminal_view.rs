@@ -3,7 +3,7 @@ use std::rc::Rc;
 use floem::{
     View, ViewId,
     action::show_context_menu,
-    event::{Event, EventListener, EventPropagation},
+    event::{EventListener, EventPropagation},
     kurbo::Size,
     menu::Menu,
     reactive::{SignalGet, SignalUpdate, SignalWith, create_rw_signal},
@@ -318,8 +318,8 @@ fn terminal_tab_split(
                         }
                     })
                     .on_event(EventListener::PointerWheel, move |event| {
-                        if let Event::PointerWheel(pointer_event) = event {
-                            terminal.clone().wheel_scroll(pointer_event.delta.y);
+                        if let Some(delta) = event.pixel_scroll_delta_vec2() {
+                            terminal.clone().wheel_scroll(delta.y);
                             EventPropagation::Stop
                         } else {
                             EventPropagation::Continue
@@ -351,7 +351,7 @@ fn terminal_tab_split(
 fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     tab(
-        move || terminal.tab_info.with(|info| info.active),
+        move || terminal.tab_info.with(|info| Some(info.active)),
         move || terminal.tab_info.with(|info| info.tabs.clone()),
         |(_, tab)| tab.terminal_tab_id,
         move |(tab_index, tab)| {

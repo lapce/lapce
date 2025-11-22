@@ -1,7 +1,7 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
-    keyboard::Modifiers,
+    ui_events::keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalWith},
 };
 use indexmap::IndexMap;
@@ -21,8 +21,8 @@ pub struct SourceControlData {
     // VCS modified files & whether they should be included in the next commit
     pub file_diffs: RwSignal<IndexMap<PathBuf, (FileDiff, bool)>>,
     pub branch: RwSignal<String>,
-    pub branches: RwSignal<im::Vector<String>>,
-    pub tags: RwSignal<im::Vector<String>>,
+    pub branches: RwSignal<imbl::Vector<String>>,
+    pub tags: RwSignal<imbl::Vector<String>>,
     pub editor: EditorData,
     pub common: Rc<CommonData>,
 }
@@ -65,8 +65,8 @@ impl SourceControlData {
         Self {
             file_diffs: cx.create_rw_signal(IndexMap::new()),
             branch: cx.create_rw_signal("".to_string()),
-            branches: cx.create_rw_signal(im::Vector::new()),
-            tags: cx.create_rw_signal(im::Vector::new()),
+            branches: cx.create_rw_signal(imbl::Vector::new()),
+            tags: cx.create_rw_signal(imbl::Vector::new()),
             editor: editors.make_local(cx, common.clone()),
             common,
         }

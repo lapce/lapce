@@ -17,10 +17,11 @@ use floem::{
     },
     style::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
-        PaddingLeft, Style, TextColor,
+        PaddingProp, Style, TextColor,
     },
     taffy::prelude::NodeId,
     text::{Affinity, Attrs, AttrsList, FamilyOwned, TextLayout},
+    ui_events::pointer::{PointerButton, PointerEvent},
     unit::PxPct,
     views::Decorators,
 };
@@ -253,7 +254,7 @@ fn text_input_full<T: KeyPressFocus + 'static>(
         }
     })
     .on_event(EventListener::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
+        if let Event::Key(key_event) = event {
             let keypress = keypress.get_untracked();
             let key_focus = key_focus
                 .as_ref()
@@ -416,14 +417,18 @@ impl TextInput {
     fn hit_index(&self, _cx: &mut EventCx, point: Point) -> (usize, CursorAffinity) {
         self.text_layout.with_untracked(|text_layout| {
             if let Some(text_layout) = text_layout.as_ref() {
-                let padding_left =
-                    match self.id.get_combined_style().get(PaddingLeft) {
+                let padding = self.id.get_combined_style().get(PaddingProp);
+                let padding_left = padding
+                    .left
+                    .map(|padding_left| match padding_left {
                         PxPct::Px(v) => v,
                         PxPct::Pct(pct) => {
                             let layout = self.id.get_layout().unwrap_or_default();
                             pct * layout.size.width as f64
                         }
-                    };
+                    })
+                    .unwrap_or_default();
+
                 let hit =
                     text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
                 (
@@ -666,12 +671,17 @@ impl View for TextInput {
         let text_offset = self.text_viewport.origin();
         let event = event.clone().offset((-text_offset.x, -text_offset.y));
         match event {
-            Event::PointerDown(pointer) => {
-                let (offset, affinity) = self.hit_index(cx, pointer.pos);
+            Event::Pointer(PointerEvent::Down(pointer)) => {
+                let pointer_pos = pointer.state.logical_position();
+                let pointer_pos = Point::new(pointer_pos.x, pointer_pos.y);
+
+                let (offset, affinity) = self.hit_index(cx, pointer_pos);
                 self.cursor().update(|cursor| {
                     cursor.set_insert(Selection::caret(offset, affinity));
                 });
-                if pointer.button.is_primary() && pointer.count == 2 {
+                if pointer.button == Some(PointerButton::Primary)
+                    && pointer.state.count == 2
+                {
                     let (start, end) = self
                         .doc()
                         .buffer
@@ -683,7 +693,9 @@ impl View for TextInput {
                             CursorAffinity::Backward,
                         ));
                     });
-                } else if pointer.button.is_primary() && pointer.count == 3 {
+                } else if pointer.button == Some(PointerButton::Primary)
+                    && pointer.state.count == 3
+                {
                     self.cursor().update(|cursor| {
                         cursor.set_insert(Selection::region(
                             0,
@@ -694,22 +706,27 @@ impl View for TextInput {
                 }
                 cx.update_active(self.id);
             }
-            Event::PointerMove(pointer) => {
+            Event::Pointer(PointerEvent::Move(pointer)) => {
                 if cx.is_active(self.id) {
-                    let (offset, affinity) = self.hit_index(cx, pointer.pos);
+                    let pointer_pos = pointer.current.logical_position();
+                    let pointer_pos = Point::new(pointer_pos.x, pointer_pos.y);
+
+                    let (offset, affinity) = self.hit_index(cx, pointer_pos);
                     self.cursor().update(|cursor| {
                         cursor.set_offset(offset, affinity, true, false);
                     });
                 }
             }
-            Event::PointerWheel(pointer_event) => {
-                let delta = pointer_event.delta;
-                let delta = if delta.x == 0.0 && delta.y != 0.0 {
-                    Vec2::new(delta.y, delta.x)
-                } else {
-                    delta
-                };
-                self.clamp_text_viewport(self.text_viewport + delta);
+            event @ Event::Pointer(PointerEvent::Scroll(_)) => {
+                if let Some(delta) = event.pixel_scroll_delta_vec2() {
+                    let delta = if delta.x == 0.0 && delta.y != 0.0 {
+                        Vec2::new(delta.y, delta.x)
+                    } else {
+                        delta
+                    };
+                    self.clamp_text_viewport(self.text_viewport + delta);
+                }
+
                 return EventPropagation::Continue;
             }
             _ => {}

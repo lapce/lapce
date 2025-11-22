@@ -10,6 +10,7 @@ use floem::{
     },
     style::{AlignItems, CursorStyle, Position, Style},
     text::Style as FontStyle,
+    ui_events::pointer::{PointerButton, PointerEvent},
     views::{
         Container, Decorators, container, dyn_stack, label, scroll, stack, svg,
         virtual_stack,
@@ -455,8 +456,13 @@ fn file_explorer_view(
                     .on_event_stop(
                         EventListener::PointerDown,
                         move |event| {
-                            if let Event::PointerDown(pointer_event) = event {
-                                if pointer_event.button.is_auxiliary() {
+                            if let Event::Pointer(PointerEvent::Down(
+                                pointer_event,
+                            )) = event
+                            {
+                                if pointer_event.button
+                                    == Some(PointerButton::Auxiliary)
+                                {
                                     aux_click_data.middle_click(&aux_click_path);
                                 }
                             }

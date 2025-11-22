@@ -1,17 +1,18 @@
-use floem::keyboard::{Key, KeyLocation, NamedKey, PhysicalKey};
-
 use super::keymap::KeyMapKey;
+use floem::ui_events::keyboard::{
+    Code as KeyCode, Key, Location as KeyLocation, NamedKey,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) enum KeyInput {
     Keyboard {
-        physical: PhysicalKey,
+        physical: KeyCode,
         logical: Key,
         location: KeyLocation,
         key_without_modifiers: Key,
         repeat: bool,
     },
-    Pointer(floem::pointer::PointerButton),
+    Pointer(floem::ui_events::pointer::PointerButton),
 }
 
 impl KeyInput {
@@ -51,6 +52,9 @@ impl KeyInput {
                 }
 
                 match key_without_modifiers {
+                    Key::Named(NamedKey::Dead | NamedKey::Unidentified) => {
+                        KeyMapKey::Physical(*physical)
+                    }
                     Key::Named(_) => {
                         KeyMapKey::Logical(key_without_modifiers.to_owned())
                     }
@@ -58,15 +62,11 @@ impl KeyInput {
                         if c == " " {
                             KeyMapKey::Logical(Key::Character(c.clone()))
                         } else if c.len() == 1 && c.is_ascii() {
-                            KeyMapKey::Logical(Key::Character(
-                                c.to_lowercase().into(),
-                            ))
+                            KeyMapKey::Logical(Key::Character(c.to_lowercase()))
                         } else {
                             KeyMapKey::Physical(*physical)
                         }
                     }
-                    Key::Unidentified(_) => KeyMapKey::Physical(*physical),
-                    Key::Dead(_) => KeyMapKey::Physical(*physical),
                 }
             }
         })

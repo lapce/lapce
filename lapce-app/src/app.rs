@@ -18,8 +18,9 @@ use clap::Parser;
 use floem::{
     IntoView, View,
     action::show_context_menu,
+    dropped_file::FileDragEvent,
     event::{Event, EventListener, EventPropagation},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_ext_action,
     menu::Menu,
     peniko::{
         Color,
@@ -30,6 +31,7 @@ use floem::{
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
     },
+    receiver_signal::ChannelSignal,
     style::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,
         Style,
@@ -39,6 +41,7 @@ use floem::{
         style_helpers::{self, auto, fr},
     },
     text::{Style as FontStyle, Weight},
+    ui_events::pointer::{PointerButton, PointerEvent},
     unit::PxPctAuto,
     views::{
         Decorators, VirtualVector, clip, container, drag_resize_window_area,
@@ -158,7 +161,7 @@ pub enum AppCommand {
 
 #[derive(Clone)]
 pub struct AppData {
-    pub windows: RwSignal<im::HashMap<WindowId, WindowData>>,
+    pub windows: RwSignal<imbl::HashMap<WindowId, WindowData>>,
     pub active_window: RwSignal<WindowId>,
     pub window_scale: RwSignal<f64>,
     pub app_command: Listener<AppCommand>,
@@ -610,9 +613,9 @@ impl AppData {
         view_id.request_focus();
 
         view.window_scale(move || window_scale.get())
-            .keyboard_navigable()
+            .style(|s| s.focusable(true))
             .on_event(EventListener::KeyDown, move |event| {
-                if let Event::KeyDown(key_event) = event {
+                if let Event::Key(key_event) = event {
                     if key_down_window_data.key_down(key_event) {
                         view_id.request_focus();
                     }
@@ -624,7 +627,8 @@ impl AppData {
             .on_event(EventListener::PointerDown, {
                 let window_data = window_data.clone();
                 move |event| {
-                    if let Event::PointerDown(pointer_event) = event {
+                    if let Event::Pointer(PointerEvent::Down(pointer_event)) = event
+                    {
                         window_data.key_down(pointer_event);
                         EventPropagation::Stop
                     } else {
@@ -648,9 +652,12 @@ impl AppData {
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
             })
-            .on_event_stop(EventListener::DroppedFile, move |event: &Event| {
-                if let Event::DroppedFiles(event) = event {
-                    for path in &event.path {
+            .on_event_stop(EventListener::DroppedFiles, move |event: &Event| {
+                if let Event::FileDrag(FileDragEvent::DragDropped {
+                    paths, ..
+                }) = event
+                {
+                    for path in paths {
                         if path.is_dir() {
                             app_command.send(AppCommand::NewWindow {
                                 folder: Some(path.clone()),
@@ -882,8 +889,9 @@ fn editor_tab_header(
                     }
                 })
                 .on_event(EventListener::PointerDown, move |event| {
-                    if let Event::PointerDown(pointer_event) = event {
-                        if pointer_event.button.is_auxiliary() {
+                    if let Event::Pointer(PointerEvent::Down(pointer_event)) = event
+                    {
+                        if pointer_event.button == Some(PointerButton::Auxiliary) {
                             let editor_tab_id =
                                 editor_tab.with_untracked(|t| t.editor_tab_id);
                             internal_command.send(
@@ -922,7 +930,6 @@ fn editor_tab_header(
                 .on_resize(move |rect| {
                     header_content_size.set(rect.size());
                 })
-                .draggable()
                 .dragging_style(move |s| {
                     let config = config.get();
                     s.border(1.0)
@@ -934,7 +941,11 @@ fn editor_tab_header(
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
-                .style(|s| s.align_items(Some(AlignItems::Center)).flex_grow(1.0)),
+                .style(|s| {
+                    s.align_items(Some(AlignItems::Center))
+                        .flex_grow(1.0)
+                        .draggable(true)
+                }),
             empty()
                 .style(move |s| {
                     s.size_full()
@@ -1003,8 +1014,9 @@ fn editor_tab_header(
         .debug_name("Tab and Active Indicator")
         .on_event_stop(EventListener::DragOver, move |event| {
             if dragging.with_untracked(|dragging| dragging.is_some()) {
-                if let Event::PointerMove(pointer_event) = event {
-                    let new_left = pointer_event.pos.x
+                if let Event::Pointer(PointerEvent::Move(pointer_event)) = event {
+                    let pointer_pos = pointer_event.current.logical_position();
+                    let new_left = pointer_pos.x
                         < header_content_size.get_untracked().width / 2.0;
                     if drag_over_left.get_untracked() != Some(new_left) {
                         drag_over_left.set(Some(new_left));
@@ -1016,8 +1028,9 @@ fn editor_tab_header(
             if let Some((from_index, from_editor_tab_id)) = dragging.get_untracked()
             {
                 drag_over_left.set(None);
-                if let Event::PointerUp(pointer_event) = event {
-                    let left = pointer_event.pos.x
+                if let Event::Pointer(PointerEvent::Up(pointer_event)) = event {
+                    let pointer_pos = pointer_event.state.logical_position();
+                    let left = pointer_pos.x
                         < header_content_size.get_untracked().width / 2.0;
                     let index = i.get_untracked();
                     let new_index = if left { index } else { index + 1 };
@@ -1408,7 +1421,7 @@ fn editor_tab_content(
         };
         child.style(|s| s.size_full())
     };
-    let active = move || editor_tab.with(|t| t.active);
+    let active = move || editor_tab.with(|t| Some(t.active));
 
     tab(active, items, key, view_fn)
         .style(|s| s.size_full())
@@ -1514,9 +1527,13 @@ fn editor_tab(
             empty()
                 .on_event_stop(EventListener::DragOver, move |event| {
                     if dragging.with_untracked(|dragging| dragging.is_some()) {
-                        if let Event::PointerMove(pointer_event) = event {
+                        if let Event::Pointer(PointerEvent::Move(pointer_event)) =
+                            event
+                        {
                             let size = tab_size.get_untracked();
-                            let pos = pointer_event.pos;
+                            let pointer_pos =
+                                pointer_event.current.logical_position();
+                            let pos = pointer_pos;
                             let new_drag_over = if pos.x < size.width / 4.0 {
                                 DragOverPosition::Left
                             } else if pos.x > size.width * 3.0 / 4.0 {
@@ -1629,8 +1646,8 @@ fn editor_tab(
 }
 
 fn split_resize_border(
-    splits: ReadSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
-    editor_tabs: ReadSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
+    splits: ReadSignal<imbl::HashMap<SplitId, RwSignal<SplitData>>>,
+    editor_tabs: ReadSignal<imbl::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     split: ReadSignal<SplitData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -1694,20 +1711,23 @@ fn split_resize_border(
         },
         |(index, (_, content))| (*index, content.id()),
         move |(index, (_, content))| {
-            let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
+            let drag_start: RwSignal<Option<_>> = create_rw_signal(None);
             let view = empty();
             let view_id = view.id();
             view.on_event_stop(EventListener::PointerDown, move |event| {
                 view_id.request_active();
-                if let Event::PointerDown(pointer_event) = event {
-                    drag_start.set(Some(pointer_event.pos));
+                if let Event::Pointer(PointerEvent::Down(pointer_event)) = event {
+                    let pointer_pos = pointer_event.state.logical_position();
+                    drag_start.set(Some(pointer_pos));
                 }
             })
             .on_event_stop(EventListener::PointerUp, move |_| {
                 drag_start.set(None);
             })
             .on_event_stop(EventListener::PointerMove, move |event| {
-                if let Event::PointerMove(pointer_event) = event {
+                if let Event::Pointer(PointerEvent::Move(pointer_event)) = event {
+                    let pointer_pos = pointer_event.current.logical_position();
+
                     if let Some(drag_start_point) = drag_start.get_untracked() {
                         let rects = split.with_untracked(|split| {
                             split
@@ -1721,7 +1741,7 @@ fn split_resize_border(
                             SplitDirection::Vertical => {
                                 let left = rects[index - 1].width();
                                 let right = rects[index].width();
-                                let shift = pointer_event.pos.x - drag_start_point.x;
+                                let shift = pointer_pos.x - drag_start_point.x;
                                 let left = left + shift;
                                 let right = right - shift;
                                 let total_width =
@@ -1743,7 +1763,7 @@ fn split_resize_border(
                             SplitDirection::Horizontal => {
                                 let up = rects[index - 1].height();
                                 let down = rects[index].height();
-                                let shift = pointer_event.pos.y - drag_start_point.y;
+                                let shift = pointer_pos.y - drag_start_point.y;
                                 let up = up + shift;
                                 let down = down - shift;
                                 let total_height =
@@ -1818,8 +1838,8 @@ fn split_resize_border(
 }
 
 fn split_border(
-    splits: ReadSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
-    editor_tabs: ReadSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
+    splits: ReadSignal<imbl::HashMap<SplitId, RwSignal<SplitData>>>,
+    editor_tabs: ReadSignal<imbl::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     split: ReadSignal<SplitData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -2098,6 +2118,7 @@ pub fn clickable_icon_base(
 ) -> impl View {
     let view = container(
         svg(move || config.get().ui_svg(icon()))
+            .style(move |s| s.set_disabled(disabled_fn()))
             .style(move |s| {
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
@@ -2107,10 +2128,9 @@ pub fn clickable_icon_base(
                         s.color(config.color(LapceColor::LAPCE_ICON_INACTIVE))
                             .cursor(CursorStyle::Default)
                     })
-            })
-            .disabled(disabled_fn),
+            }),
     )
-    .disabled(disabled_fn)
+    .style(move |s| s.set_disabled(disabled_fn()))
     .style(move |s| {
         let config = config.get();
         s.padding(4.0)
@@ -2624,7 +2644,7 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     .style(|s| s.padding_bottom(5.0))
 }
 
-struct PaletteItems(im::Vector<PaletteItem>);
+struct PaletteItems(imbl::Vector<PaletteItem>);
 
 impl VirtualVector<(usize, PaletteItem)> for PaletteItems {
     fn total_len(&self) -> usize {
@@ -2949,7 +2969,7 @@ fn window_message_view(
     .debug_name("Window Message View")
 }
 
-struct VectorItems<V>(im::Vector<V>);
+struct VectorItems<V>(imbl::Vector<V>);
 
 impl<V: Clone + 'static> VirtualVector<(usize, V)> for VectorItems<V> {
     fn total_len(&self) -> usize {
@@ -3444,9 +3464,14 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     ))
                     .on_event_stop(EventListener::DragOver, move |event| {
                         if dragging_index.get_untracked().is_some() {
-                            if let Event::PointerMove(pointer_event) = event {
-                                let left = pointer_event.pos.x
-                                    < tab_width.get_untracked() / 2.0;
+                            if let Event::Pointer(PointerEvent::Move(
+                                pointer_event,
+                            )) = event
+                            {
+                                let pointer_pos =
+                                    pointer_event.current.logical_position();
+                                let left =
+                                    pointer_pos.x < tab_width.get_untracked() / 2.0;
                                 if drag_over_left.get_untracked() != Some(left) {
                                     drag_over_left.set(Some(left));
                                 }
@@ -3456,9 +3481,13 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     .on_event(EventListener::Drop, move |event| {
                         if dragging_index.get_untracked().is_some() {
                             drag_over_left.set(None);
-                            if let Event::PointerUp(pointer_event) = event {
-                                let left = pointer_event.pos.x
-                                    < tab_width.get_untracked() / 2.0;
+                            if let Event::Pointer(PointerEvent::Up(pointer_event)) =
+                                event
+                            {
+                                let pointer_pos =
+                                    pointer_event.state.logical_position();
+                                let left =
+                                    pointer_pos.x < tab_width.get_untracked() / 2.0;
                                 let index = index.get_untracked();
                                 let new_index = if left { index } else { index + 1 };
                                 if let Some(from_index) =
@@ -3511,7 +3540,6 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 ))
                 .style(move |s| s.size_full().items_center())
             })
-            .draggable()
             .on_event_stop(EventListener::DragStart, move |_| {
                 dragging_index.set(Some(index));
             })
@@ -3537,7 +3565,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
             .on_click_stop(move |_| {
                 active.set(index.get_untracked());
             })
-            .style(move |s| s.size_full()),
+            .style(move |s| s.size_full().draggable(true)),
             empty().style(move |s| {
                 let index = index.get();
                 s.absolute()
@@ -3657,7 +3685,7 @@ fn window(window_data: WindowData) -> impl View {
     let key = |(_, window_tab): &(RwSignal<usize>, Rc<WindowTabData>)| {
         window_tab.window_tab_id
     };
-    let active = move || active.get();
+    let active = move || Some(active.get());
     let window_focus = create_rw_signal(false);
     let ime_enabled = window_data.ime_enabled;
     let window_maximized = window_data.common.window_maximized;
@@ -3668,8 +3696,8 @@ fn window(window_data: WindowData) -> impl View {
     .window_title(move || {
         let active = active();
         let window_tabs = window_tabs.get();
-        let workspace = window_tabs
-            .get(active)
+        let workspace = active
+            .and_then(|i| window_tabs.get(i))
             .or_else(|| window_tabs.last())
             .and_then(|(_, window_tab)| window_tab.workspace.display());
         match workspace {
@@ -3695,7 +3723,9 @@ fn window(window_data: WindowData) -> impl View {
         window_focus.track();
         let active = active();
         let window_tabs = window_tabs.get();
-        let window_tab = window_tabs.get(active).or_else(|| window_tabs.last());
+        let window_tab = active
+            .and_then(|i| window_tabs.get(i))
+            .or_else(|| window_tabs.last());
         if let Some((_, window_tab)) = window_tab {
             window_tab.common.keypress.track();
             let workbench_command = window_tab.common.workbench_command;
@@ -3858,7 +3888,7 @@ pub fn launch() {
         }
     }
 
-    let windows = scope.create_rw_signal(im::HashMap::new());
+    let windows = scope.create_rw_signal(imbl::HashMap::new());
     let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
 
     // Restore scale from config
@@ -3882,7 +3912,7 @@ pub fn launch() {
 
     {
         let app_data = app_data.clone();
-        let notification = create_signal_from_channel(rx);
+        let notification = ChannelSignal::new(rx);
         create_effect(move |_| {
             if notification.get().is_some() {
                 tracing::debug!("notification reload_config");
@@ -3956,7 +3986,7 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     {
         let (tx, rx) = sync_channel(1);
-        let notification = create_signal_from_channel(rx);
+        let notification = ChannelSignal::new(rx);
         let latest_release = app_data.latest_release;
         create_effect(move |_| {
             if let Some(release) = notification.get() {
@@ -3980,7 +4010,7 @@ pub fn launch() {
 
     {
         let (tx, rx) = sync_channel(1);
-        let notification = create_signal_from_channel(rx);
+        let notification = ChannelSignal::new(rx);
         let app_data = app_data.clone();
         create_effect(move |_| {
             if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {

@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use floem::{
-    keyboard::Modifiers,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
+    ui_events::keyboard::Modifiers,
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
@@ -45,8 +45,8 @@ pub struct CodeActionData {
     pub request_id: usize,
     pub input_id: usize,
     pub offset: usize,
-    pub items: im::Vector<ScoredCodeActionItem>,
-    pub filtered_items: im::Vector<ScoredCodeActionItem>,
+    pub items: imbl::Vector<ScoredCodeActionItem>,
+    pub filtered_items: imbl::Vector<ScoredCodeActionItem>,
     pub layout_rect: Rect,
     pub mouse_click: bool,
     pub common: Rc<CommonData>,
@@ -95,8 +95,8 @@ impl CodeActionData {
             request_id: 0,
             input_id: 0,
             offset: 0,
-            items: im::Vector::new(),
-            filtered_items: im::Vector::new(),
+            items: imbl::Vector::new(),
+            filtered_items: imbl::Vector::new(),
             layout_rect: Rect::ZERO,
             mouse_click: false,
             common,
@@ -167,7 +167,7 @@ impl CodeActionData {
     pub fn show(
         &mut self,
         plugin_id: PluginId,
-        code_actions: im::Vector<CodeActionOrCommand>,
+        code_actions: imbl::Vector<CodeActionOrCommand>,
         offset: usize,
         mouse_click: bool,
     ) {

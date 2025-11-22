@@ -173,6 +173,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bddcadddf5e9015d310179a59bb28c4d4b9920ad0f11e8e14dbadf654890c9a6"
 
 [[package]]
+name = "archery"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70e0a5f99dfebb87bb342d0f53bb92c81842e100bbb915223e38349580e5441d"
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -489,12 +495,9 @@ dependencies = [
 
 [[package]]
 name = "bitmaps"
-version = "2.1.0"
+version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
-dependencies = [
- "typenum",
-]
+checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "block"
@@ -1814,11 +1817,12 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "bitflags 2.9.1",
  "clipboard-win 5.4.1",
  "copypasta",
+ "dpi 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "educe",
  "floem-editor-core",
  "floem-winit",
@@ -1827,9 +1831,8 @@ dependencies = [
  "floem_tiny_skia_renderer",
  "floem_vger_renderer",
  "futures",
- "im",
- "im-rc",
  "image",
+ "imbl",
  "indexmap",
  "lapce-xi-rope",
  "muda",
@@ -1837,6 +1840,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation 0.3.2",
  "parking_lot",
+ "paste",
  "peniko",
  "raw-window-handle",
  "rfd",
@@ -1848,6 +1852,8 @@ dependencies = [
  "strum",
  "strum_macros",
  "taffy",
+ "ui-events",
+ "ui-events-floem-winit",
  "unicode-segmentation",
  "wasm-bindgen-futures",
  "web-time",
@@ -1857,7 +1863,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "bitflags 2.9.1",
  "itertools 0.14.0",
@@ -1866,6 +1872,7 @@ dependencies = [
  "serde",
  "strum",
  "strum_macros",
+ "ui-events",
 ]
 
 [[package]]
@@ -2100,7 +2107,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "smallvec",
 ]
@@ -2108,7 +2115,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "cosmic-text",
  "floem-winit",
@@ -2125,7 +2132,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2138,7 +2145,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.2.0"
-source = "git+https://github.com/lapce/floem?rev=597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9#597e7c06b2d5dcb95ee9ef635ae094c1ec3b02e9"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -2789,9 +2796,9 @@ dependencies = [
 
 [[package]]
 name = "grid"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71b01d27060ad58be4663b9e4ac9e2d4806918e8876af8912afbddd1a91d5eaa"
+checksum = "12101ecc8225ea6d675bc70263074eab6169079621c2186fe0c66590b2df9681"
 
 [[package]]
 name = "gtk"
@@ -3168,35 +3175,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "im"
-version = "15.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
-dependencies = [
- "bitmaps",
- "rand_core 0.6.4",
- "rand_xoshiro",
- "serde",
- "sized-chunks",
- "typenum",
- "version_check",
-]
-
-[[package]]
-name = "im-rc"
-version = "15.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af1955a75fa080c677d3972822ec4bad316169ab1cfc6c257a942c2265dbe5fe"
-dependencies = [
- "bitmaps",
- "rand_core 0.6.4",
- "rand_xoshiro",
- "sized-chunks",
- "typenum",
- "version_check",
-]
-
-[[package]]
 name = "image"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3236,6 +3214,30 @@ name = "imagesize"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edcd27d72f2f071c64249075f42e205ff93c9a4c5f6c6da53e79ed9f9832c285"
+
+[[package]]
+name = "imbl"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fade8ae6828627ad1fa094a891eccfb25150b383047190a3648d66d06186501"
+dependencies = [
+ "archery",
+ "bitmaps",
+ "imbl-sized-chunks",
+ "rand_core 0.9.3",
+ "rand_xoshiro",
+ "serde",
+ "version_check",
+]
+
+[[package]]
+name = "imbl-sized-chunks"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f4241005618a62f8d57b2febd02510fb96e0137304728543dfc5fd6f052c22d"
+dependencies = [
+ "bitmaps",
+]
 
 [[package]]
 name = "include_dir"
@@ -3578,7 +3580,7 @@ dependencies = [
  "floem",
  "fs_extra",
  "globset",
- "im",
+ "imbl",
  "include_dir",
  "indexmap",
  "interprocess",
@@ -5052,11 +5054,11 @@ dependencies = [
 
 [[package]]
 name = "rand_xoshiro"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
+checksum = "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41"
 dependencies = [
- "rand_core 0.6.4",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -5656,16 +5658,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
-name = "sized-chunks"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
-dependencies = [
- "bitmaps",
- "typenum",
-]
-
-[[package]]
 name = "skrifa"
 version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6032,9 +6024,9 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.8.3"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7aaef0ac998e6527d6d0d5582f7e43953bb17221ac75bb8eb2fcc2db3396db1c"
+checksum = "b25026fb8cc9ab51ab9fdabe5d11706796966f6d1c78e19871ef63be2b8f0644"
 dependencies = [
  "arrayvec",
  "grid",
@@ -6563,6 +6555,27 @@ dependencies = [
  "memoffset",
  "tempfile",
  "winapi",
+]
+
+[[package]]
+name = "ui-events"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a57da61c5700db75d28822c56068295055ec216996560af57a5d4a457914d34"
+dependencies = [
+ "dpi 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "keyboard-types 0.8.3",
+ "kurbo 0.12.0",
+]
+
+[[package]]
+name = "ui-events-floem-winit"
+version = "0.2.0"
+source = "git+https://github.com/lapce/floem?rev=85f9af7a02c122a95a44d2424cd5f47e626b79a5#85f9af7a02c122a95a44d2424cd5f47e626b79a5"
+dependencies = [
+ "dpi 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "floem-winit",
+ "ui-events",
 ]
 
 [[package]]

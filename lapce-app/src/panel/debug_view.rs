@@ -480,7 +480,7 @@ fn debug_stack_frames(
                 if expanded {
                     stack_trace.frames.get()
                 } else {
-                    im::Vector::new()
+                    imbl::Vector::new()
                 }
             },
             |frame| frame.id,

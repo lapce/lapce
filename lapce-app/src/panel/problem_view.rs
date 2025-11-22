@@ -90,7 +90,7 @@ fn file_view(
 ) -> impl View {
     let collpased = create_rw_signal(false);
 
-    let diagnostics = create_rw_signal(im::Vector::new());
+    let diagnostics = create_rw_signal(imbl::Vector::new());
     create_effect(move |_| {
         let span = diagnostic_data.diagnostics_span.get();
         let d = if !span.is_empty() {
@@ -105,10 +105,10 @@ fn file_view(
                         None
                     }
                 })
-                .collect::<im::Vector<EditorDiagnostic>>()
+                .collect::<imbl::Vector<EditorDiagnostic>>()
         } else {
             let diagnostics = diagnostic_data.diagnostics.get();
-            let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
+            let diagnostics: imbl::Vector<EditorDiagnostic> = diagnostics
                 .into_iter()
                 .filter_map(|d| {
                     if d.severity == Some(severity) {
@@ -225,7 +225,7 @@ fn file_view(
         dyn_stack(
             move || {
                 if collpased.get() {
-                    im::Vector::new()
+                    imbl::Vector::new()
                 } else {
                     diagnostics.get()
                 }

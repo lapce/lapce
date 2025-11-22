@@ -9,7 +9,6 @@ use floem::{
     IntoView, View,
     action::show_context_menu,
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     kurbo::Rect,
     menu::Menu,
     reactive::{
@@ -17,6 +16,7 @@ use floem::{
         create_memo, create_rw_signal, use_context,
     },
     style::CursorStyle,
+    ui_events::keyboard::Modifiers,
     views::{
         Decorators, container, dyn_container, dyn_stack, empty, img, label,
         rich_text, scroll, stack, svg, text,
@@ -103,7 +103,7 @@ pub struct AvailableVoltList {
 pub struct PluginData {
     pub installed: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
     pub available: AvailableVoltList,
-    pub all: RwSignal<im::HashMap<VoltID, AvailableVoltData>>,
+    pub all: RwSignal<imbl::HashMap<VoltID, AvailableVoltData>>,
     pub disabled: RwSignal<HashSet<VoltID>>,
     pub workspace_disabled: RwSignal<HashSet<VoltID>>,
     pub common: Rc<CommonData>,
@@ -177,7 +177,7 @@ impl PluginData {
         let plugin = Self {
             installed,
             available,
-            all: cx.create_rw_signal(im::HashMap::new()),
+            all: cx.create_rw_signal(imbl::HashMap::new()),
             disabled,
             workspace_disabled,
             common,
@@ -808,7 +808,9 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         })
                         .selectable(false)
                 })
-                .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
+                .style(move |s| {
+                    s.set_disabled(installing.map(|i| i.get()).unwrap_or(false))
+                })
                 .on_click_stop(move |_| {
                     if let Some((meta, info, _, latest, _)) =
                         local_plugin_info.as_ref()

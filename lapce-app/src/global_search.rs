@@ -2,8 +2,8 @@ use std::{ops::Range, path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
     views::VirtualVector,
 };
 use indexmap::IndexMap;
@@ -22,7 +22,7 @@ use crate::{
 #[derive(Clone)]
 pub struct SearchMatchData {
     pub expanded: RwSignal<bool>,
-    pub matches: RwSignal<im::Vector<SearchMatch>>,
+    pub matches: RwSignal<imbl::Vector<SearchMatch>>,
     pub line_height: Memo<f64>,
 }
 
@@ -177,7 +177,7 @@ impl GlobalSearchData {
                                 matches: self
                                     .common
                                     .scope
-                                    .create_rw_signal(im::Vector::new()),
+                                    .create_rw_signal(imbl::Vector::new()),
                                 line_height: self.common.ui_line_height,
                             }
                         });

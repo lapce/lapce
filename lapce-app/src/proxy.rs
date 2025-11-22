@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, mpsc::Sender},
 };
 
-use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
+use floem::receiver_signal::ChannelSignal;
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
@@ -35,7 +35,8 @@ pub struct Proxy {
 pub struct ProxyData {
     pub proxy_rpc: ProxyRpcHandler,
     pub core_rpc: CoreRpcHandler,
-    pub notification: ReadSignal<Option<CoreNotification>>,
+    pub notification:
+        ChannelSignal<Option<CoreNotification>, std::sync::mpsc::RecvError>,
 }
 
 impl ProxyData {
@@ -127,7 +128,7 @@ pub fn new_proxy(
             .unwrap()
     };
 
-    let notification = create_signal_from_channel(rx);
+    let notification = ChannelSignal::new(rx);
 
     ProxyData {
         proxy_rpc,

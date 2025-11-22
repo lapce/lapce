@@ -11,7 +11,7 @@ use floem::{
     action::show_context_menu,
     event::EventPropagation,
     ext_event::create_ext_action,
-    keyboard::Modifiers,
+    ui_events::keyboard::Modifiers,
     menu::Menu,
     reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::text::SystemClipboard,

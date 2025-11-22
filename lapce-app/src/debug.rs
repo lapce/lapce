@@ -60,7 +60,7 @@ pub struct RunDebugConfigs {
 #[derive(Clone)]
 pub struct RunDebugData {
     pub active_term: RwSignal<Option<TermId>>,
-    pub daps: RwSignal<im::HashMap<DapId, DapData>>,
+    pub daps: RwSignal<imbl::HashMap<DapId, DapData>>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
 }
 
@@ -70,8 +70,8 @@ impl RunDebugData {
         breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
     ) -> Self {
         let active_term: RwSignal<Option<TermId>> = cx.create_rw_signal(None);
-        let daps: RwSignal<im::HashMap<DapId, DapData>> =
-            cx.create_rw_signal(im::HashMap::new());
+        let daps: RwSignal<imbl::HashMap<DapId, DapData>> =
+            cx.create_rw_signal(imbl::HashMap::new());
 
         Self {
             active_term,
@@ -112,7 +112,7 @@ impl RunDebugData {
 #[derive(Clone, PartialEq)]
 pub struct StackTraceData {
     pub expanded: RwSignal<bool>,
-    pub frames: RwSignal<im::Vector<StackFrame>>,
+    pub frames: RwSignal<imbl::Vector<StackFrame>>,
     pub frames_shown: usize,
 }
 

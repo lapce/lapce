@@ -13,14 +13,15 @@ use std::{
 
 use anyhow::Result;
 use floem::{
-    ext_event::{create_ext_action, create_signal_from_channel},
-    keyboard::Modifiers,
+    ext_event::create_ext_action,
     reactive::{
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
         use_context,
     },
+    receiver_signal::ChannelSignal,
+    ui_events::keyboard::Modifiers,
 };
-use im::Vector;
+use imbl::Vector;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::CursorAffinity,
@@ -90,8 +91,8 @@ pub struct PaletteData {
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
     pub preselect_index: RwSignal<Option<usize>>,
-    pub items: RwSignal<im::Vector<PaletteItem>>,
-    pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
+    pub items: RwSignal<imbl::Vector<PaletteItem>>,
+    pub filtered_items: ReadSignal<imbl::Vector<PaletteItem>>,
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
@@ -125,7 +126,7 @@ impl PaletteData {
         common: Rc<CommonData>,
     ) -> Self {
         let status = cx.create_rw_signal(PaletteStatus::Inactive);
-        let items = cx.create_rw_signal(im::Vector::new());
+        let items = cx.create_rw_signal(imbl::Vector::new());
         let preselect_index = cx.create_rw_signal(None);
         let index = cx.create_rw_signal(0);
         let references = cx.create_rw_signal(Vec::new());
@@ -188,9 +189,9 @@ impl PaletteData {
                 .unwrap();
         }
         let (filtered_items, set_filtered_items) =
-            cx.create_signal(im::Vector::new());
+            cx.create_signal(imbl::Vector::new());
         {
-            let resp = create_signal_from_channel(resp_rx);
+            let resp = ChannelSignal::new(resp_rx);
             let run_id = run_id.read_only();
             let input = input.read_only();
             cx.create_effect(move |_| {
@@ -465,7 +466,7 @@ impl PaletteData {
     // get the files in the current workspace
     // and prepend items if prepend is some
     // e.g. help_and_file
-    fn get_files_and_prepend(&self, prepend: Option<im::Vector<PaletteItem>>) {
+    fn get_files_and_prepend(&self, prepend: Option<imbl::Vector<PaletteItem>>) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
         let send =
@@ -491,8 +492,8 @@ impl PaletteData {
                             indices: Vec::new(),
                         }
                     })
-                    .collect::<im::Vector<_>>();
-                let mut new_items = im::Vector::new();
+                    .collect::<imbl::Vector<_>>();
+                let mut new_items = imbl::Vector::new();
                 if let Some(prepend) = prepend {
                     new_items.append(prepend);
                 }
@@ -557,7 +558,7 @@ impl PaletteData {
         let items = self.keypress.with_untracked(|keypress| {
             // Get all the commands we've executed, and sort them by how recently they were
             // executed. Ignore commands without descriptions.
-            let mut items: im::Vector<PaletteItem> = self
+            let mut items: imbl::Vector<PaletteItem> = self
                 .executed_commands
                 .borrow()
                 .iter()
@@ -695,7 +696,7 @@ impl PaletteData {
 
     fn format_document_symbol_resp(
         resp: DocumentSymbolResponse,
-    ) -> im::Vector<PaletteItem> {
+    ) -> imbl::Vector<PaletteItem> {
         match resp {
             DocumentSymbolResponse::Flat(symbols) => symbols
                 .iter()
@@ -718,7 +719,7 @@ impl PaletteData {
                 })
                 .collect(),
             DocumentSymbolResponse::Nested(symbols) => {
-                let mut items = im::Vector::new();
+                let mut items = imbl::Vector::new();
                 for s in symbols {
                     Self::format_document_symbol(&mut items, None, s)
                 }
@@ -728,7 +729,7 @@ impl PaletteData {
     }
 
     fn format_document_symbol(
-        items: &mut im::Vector<PaletteItem>,
+        items: &mut imbl::Vector<PaletteItem>,
         parent: Option<String>,
         s: DocumentSymbol,
     ) {
@@ -757,7 +758,7 @@ impl PaletteData {
         let set_items = self.items.write_only();
         let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
-                let items: im::Vector<PaletteItem> = symbols
+                let items: imbl::Vector<PaletteItem> = symbols
                     .iter()
                     .map(|s| {
                         // TODO: Should we be using filter text?
@@ -1051,7 +1052,7 @@ impl PaletteData {
     fn get_scm_references(&self) {
         let branches = self.source_control.branches.get_untracked();
         let tags = self.source_control.tags.get_untracked();
-        let mut items: im::Vector<PaletteItem> = im::Vector::new();
+        let mut items: imbl::Vector<PaletteItem> = imbl::Vector::new();
         for refs in branches.into_iter() {
             items.push_back(PaletteItem {
                 content: PaletteItemContent::SCMReference {
@@ -1077,7 +1078,7 @@ impl PaletteData {
 
     fn get_terminal_profiles(&self) {
         let profiles = self.common.config.get().terminal.profiles.clone();
-        let mut items: im::Vector<PaletteItem> = im::Vector::new();
+        let mut items: imbl::Vector<PaletteItem> = imbl::Vector::new();
 
         for (name, profile) in profiles.into_iter() {
             let uri = match lsp_types::Url::parse(&format!(
@@ -1111,7 +1112,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn preselect_matching(&self, items: &im::Vector<PaletteItem>, matching: &str) {
+    fn preselect_matching(&self, items: &imbl::Vector<PaletteItem>, matching: &str) {
         let Some((idx, _)) = items
             .iter()
             .find_position(|item| item.filter_text == matching)
@@ -1548,9 +1549,9 @@ impl PaletteData {
         run_id: Arc<AtomicU64>,
         current_run_id: u64,
         input: &str,
-        items: im::Vector<PaletteItem>,
+        items: imbl::Vector<PaletteItem>,
         matcher: &mut nucleo::Matcher,
-    ) -> Option<im::Vector<PaletteItem>> {
+    ) -> Option<imbl::Vector<PaletteItem>> {
         if input.is_empty() {
             return Some(items);
         }
@@ -1562,7 +1563,7 @@ impl PaletteData {
         );
 
         // NOTE: We collect into a Vec to sort as we are hitting a worst-case behavior in
-        // `im::Vector` that can lead to a stack overflow!
+        // `imbl::Vector` that can lead to a stack overflow!
         let mut filtered_items = Vec::new();
         let mut indices = Vec::new();
         let mut filter_text_buf = Vec::new();
@@ -1601,17 +1602,18 @@ impl PaletteData {
 
     fn update_process(
         run_id: Arc<AtomicU64>,
-        receiver: Receiver<(u64, String, im::Vector<PaletteItem>, Option<usize>)>,
-        resp_tx: Sender<(u64, String, im::Vector<PaletteItem>, Option<usize>)>,
+        receiver: Receiver<(u64, String, imbl::Vector<PaletteItem>, Option<usize>)>,
+        resp_tx: Sender<(u64, String, imbl::Vector<PaletteItem>, Option<usize>)>,
     ) {
         fn receive_batch(
             receiver: &Receiver<(
                 u64,
                 String,
-                im::Vector<PaletteItem>,
+                imbl::Vector<PaletteItem>,
                 Option<usize>,
             )>,
-        ) -> Result<(u64, String, im::Vector<PaletteItem>, Option<usize>)> {
+        ) -> Result<(u64, String, imbl::Vector<PaletteItem>, Option<usize>)>
+        {
             let (mut run_id, mut input, mut items, mut preselect_index) =
                 receiver.recv()?;
             loop {

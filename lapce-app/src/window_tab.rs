@@ -14,9 +14,8 @@ use alacritty_terminal::vte::ansi::Handler;
 use floem::{
     ViewId,
     action::{TimerToken, open_file, remove_overlay},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_ext_action,
     file::FileDialogOptions,
-    keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     prelude::SignalTrack,
@@ -24,10 +23,12 @@ use floem::{
         Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
         WriteSignal, use_context,
     },
+    receiver_signal::ChannelSignal,
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
+    ui_events::keyboard::Modifiers,
     views::editor::core::buffer::rope_text::RopeText,
 };
-use im::HashMap;
+use imbl::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
@@ -479,7 +480,7 @@ impl WindowTabData {
                     cx,
                     panel_order,
                     panel_available_size,
-                    im::HashMap::new(),
+                    imbl::HashMap::new(),
                     common.clone(),
                 )
             });
@@ -522,11 +523,11 @@ impl WindowTabData {
         );
 
         {
-            let notification = create_signal_from_channel(term_notification_rx);
+            let notification = ChannelSignal::new(term_notification_rx);
             let terminal = terminal.clone();
             cx.create_effect(move |_| {
                 notification.with(|notification| {
-                    if let Some(notification) = notification.as_ref() {
+                    if let Some(notification) = notification {
                         match notification {
                             TermNotification::SetTitle { term_id, title } => {
                                 terminal.set_title(term_id, title);
@@ -2134,7 +2135,7 @@ impl WindowTabData {
             }
             CoreNotification::PublishDiagnostics { diagnostics } => {
                 let path = path_from_url(&diagnostics.uri);
-                let diagnostics: im::Vector<Diagnostic> = diagnostics
+                let diagnostics: imbl::Vector<Diagnostic> = diagnostics
                     .diagnostics
                     .clone()
                     .into_iter()
@@ -2911,7 +2912,7 @@ impl WindowTabData {
         mouse_click: bool,
         plugin_id: PluginId,
         offset: usize,
-        lens: im::Vector<CodeLens>,
+        lens: imbl::Vector<CodeLens>,
     ) {
         self.common
             .internal_command

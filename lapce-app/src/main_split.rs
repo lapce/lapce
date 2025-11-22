@@ -8,9 +8,9 @@ use floem::{
     action::save_as,
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
-    keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
     views::editor::id::EditorId,
 };
 use itertools::Itertools;
@@ -234,10 +234,10 @@ impl SplitData {
 
 /// All the editors in a main split
 #[derive(Clone, Copy)]
-pub struct Editors(pub RwSignal<im::HashMap<EditorId, EditorData>>);
+pub struct Editors(pub RwSignal<imbl::HashMap<EditorId, EditorData>>);
 impl Editors {
     fn new(cx: Scope) -> Self {
-        Self(cx.create_rw_signal(im::HashMap::new()))
+        Self(cx.create_rw_signal(imbl::HashMap::new()))
     }
 
     /// Add an editor to the editors.
@@ -378,14 +378,14 @@ impl Editors {
 
     pub fn with_editors<O>(
         &self,
-        f: impl FnOnce(&im::HashMap<EditorId, EditorData>) -> O,
+        f: impl FnOnce(&imbl::HashMap<EditorId, EditorData>) -> O,
     ) -> O {
         self.0.with(f)
     }
 
     pub fn with_editors_untracked<O>(
         &self,
-        f: impl FnOnce(&im::HashMap<EditorId, EditorData>) -> O,
+        f: impl FnOnce(&imbl::HashMap<EditorId, EditorData>) -> O,
     ) -> O {
         self.0.with_untracked(f)
     }
@@ -396,19 +396,19 @@ pub struct MainSplitData {
     pub scope: Scope,
     pub root_split: SplitId,
     pub active_editor_tab: RwSignal<Option<EditorTabId>>,
-    pub splits: RwSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
-    pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
+    pub splits: RwSignal<imbl::HashMap<SplitId, RwSignal<SplitData>>>,
+    pub editor_tabs: RwSignal<imbl::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: Editors,
-    pub diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
-    pub docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>>,
-    pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
-    pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
+    pub diff_editors: RwSignal<imbl::HashMap<DiffEditorId, DiffEditorData>>,
+    pub docs: RwSignal<imbl::HashMap<PathBuf, Rc<Doc>>>,
+    pub scratch_docs: RwSignal<imbl::HashMap<String, Rc<Doc>>>,
+    pub diagnostics: RwSignal<imbl::HashMap<PathBuf, DiagnosticData>>,
     pub references: RwSignal<ReferencesRoot>,
     pub implementations: RwSignal<crate::panel::implementation_view::ReferencesRoot>,
     pub active_editor: Memo<Option<EditorData>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,
-    pub locations: RwSignal<im::Vector<EditorLocation>>,
+    pub locations: RwSignal<imbl::Vector<EditorLocation>>,
     pub current_location: RwSignal<usize>,
     pub width: RwSignal<f64>,
     pub code_lens: RwSignal<CodeLensData>,
@@ -425,24 +425,24 @@ impl std::fmt::Debug for MainSplitData {
 
 impl MainSplitData {
     pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
-        let splits = cx.create_rw_signal(im::HashMap::new());
+        let splits = cx.create_rw_signal(imbl::HashMap::new());
         let active_editor_tab = cx.create_rw_signal(None);
         let editor_tabs: RwSignal<
-            im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
-        > = cx.create_rw_signal(im::HashMap::new());
+            imbl::HashMap<EditorTabId, RwSignal<EditorTabData>>,
+        > = cx.create_rw_signal(imbl::HashMap::new());
         let editors = Editors::new(cx);
-        let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
-            cx.create_rw_signal(im::HashMap::new());
-        let docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>> =
-            cx.create_rw_signal(im::HashMap::new());
-        let scratch_docs = cx.create_rw_signal(im::HashMap::new());
-        let locations = cx.create_rw_signal(im::Vector::new());
+        let diff_editors: RwSignal<imbl::HashMap<DiffEditorId, DiffEditorData>> =
+            cx.create_rw_signal(imbl::HashMap::new());
+        let docs: RwSignal<imbl::HashMap<PathBuf, Rc<Doc>>> =
+            cx.create_rw_signal(imbl::HashMap::new());
+        let scratch_docs = cx.create_rw_signal(imbl::HashMap::new());
+        let locations = cx.create_rw_signal(imbl::Vector::new());
         let references = cx.create_rw_signal(ReferencesRoot::default());
         let implementations = cx.create_rw_signal(
             crate::panel::implementation_view::ReferencesRoot::default(),
         );
         let current_location = cx.create_rw_signal(0);
-        let diagnostics = cx.create_rw_signal(im::HashMap::new());
+        let diagnostics = cx.create_rw_signal(imbl::HashMap::new());
         let find_editor = editors.make_local(cx, common.clone());
         let replace_editor = editors.make_local(cx, common.clone());
 
@@ -758,7 +758,7 @@ impl MainSplitData {
                 children: vec![],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
-                locations: cx.create_rw_signal(im::Vector::new()),
+                locations: cx.create_rw_signal(imbl::Vector::new()),
                 current_location: cx.create_rw_signal(0),
             };
             cx.create_rw_signal(editor_tab)
@@ -2347,7 +2347,7 @@ impl MainSplitData {
         } else {
             let diagnostic_data = DiagnosticData {
                 expanded: self.scope.create_rw_signal(true),
-                diagnostics: self.scope.create_rw_signal(im::Vector::new()),
+                diagnostics: self.scope.create_rw_signal(imbl::Vector::new()),
                 diagnostics_span: self
                     .scope
                     .create_rw_signal(SpansBuilder::new(0).build()),
@@ -2827,7 +2827,7 @@ impl MainSplitData {
                 )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
-                locations: cx.create_rw_signal(im::Vector::new()),
+                locations: cx.create_rw_signal(imbl::Vector::new()),
                 current_location: cx.create_rw_signal(0),
             };
             self.editor_tabs.update(|editor_tabs| {
@@ -2895,7 +2895,7 @@ impl MainSplitData {
                     )],
                     window_origin: Point::ZERO,
                     layout_rect: Rect::ZERO,
-                    locations: cx.create_rw_signal(im::Vector::new()),
+                    locations: cx.create_rw_signal(imbl::Vector::new()),
                     current_location: cx.create_rw_signal(0),
                 }
             };

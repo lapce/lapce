@@ -96,7 +96,7 @@ pub struct InlineCompletionData {
     pub status: InlineCompletionStatus,
     /// The active inline completion index in the list of completions.
     pub active: RwSignal<usize>,
-    pub items: im::Vector<InlineCompletionItem>,
+    pub items: imbl::Vector<InlineCompletionItem>,
     pub start_offset: usize,
     pub path: PathBuf,
 }
@@ -105,7 +105,7 @@ impl InlineCompletionData {
         Self {
             status: InlineCompletionStatus::Inactive,
             active: cx.create_rw_signal(0),
-            items: im::vector![],
+            items: imbl::vector![],
             start_offset: 0,
             path: PathBuf::new(),
         }
@@ -147,7 +147,7 @@ impl InlineCompletionData {
     /// Sets `active` to `0` and `status` to `InlineCompletionStatus::Active`.
     pub fn set_items(
         &mut self,
-        items: im::Vector<InlineCompletionItem>,
+        items: imbl::Vector<InlineCompletionItem>,
         start_offset: usize,
         path: PathBuf,
     ) {
