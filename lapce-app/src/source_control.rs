@@ -1,8 +1,8 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
-    ui_events::keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalWith},
+    ui_events::keyboard::Modifiers,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;

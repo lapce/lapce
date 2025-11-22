@@ -11,9 +11,9 @@ use floem::{
     action::show_context_menu,
     event::EventPropagation,
     ext_event::create_ext_action,
-    ui_events::keyboard::Modifiers,
     menu::Menu,
     reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;

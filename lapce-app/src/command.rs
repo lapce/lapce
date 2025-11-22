@@ -2,7 +2,7 @@ use std::{path::PathBuf, rc::Rc};
 
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
-    ViewId, ui_events::keyboard::Modifiers, peniko::kurbo::Vec2,
+    ViewId, peniko::kurbo::Vec2, ui_events::keyboard::Modifiers,
     views::editor::command::Command,
 };
 use indexmap::IndexMap;

@@ -2,9 +2,9 @@ use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
-    ui_events::keyboard::Modifiers,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
 };
 use lapce_core::{
     command::FocusCommand, cursor::CursorAffinity, mode::Mode, selection::Selection,
