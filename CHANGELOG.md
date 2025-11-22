@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Implemented Folder/File choosing in remotes
+
 ### Bug Fixes
 
 - Fix editor tabs not selectable while appearing selectable

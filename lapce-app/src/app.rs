@@ -2572,6 +2572,69 @@ fn palette_item(
                 .style(|s| s.align_items(Some(AlignItems::Center)).max_width_full()),
             )
         }
+        PaletteItemContent::FileChooserEntry { is_dir, .. } => {
+            let file_name = item.filter_text;
+            let indices = item.indices;
+
+            let (svg_path, svg_color) = (
+                config.get().ui_svg(if *is_dir {
+                    LapceIcons::DIRECTORY_CLOSED
+                } else {
+                    LapceIcons::FILE
+                }),
+                Some(config.get().color(LapceColor::LAPCE_ICON_ACTIVE)),
+            );
+            container(
+                stack((
+                    svg(move || svg_path.clone()).style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        let color = svg_color;
+                        s.min_width(size)
+                            .size(size, size)
+                            .margin_right(5.0)
+                            .apply_opt(color, Style::color)
+                    }),
+                    focus_text(
+                        move || file_name.clone(),
+                        move || indices.clone(),
+                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                    )
+                    .style(|s| s.margin_right(6.0).max_width_full()),
+                ))
+                .style(|s| s.align_items(Some(AlignItems::Center)).max_width_full()),
+            )
+        }
+        PaletteItemContent::ConfirmFileChooserEntry { .. } => {
+            let text = format!("Open {}", item.filter_text);
+            let indices = item.indices;
+
+            let (svg_path, svg_color) = (
+                config.get().ui_svg(LapceIcons::ADD),
+                Some(config.get().color(LapceColor::LAPCE_ICON_ACTIVE)),
+            );
+
+            container(
+                stack((
+                    svg(move || svg_path.clone()).style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        let color = svg_color;
+                        s.min_width(size)
+                            .size(size, size)
+                            .margin_right(5.0)
+                            .apply_opt(color, Style::color)
+                    }),
+                    focus_text(
+                        move || text.clone(),
+                        move || indices.clone(),
+                        move || config.get().color(LapceColor::EDITOR_FOCUS),
+                    )
+                    .style(|s| s.margin_right(6.0).max_width_full()),
+                ))
+                .style(|s| s.align_items(Some(AlignItems::Center)).max_width_full()),
+            )
+        }
         #[cfg(windows)]
         PaletteItemContent::WslHost { .. } => {
             let text = item.filter_text;

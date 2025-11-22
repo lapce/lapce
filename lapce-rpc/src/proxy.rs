@@ -57,6 +57,12 @@ pub struct SearchMatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PathRequest {
+    Home,
+    Path(PathBuf),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum ProxyRequest {
@@ -173,7 +179,7 @@ pub enum ProxyRequest {
         path: String,
     },
     ReadDir {
-        path: PathBuf,
+        path: PathRequest,
     },
     Save {
         rev: u64,
@@ -369,6 +375,7 @@ pub enum ProxyResponse {
         content: String,
     },
     ReadDirResponse {
+        dir: FileNodeItem,
         items: Vec<FileNodeItem>,
     },
     CompletionResolveResponse {
@@ -830,7 +837,7 @@ impl ProxyRpcHandler {
         self.request(ProxyRequest::GetOpenFilesContent {})
     }
 
-    pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn read_dir(&self, path: PathRequest, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::ReadDir { path }, f);
     }
 
