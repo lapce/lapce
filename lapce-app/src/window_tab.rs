@@ -1921,6 +1921,35 @@ impl WindowTabData {
             }
             InternalCommand::FocusEditorTab { editor_tab_id } => {
                 self.main_split.active_editor_tab.set(Some(editor_tab_id));
+                let editor_tab = self
+                    .main_split
+                    .editor_tabs
+                    .with_untracked(|tabs| tabs.get(&editor_tab_id).cloned());
+                let tab_info = editor_tab
+                    .unwrap()
+                    .get()
+                    .children
+                    .get(editor_tab.unwrap().get().active)
+                    .unwrap()
+                    .2
+                    .view_info(
+                        self.main_split.editors,
+                        self.main_split.diff_editors,
+                        self.plugin.clone(),
+                        self.common.config,
+                    );
+                floem::action::set_window_title(format!(
+                    "{} - {} - {} - Lapce",
+                    tab_info.with(|tab| tab.path.clone()),
+                    self.main_split
+                        .common
+                        .workspace
+                        .path
+                        .clone()
+                        .unwrap()
+                        .display(),
+                    self.main_split.common.workspace.kind,
+                ));
             }
             InternalCommand::SetColorTheme { name, save } => {
                 if save {
