@@ -724,17 +724,12 @@ impl Iterator for HighlightIter<'_> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) enum IncludedChildren {
+    #[default]
     None,
     All,
     Unnamed,
-}
-
-impl Default for IncludedChildren {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 // Compute the ranges that should be included when parsing an injection.

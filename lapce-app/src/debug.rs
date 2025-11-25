@@ -521,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_update_count() {
-        let variables = vec![
+        let variables = [
             (
                 Scope {
                     variables_reference: 0,
@@ -610,7 +610,7 @@ mod tests {
         let var = root.get_var_mut(&[0], 3).unwrap();
         var.expanded = true;
         var.read = true;
-        var.children = vec![
+        var.children = [
             Variable {
                 variables_reference: 9,
                 ..Default::default()
