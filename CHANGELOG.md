@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Implement file/folder dragging support in file explorer
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
