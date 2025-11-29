@@ -233,7 +233,7 @@ pub fn symbol_panel(
                         .style(move |s| {
                             let config = config.get();
                             let color = if has_child {
-                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                config.color(&LapceColor::LAPCE_ICON_ACTIVE)
                             } else {
                                 Color::TRANSPARENT
                             };
@@ -263,7 +263,7 @@ pub fn symbol_panel(
                                 .size(size, size)
                                 .margin_right(5.0)
                                 .color(config.symbol_color(&kind).unwrap_or_else(|| {
-                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                    config.color(&LapceColor::LAPCE_ICON_ACTIVE)
                                 }))
                         }),
                     label(move || {
@@ -275,7 +275,7 @@ pub fn symbol_panel(
                     label(move || {
                         data.detail.clone().unwrap_or_default()
                     }).style(move |s| s.margin_left(6.0)
-                                              .color(config.get().color(LapceColor::EDITOR_DIM))
+                                              .color(config.get().color(&LapceColor::EDITOR_DIM))
                                               .selectable(false)
                                               .apply_if(
                                                 data.item.detail.clone().is_none(),
@@ -291,7 +291,7 @@ pub fn symbol_panel(
                             s.background(
                                 config
                                     .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                             .cursor(CursorStyle::Pointer)
                         })

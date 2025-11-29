@@ -152,7 +152,7 @@ pub fn show_hierarchy_panel(
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
                             s.size(size, size)
-                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                                .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                         })
                     )
                     .style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
@@ -183,7 +183,7 @@ pub fn show_hierarchy_panel(
                                 .size(size, size)
                                 .margin_right(5.0)
                                 .color(config.symbol_color(&kind).unwrap_or_else(|| {
-                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                    config.color(&LapceColor::LAPCE_ICON_ACTIVE)
                                 }))
                         }),
                     data.item.name.clone().into_view(),
@@ -191,7 +191,7 @@ pub fn show_hierarchy_panel(
                         label(move || {
                             data.item.detail.clone().unwrap_or_default().replace('\n', "↵")
                         }).style(move |s| s.margin_left(6.0)
-                                                .color(config.get().color(LapceColor::EDITOR_DIM))
+                                                .color(config.get().color(&LapceColor::EDITOR_DIM))
                         ).into_any()
                     } else {
                         empty().into_any()
@@ -206,7 +206,7 @@ pub fn show_hierarchy_panel(
                             s.background(
                                 config
                                     .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                             .cursor(CursorStyle::Pointer)
                         })
