@@ -146,6 +146,9 @@ pub enum CoreNotification {
         path: PathBuf,
         breakpoints: Vec<dap_types::Breakpoint>,
     },
+    GitCommitResult {
+        success: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -401,6 +404,10 @@ impl CoreRpcHandler {
 
     pub fn home_dir(&self, path: PathBuf) {
         self.notification(CoreNotification::HomeDir { path });
+    }
+
+    pub fn git_commit_result(&self, success: bool) {
+        self.notification(CoreNotification::GitCommitResult { success });
     }
 }
 
