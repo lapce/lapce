@@ -1,8 +1,8 @@
 use std::{fmt::Display, str::FromStr};
 
-use floem::{
-    keyboard::{Key, KeyCode, Modifiers, NamedKey, PhysicalKey},
-    pointer::{MouseButton, PointerButton},
+use floem::ui_events::{
+    keyboard::{Code as KeyCode, Key, Modifiers, NamedKey},
+    pointer::PointerButton,
 };
 use lapce_core::mode::Modes;
 
@@ -26,13 +26,13 @@ pub struct KeyMap {
 pub enum KeyMapKey {
     Pointer(PointerButton),
     Logical(Key),
-    Physical(PhysicalKey),
+    Physical(KeyCode),
 }
 
 impl std::hash::Hash for KeyMapKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            Self::Pointer(btn) => (btn.mouse_button() as u8).hash(state),
+            Self::Pointer(btn) => btn.hash(state),
             Self::Logical(key) => key.hash(state),
             Self::Physical(physical) => physical.hash(state),
         }
@@ -61,21 +61,19 @@ impl KeyMapPress {
         if let KeyMapKey::Physical(physical) = &self.key {
             matches!(
                 physical,
-                PhysicalKey::Code(KeyCode::Meta)
-                    | PhysicalKey::Code(KeyCode::SuperLeft)
-                    | PhysicalKey::Code(KeyCode::SuperRight)
-                    | PhysicalKey::Code(KeyCode::ShiftLeft)
-                    | PhysicalKey::Code(KeyCode::ShiftRight)
-                    | PhysicalKey::Code(KeyCode::ControlLeft)
-                    | PhysicalKey::Code(KeyCode::ControlRight)
-                    | PhysicalKey::Code(KeyCode::AltLeft)
-                    | PhysicalKey::Code(KeyCode::AltRight)
+                KeyCode::MetaLeft
+                    | KeyCode::MetaRight
+                    | KeyCode::ShiftLeft
+                    | KeyCode::ShiftRight
+                    | KeyCode::ControlLeft
+                    | KeyCode::ControlRight
+                    | KeyCode::AltLeft
+                    | KeyCode::AltRight
             )
         } else if let KeyMapKey::Logical(Key::Named(key)) = &self.key {
             matches!(
                 key,
                 NamedKey::Meta
-                    | NamedKey::Super
                     | NamedKey::Shift
                     | NamedKey::Control
                     | NamedKey::Alt
@@ -88,13 +86,13 @@ impl KeyMapPress {
 
     pub fn label(&self) -> String {
         let mut keys = String::from("");
-        if self.mods.control() {
+        if self.mods.ctrl() {
             keys.push_str("Ctrl+");
         }
         if self.mods.alt() {
             keys.push_str("Alt+");
         }
-        if self.mods.altgr() {
+        if self.mods.contains(Modifiers::ALT_GRAPH) {
             keys.push_str("AltGr+");
         }
         if self.mods.meta() {
@@ -142,7 +140,7 @@ impl KeyMapPress {
                         "meta" => mods.set(Modifiers::META, true),
                         "shift" => mods.set(Modifiers::SHIFT, true),
                         "alt" => mods.set(Modifiers::ALT, true),
-                        "altgr" => mods.set(Modifiers::ALTGR, true),
+                        "altgr" => mods.set(Modifiers::ALT_GRAPH, true),
                         "" => (),
                         other => tracing::warn!("Invalid key modifier: {}", other),
                     }
@@ -174,12 +172,11 @@ impl FromStr for KeyMapKey {
                 "control" => KeyCode::ControlLeft,
                 "fn" => KeyCode::Fn,
                 "fnlock" => KeyCode::FnLock,
-                "meta" => KeyCode::Meta,
+                "meta" => KeyCode::MetaLeft,
                 "numlock" => KeyCode::NumLock,
                 "scrolllock" => KeyCode::ScrollLock,
                 "shift" => KeyCode::ShiftLeft,
-                "hyper" => KeyCode::Hyper,
-                "super" => KeyCode::Meta,
+                "super" => KeyCode::MetaLeft,
                 "enter" => KeyCode::Enter,
                 "tab" => KeyCode::Tab,
                 "arrowdown" => KeyCode::ArrowDown,
@@ -235,11 +232,11 @@ impl FromStr for KeyMapKey {
                     ));
                 }
             };
-            KeyMapKey::Physical(PhysicalKey::Code(code))
+            KeyMapKey::Physical(code)
         } else {
             let key = match s.to_lowercase().as_str() {
                 "esc" => Key::Named(NamedKey::Escape),
-                "space" => Key::Named(NamedKey::Space),
+                "space" => Key::Character(" ".into()),
                 "bs" => Key::Named(NamedKey::Backspace),
                 "up" => Key::Named(NamedKey::ArrowUp),
                 "down" => Key::Named(NamedKey::ArrowDown),
@@ -256,7 +253,7 @@ impl FromStr for KeyMapKey {
                 "numlock" => Key::Named(NamedKey::NumLock),
                 "scrolllock" => Key::Named(NamedKey::ScrollLock),
                 "shift" => Key::Named(NamedKey::Shift),
-                "hyper" => Key::Named(NamedKey::Hyper),
+                "hyper" => Key::Named(NamedKey::Meta),
                 "super" => Key::Named(NamedKey::Meta),
                 "enter" => Key::Named(NamedKey::Enter),
                 "tab" => Key::Named(NamedKey::Tab),
@@ -306,7 +303,7 @@ impl FromStr for KeyMapKey {
                 "f12" => Key::Named(NamedKey::F12),
                 "mediastop" => Key::Named(NamedKey::MediaStop),
                 "open" => Key::Named(NamedKey::Open),
-                _ => Key::Character(s.to_lowercase().into()),
+                _ => Key::Character(s.to_lowercase()),
             };
             KeyMapKey::Logical(key)
         };
@@ -326,7 +323,7 @@ impl Display for KeyMapPress {
                 tracing::error!("{:?}", err);
             }
         }
-        if self.mods.contains(Modifiers::ALTGR) {
+        if self.mods.contains(Modifiers::ALT_GRAPH) {
             if let Err(err) = f.write_str("AltGr+") {
                 tracing::error!("{:?}", err);
             }
@@ -347,309 +344,208 @@ impl Display for KeyMapPress {
 
 impl Display for KeyMapKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use floem::pointer::PointerButton as B;
-
         match self {
             Self::Physical(physical) => {
                 f.write_str("[")?;
                 match physical {
-                    PhysicalKey::Unidentified(_) => f.write_str("Unidentified"),
-                    PhysicalKey::Code(KeyCode::Backquote) => {
-                        f.write_str("Backquote")
-                    }
-                    PhysicalKey::Code(KeyCode::Backslash) => {
-                        f.write_str("Backslash")
-                    }
-                    PhysicalKey::Code(KeyCode::BracketLeft) => {
-                        f.write_str("BracketLeft")
-                    }
-                    PhysicalKey::Code(KeyCode::BracketRight) => {
-                        f.write_str("BracketRight")
-                    }
-                    PhysicalKey::Code(KeyCode::Comma) => f.write_str("Comma"),
-                    PhysicalKey::Code(KeyCode::Digit0) => f.write_str("0"),
-                    PhysicalKey::Code(KeyCode::Digit1) => f.write_str("1"),
-                    PhysicalKey::Code(KeyCode::Digit2) => f.write_str("2"),
-                    PhysicalKey::Code(KeyCode::Digit3) => f.write_str("3"),
-                    PhysicalKey::Code(KeyCode::Digit4) => f.write_str("4"),
-                    PhysicalKey::Code(KeyCode::Digit5) => f.write_str("5"),
-                    PhysicalKey::Code(KeyCode::Digit6) => f.write_str("6"),
-                    PhysicalKey::Code(KeyCode::Digit7) => f.write_str("7"),
-                    PhysicalKey::Code(KeyCode::Digit8) => f.write_str("8"),
-                    PhysicalKey::Code(KeyCode::Digit9) => f.write_str("9"),
-                    PhysicalKey::Code(KeyCode::Equal) => f.write_str("Equal"),
-                    PhysicalKey::Code(KeyCode::IntlBackslash) => {
-                        f.write_str("IntlBackslash")
-                    }
-                    PhysicalKey::Code(KeyCode::IntlRo) => f.write_str("IntlRo"),
-                    PhysicalKey::Code(KeyCode::IntlYen) => f.write_str("IntlYen"),
-                    PhysicalKey::Code(KeyCode::KeyA) => f.write_str("A"),
-                    PhysicalKey::Code(KeyCode::KeyB) => f.write_str("B"),
-                    PhysicalKey::Code(KeyCode::KeyC) => f.write_str("C"),
-                    PhysicalKey::Code(KeyCode::KeyD) => f.write_str("D"),
-                    PhysicalKey::Code(KeyCode::KeyE) => f.write_str("E"),
-                    PhysicalKey::Code(KeyCode::KeyF) => f.write_str("F"),
-                    PhysicalKey::Code(KeyCode::KeyG) => f.write_str("G"),
-                    PhysicalKey::Code(KeyCode::KeyH) => f.write_str("H"),
-                    PhysicalKey::Code(KeyCode::KeyI) => f.write_str("I"),
-                    PhysicalKey::Code(KeyCode::KeyJ) => f.write_str("J"),
-                    PhysicalKey::Code(KeyCode::KeyK) => f.write_str("K"),
-                    PhysicalKey::Code(KeyCode::KeyL) => f.write_str("L"),
-                    PhysicalKey::Code(KeyCode::KeyM) => f.write_str("M"),
-                    PhysicalKey::Code(KeyCode::KeyN) => f.write_str("N"),
-                    PhysicalKey::Code(KeyCode::KeyO) => f.write_str("O"),
-                    PhysicalKey::Code(KeyCode::KeyP) => f.write_str("P"),
-                    PhysicalKey::Code(KeyCode::KeyQ) => f.write_str("Q"),
-                    PhysicalKey::Code(KeyCode::KeyR) => f.write_str("R"),
-                    PhysicalKey::Code(KeyCode::KeyS) => f.write_str("S"),
-                    PhysicalKey::Code(KeyCode::KeyT) => f.write_str("T"),
-                    PhysicalKey::Code(KeyCode::KeyU) => f.write_str("U"),
-                    PhysicalKey::Code(KeyCode::KeyV) => f.write_str("V"),
-                    PhysicalKey::Code(KeyCode::KeyW) => f.write_str("W"),
-                    PhysicalKey::Code(KeyCode::KeyX) => f.write_str("X"),
-                    PhysicalKey::Code(KeyCode::KeyY) => f.write_str("Y"),
-                    PhysicalKey::Code(KeyCode::KeyZ) => f.write_str("Z"),
-                    PhysicalKey::Code(KeyCode::Minus) => f.write_str("Minus"),
-                    PhysicalKey::Code(KeyCode::Period) => f.write_str("Period"),
-                    PhysicalKey::Code(KeyCode::Quote) => f.write_str("Quote"),
-                    PhysicalKey::Code(KeyCode::Semicolon) => {
-                        f.write_str("Semicolon")
-                    }
-                    PhysicalKey::Code(KeyCode::Slash) => f.write_str("Slash"),
-                    PhysicalKey::Code(KeyCode::AltLeft) => f.write_str("Alt"),
-                    PhysicalKey::Code(KeyCode::AltRight) => f.write_str("Alt"),
-                    PhysicalKey::Code(KeyCode::Backspace) => {
-                        f.write_str("Backspace")
-                    }
-                    PhysicalKey::Code(KeyCode::CapsLock) => f.write_str("CapsLock"),
-                    PhysicalKey::Code(KeyCode::ContextMenu) => {
-                        f.write_str("ContextMenu")
-                    }
-                    PhysicalKey::Code(KeyCode::ControlLeft) => f.write_str("Ctrl"),
-                    PhysicalKey::Code(KeyCode::ControlRight) => f.write_str("Ctrl"),
-                    PhysicalKey::Code(KeyCode::Enter) => f.write_str("Enter"),
-                    PhysicalKey::Code(KeyCode::SuperLeft) => f.write_str("Meta"),
-                    PhysicalKey::Code(KeyCode::SuperRight) => f.write_str("Meta"),
-                    PhysicalKey::Code(KeyCode::ShiftLeft) => f.write_str("Shift"),
-                    PhysicalKey::Code(KeyCode::ShiftRight) => f.write_str("Shift"),
-                    PhysicalKey::Code(KeyCode::Space) => f.write_str("Space"),
-                    PhysicalKey::Code(KeyCode::Tab) => f.write_str("Tab"),
-                    PhysicalKey::Code(KeyCode::Convert) => f.write_str("Convert"),
-                    PhysicalKey::Code(KeyCode::KanaMode) => f.write_str("KanaMode"),
-                    PhysicalKey::Code(KeyCode::Lang1) => f.write_str("Lang1"),
-                    PhysicalKey::Code(KeyCode::Lang2) => f.write_str("Lang2"),
-                    PhysicalKey::Code(KeyCode::Lang3) => f.write_str("Lang3"),
-                    PhysicalKey::Code(KeyCode::Lang4) => f.write_str("Lang4"),
-                    PhysicalKey::Code(KeyCode::Lang5) => f.write_str("Lang5"),
-                    PhysicalKey::Code(KeyCode::NonConvert) => {
-                        f.write_str("NonConvert")
-                    }
-                    PhysicalKey::Code(KeyCode::Delete) => f.write_str("Delete"),
-                    PhysicalKey::Code(KeyCode::End) => f.write_str("End"),
-                    PhysicalKey::Code(KeyCode::Help) => f.write_str("Help"),
-                    PhysicalKey::Code(KeyCode::Home) => f.write_str("Home"),
-                    PhysicalKey::Code(KeyCode::Insert) => f.write_str("Insert"),
-                    PhysicalKey::Code(KeyCode::PageDown) => f.write_str("PageDown"),
-                    PhysicalKey::Code(KeyCode::PageUp) => f.write_str("PageUp"),
-                    PhysicalKey::Code(KeyCode::ArrowDown) => f.write_str("Down"),
-                    PhysicalKey::Code(KeyCode::ArrowLeft) => f.write_str("Left"),
-                    PhysicalKey::Code(KeyCode::ArrowRight) => f.write_str("Right"),
-                    PhysicalKey::Code(KeyCode::ArrowUp) => f.write_str("Up"),
-                    PhysicalKey::Code(KeyCode::NumLock) => f.write_str("NumLock"),
-                    PhysicalKey::Code(KeyCode::Numpad0) => f.write_str("Numpad0"),
-                    PhysicalKey::Code(KeyCode::Numpad1) => f.write_str("Numpad1"),
-                    PhysicalKey::Code(KeyCode::Numpad2) => f.write_str("Numpad2"),
-                    PhysicalKey::Code(KeyCode::Numpad3) => f.write_str("Numpad3"),
-                    PhysicalKey::Code(KeyCode::Numpad4) => f.write_str("Numpad4"),
-                    PhysicalKey::Code(KeyCode::Numpad5) => f.write_str("Numpad5"),
-                    PhysicalKey::Code(KeyCode::Numpad6) => f.write_str("Numpad6"),
-                    PhysicalKey::Code(KeyCode::Numpad7) => f.write_str("Numpad7"),
-                    PhysicalKey::Code(KeyCode::Numpad8) => f.write_str("Numpad8"),
-                    PhysicalKey::Code(KeyCode::Numpad9) => f.write_str("Numpad9"),
-                    PhysicalKey::Code(KeyCode::NumpadAdd) => {
-                        f.write_str("NumpadAdd")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadBackspace) => {
-                        f.write_str("NumpadBackspace")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadClear) => {
-                        f.write_str("NumpadClear")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadClearEntry) => {
-                        f.write_str("NumpadClearEntry")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadComma) => {
-                        f.write_str("NumpadComma")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadDecimal) => {
-                        f.write_str("NumpadDecimal")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadDivide) => {
-                        f.write_str("NumpadDivide")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadEnter) => {
-                        f.write_str("NumpadEnter")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadEqual) => {
-                        f.write_str("NumpadEqual")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadHash) => {
-                        f.write_str("NumpadHash")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadMemoryAdd) => {
-                        f.write_str("NumpadMemoryAdd")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadMemoryClear) => {
-                        f.write_str("NumpadMemoryClear")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadMemoryRecall) => {
-                        f.write_str("NumpadMemoryRecall")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadMemoryStore) => {
-                        f.write_str("NumpadMemoryStore")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadMemorySubtract) => {
+                    KeyCode::Backquote => f.write_str("Backquote"),
+                    KeyCode::Backslash => f.write_str("Backslash"),
+                    KeyCode::BracketLeft => f.write_str("BracketLeft"),
+                    KeyCode::BracketRight => f.write_str("BracketRight"),
+                    KeyCode::Comma => f.write_str("Comma"),
+                    KeyCode::Digit0 => f.write_str("0"),
+                    KeyCode::Digit1 => f.write_str("1"),
+                    KeyCode::Digit2 => f.write_str("2"),
+                    KeyCode::Digit3 => f.write_str("3"),
+                    KeyCode::Digit4 => f.write_str("4"),
+                    KeyCode::Digit5 => f.write_str("5"),
+                    KeyCode::Digit6 => f.write_str("6"),
+                    KeyCode::Digit7 => f.write_str("7"),
+                    KeyCode::Digit8 => f.write_str("8"),
+                    KeyCode::Digit9 => f.write_str("9"),
+                    KeyCode::Equal => f.write_str("Equal"),
+                    KeyCode::IntlBackslash => f.write_str("IntlBackslash"),
+                    KeyCode::IntlRo => f.write_str("IntlRo"),
+                    KeyCode::IntlYen => f.write_str("IntlYen"),
+                    KeyCode::KeyA => f.write_str("A"),
+                    KeyCode::KeyB => f.write_str("B"),
+                    KeyCode::KeyC => f.write_str("C"),
+                    KeyCode::KeyD => f.write_str("D"),
+                    KeyCode::KeyE => f.write_str("E"),
+                    KeyCode::KeyF => f.write_str("F"),
+                    KeyCode::KeyG => f.write_str("G"),
+                    KeyCode::KeyH => f.write_str("H"),
+                    KeyCode::KeyI => f.write_str("I"),
+                    KeyCode::KeyJ => f.write_str("J"),
+                    KeyCode::KeyK => f.write_str("K"),
+                    KeyCode::KeyL => f.write_str("L"),
+                    KeyCode::KeyM => f.write_str("M"),
+                    KeyCode::KeyN => f.write_str("N"),
+                    KeyCode::KeyO => f.write_str("O"),
+                    KeyCode::KeyP => f.write_str("P"),
+                    KeyCode::KeyQ => f.write_str("Q"),
+                    KeyCode::KeyR => f.write_str("R"),
+                    KeyCode::KeyS => f.write_str("S"),
+                    KeyCode::KeyT => f.write_str("T"),
+                    KeyCode::KeyU => f.write_str("U"),
+                    KeyCode::KeyV => f.write_str("V"),
+                    KeyCode::KeyW => f.write_str("W"),
+                    KeyCode::KeyX => f.write_str("X"),
+                    KeyCode::KeyY => f.write_str("Y"),
+                    KeyCode::KeyZ => f.write_str("Z"),
+                    KeyCode::Minus => f.write_str("Minus"),
+                    KeyCode::Period => f.write_str("Period"),
+                    KeyCode::Quote => f.write_str("Quote"),
+                    KeyCode::Semicolon => f.write_str("Semicolon"),
+                    KeyCode::Slash => f.write_str("Slash"),
+                    KeyCode::AltLeft => f.write_str("Alt"),
+                    KeyCode::AltRight => f.write_str("Alt"),
+                    KeyCode::Backspace => f.write_str("Backspace"),
+                    KeyCode::CapsLock => f.write_str("CapsLock"),
+                    KeyCode::ContextMenu => f.write_str("ContextMenu"),
+                    KeyCode::ControlLeft => f.write_str("Ctrl"),
+                    KeyCode::ControlRight => f.write_str("Ctrl"),
+                    KeyCode::Enter => f.write_str("Enter"),
+                    KeyCode::ShiftLeft => f.write_str("Shift"),
+                    KeyCode::ShiftRight => f.write_str("Shift"),
+                    KeyCode::Space => f.write_str("Space"),
+                    KeyCode::Tab => f.write_str("Tab"),
+                    KeyCode::Convert => f.write_str("Convert"),
+                    KeyCode::KanaMode => f.write_str("KanaMode"),
+                    KeyCode::Lang1 => f.write_str("Lang1"),
+                    KeyCode::Lang2 => f.write_str("Lang2"),
+                    KeyCode::Lang3 => f.write_str("Lang3"),
+                    KeyCode::Lang4 => f.write_str("Lang4"),
+                    KeyCode::Lang5 => f.write_str("Lang5"),
+                    KeyCode::NonConvert => f.write_str("NonConvert"),
+                    KeyCode::Delete => f.write_str("Delete"),
+                    KeyCode::End => f.write_str("End"),
+                    KeyCode::Help => f.write_str("Help"),
+                    KeyCode::Home => f.write_str("Home"),
+                    KeyCode::Insert => f.write_str("Insert"),
+                    KeyCode::PageDown => f.write_str("PageDown"),
+                    KeyCode::PageUp => f.write_str("PageUp"),
+                    KeyCode::ArrowDown => f.write_str("Down"),
+                    KeyCode::ArrowLeft => f.write_str("Left"),
+                    KeyCode::ArrowRight => f.write_str("Right"),
+                    KeyCode::ArrowUp => f.write_str("Up"),
+                    KeyCode::NumLock => f.write_str("NumLock"),
+                    KeyCode::Numpad0 => f.write_str("Numpad0"),
+                    KeyCode::Numpad1 => f.write_str("Numpad1"),
+                    KeyCode::Numpad2 => f.write_str("Numpad2"),
+                    KeyCode::Numpad3 => f.write_str("Numpad3"),
+                    KeyCode::Numpad4 => f.write_str("Numpad4"),
+                    KeyCode::Numpad5 => f.write_str("Numpad5"),
+                    KeyCode::Numpad6 => f.write_str("Numpad6"),
+                    KeyCode::Numpad7 => f.write_str("Numpad7"),
+                    KeyCode::Numpad8 => f.write_str("Numpad8"),
+                    KeyCode::Numpad9 => f.write_str("Numpad9"),
+                    KeyCode::NumpadAdd => f.write_str("NumpadAdd"),
+                    KeyCode::NumpadBackspace => f.write_str("NumpadBackspace"),
+                    KeyCode::NumpadClear => f.write_str("NumpadClear"),
+                    KeyCode::NumpadClearEntry => f.write_str("NumpadClearEntry"),
+                    KeyCode::NumpadComma => f.write_str("NumpadComma"),
+                    KeyCode::NumpadDecimal => f.write_str("NumpadDecimal"),
+                    KeyCode::NumpadDivide => f.write_str("NumpadDivide"),
+                    KeyCode::NumpadEnter => f.write_str("NumpadEnter"),
+                    KeyCode::NumpadEqual => f.write_str("NumpadEqual"),
+                    KeyCode::NumpadHash => f.write_str("NumpadHash"),
+                    KeyCode::NumpadMemoryAdd => f.write_str("NumpadMemoryAdd"),
+                    KeyCode::NumpadMemoryClear => f.write_str("NumpadMemoryClear"),
+                    KeyCode::NumpadMemoryRecall => f.write_str("NumpadMemoryRecall"),
+                    KeyCode::NumpadMemoryStore => f.write_str("NumpadMemoryStore"),
+                    KeyCode::NumpadMemorySubtract => {
                         f.write_str("NumpadMemorySubtract")
                     }
-                    PhysicalKey::Code(KeyCode::NumpadMultiply) => {
-                        f.write_str("NumpadMultiply")
+                    KeyCode::NumpadMultiply => f.write_str("NumpadMultiply"),
+                    KeyCode::NumpadParenLeft => f.write_str("NumpadParenLeft"),
+                    KeyCode::NumpadParenRight => f.write_str("NumpadParenRight"),
+                    KeyCode::NumpadStar => f.write_str("NumpadStar"),
+                    KeyCode::NumpadSubtract => f.write_str("NumpadSubtract"),
+                    KeyCode::Escape => f.write_str("Escape"),
+                    KeyCode::Fn => f.write_str("Fn"),
+                    KeyCode::FnLock => f.write_str("FnLock"),
+                    KeyCode::PrintScreen => f.write_str("PrintScreen"),
+                    KeyCode::ScrollLock => f.write_str("ScrollLock"),
+                    KeyCode::Pause => f.write_str("Pause"),
+                    KeyCode::BrowserBack => f.write_str("BrowserBack"),
+                    KeyCode::BrowserFavorites => f.write_str("BrowserFavorites"),
+                    KeyCode::BrowserForward => f.write_str("BrowserForward"),
+                    KeyCode::BrowserHome => f.write_str("BrowserHome"),
+                    KeyCode::BrowserRefresh => f.write_str("BrowserRefresh"),
+                    KeyCode::BrowserSearch => f.write_str("BrowserSearch"),
+                    KeyCode::BrowserStop => f.write_str("BrowserStop"),
+                    KeyCode::Eject => f.write_str("Eject"),
+                    KeyCode::LaunchApp1 => f.write_str("LaunchApp1"),
+                    KeyCode::LaunchApp2 => f.write_str("LaunchApp2"),
+                    KeyCode::LaunchMail => f.write_str("LaunchMail"),
+                    KeyCode::MediaPlayPause => f.write_str("MediaPlayPause"),
+                    KeyCode::MediaSelect => f.write_str("MediaSelect"),
+                    KeyCode::MediaStop => f.write_str("MediaStop"),
+                    KeyCode::MediaTrackNext => f.write_str("MediaTrackNext"),
+                    KeyCode::MediaTrackPrevious => f.write_str("MediaTrackPrevious"),
+                    KeyCode::Power => f.write_str("Power"),
+                    KeyCode::Sleep => f.write_str("Sleep"),
+                    KeyCode::AudioVolumeDown => f.write_str("AudioVolumeDown"),
+                    KeyCode::AudioVolumeMute => f.write_str("AudioVolumeMute"),
+                    KeyCode::AudioVolumeUp => f.write_str("AudioVolumeUp"),
+                    KeyCode::WakeUp => f.write_str("WakeUp"),
+                    KeyCode::MetaLeft | KeyCode::MetaRight => {
+                        match std::env::consts::OS {
+                            "macos" => f.write_str("Cmd"),
+                            "windows" => f.write_str("Win"),
+                            _ => f.write_str("Meta"),
+                        }
                     }
-                    PhysicalKey::Code(KeyCode::NumpadParenLeft) => {
-                        f.write_str("NumpadParenLeft")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadParenRight) => {
-                        f.write_str("NumpadParenRight")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadStar) => {
-                        f.write_str("NumpadStar")
-                    }
-                    PhysicalKey::Code(KeyCode::NumpadSubtract) => {
-                        f.write_str("NumpadSubtract")
-                    }
-                    PhysicalKey::Code(KeyCode::Escape) => f.write_str("Escape"),
-                    PhysicalKey::Code(KeyCode::Fn) => f.write_str("Fn"),
-                    PhysicalKey::Code(KeyCode::FnLock) => f.write_str("FnLock"),
-                    PhysicalKey::Code(KeyCode::PrintScreen) => {
-                        f.write_str("PrintScreen")
-                    }
-                    PhysicalKey::Code(KeyCode::ScrollLock) => {
-                        f.write_str("ScrollLock")
-                    }
-                    PhysicalKey::Code(KeyCode::Pause) => f.write_str("Pause"),
-                    PhysicalKey::Code(KeyCode::BrowserBack) => {
-                        f.write_str("BrowserBack")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserFavorites) => {
-                        f.write_str("BrowserFavorites")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserForward) => {
-                        f.write_str("BrowserForward")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserHome) => {
-                        f.write_str("BrowserHome")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserRefresh) => {
-                        f.write_str("BrowserRefresh")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserSearch) => {
-                        f.write_str("BrowserSearch")
-                    }
-                    PhysicalKey::Code(KeyCode::BrowserStop) => {
-                        f.write_str("BrowserStop")
-                    }
-                    PhysicalKey::Code(KeyCode::Eject) => f.write_str("Eject"),
-                    PhysicalKey::Code(KeyCode::LaunchApp1) => {
-                        f.write_str("LaunchApp1")
-                    }
-                    PhysicalKey::Code(KeyCode::LaunchApp2) => {
-                        f.write_str("LaunchApp2")
-                    }
-                    PhysicalKey::Code(KeyCode::LaunchMail) => {
-                        f.write_str("LaunchMail")
-                    }
-                    PhysicalKey::Code(KeyCode::MediaPlayPause) => {
-                        f.write_str("MediaPlayPause")
-                    }
-                    PhysicalKey::Code(KeyCode::MediaSelect) => {
-                        f.write_str("MediaSelect")
-                    }
-                    PhysicalKey::Code(KeyCode::MediaStop) => {
-                        f.write_str("MediaStop")
-                    }
-                    PhysicalKey::Code(KeyCode::MediaTrackNext) => {
-                        f.write_str("MediaTrackNext")
-                    }
-                    PhysicalKey::Code(KeyCode::MediaTrackPrevious) => {
-                        f.write_str("MediaTrackPrevious")
-                    }
-                    PhysicalKey::Code(KeyCode::Power) => f.write_str("Power"),
-                    PhysicalKey::Code(KeyCode::Sleep) => f.write_str("Sleep"),
-                    PhysicalKey::Code(KeyCode::AudioVolumeDown) => {
-                        f.write_str("AudioVolumeDown")
-                    }
-                    PhysicalKey::Code(KeyCode::AudioVolumeMute) => {
-                        f.write_str("AudioVolumeMute")
-                    }
-                    PhysicalKey::Code(KeyCode::AudioVolumeUp) => {
-                        f.write_str("AudioVolumeUp")
-                    }
-                    PhysicalKey::Code(KeyCode::WakeUp) => f.write_str("WakeUp"),
-                    PhysicalKey::Code(KeyCode::Meta) => match std::env::consts::OS {
-                        "macos" => f.write_str("Cmd"),
-                        "windows" => f.write_str("Win"),
-                        _ => f.write_str("Meta"),
-                    },
-                    PhysicalKey::Code(KeyCode::Hyper) => f.write_str("Hyper"),
-                    PhysicalKey::Code(KeyCode::Turbo) => f.write_str("Turbo"),
-                    PhysicalKey::Code(KeyCode::Abort) => f.write_str("Abort"),
-                    PhysicalKey::Code(KeyCode::Resume) => f.write_str("Resume"),
-                    PhysicalKey::Code(KeyCode::Suspend) => f.write_str("Suspend"),
-                    PhysicalKey::Code(KeyCode::Again) => f.write_str("Again"),
-                    PhysicalKey::Code(KeyCode::Copy) => f.write_str("Copy"),
-                    PhysicalKey::Code(KeyCode::Cut) => f.write_str("Cut"),
-                    PhysicalKey::Code(KeyCode::Find) => f.write_str("Find"),
-                    PhysicalKey::Code(KeyCode::Open) => f.write_str("Open"),
-                    PhysicalKey::Code(KeyCode::Paste) => f.write_str("Paste"),
-                    PhysicalKey::Code(KeyCode::Props) => f.write_str("Props"),
-                    PhysicalKey::Code(KeyCode::Select) => f.write_str("Select"),
-                    PhysicalKey::Code(KeyCode::Undo) => f.write_str("Undo"),
-                    PhysicalKey::Code(KeyCode::Hiragana) => f.write_str("Hiragana"),
-                    PhysicalKey::Code(KeyCode::Katakana) => f.write_str("Katakana"),
-                    PhysicalKey::Code(KeyCode::F1) => f.write_str("F1"),
-                    PhysicalKey::Code(KeyCode::F2) => f.write_str("F2"),
-                    PhysicalKey::Code(KeyCode::F3) => f.write_str("F3"),
-                    PhysicalKey::Code(KeyCode::F4) => f.write_str("F4"),
-                    PhysicalKey::Code(KeyCode::F5) => f.write_str("F5"),
-                    PhysicalKey::Code(KeyCode::F6) => f.write_str("F6"),
-                    PhysicalKey::Code(KeyCode::F7) => f.write_str("F7"),
-                    PhysicalKey::Code(KeyCode::F8) => f.write_str("F8"),
-                    PhysicalKey::Code(KeyCode::F9) => f.write_str("F9"),
-                    PhysicalKey::Code(KeyCode::F10) => f.write_str("F10"),
-                    PhysicalKey::Code(KeyCode::F11) => f.write_str("F11"),
-                    PhysicalKey::Code(KeyCode::F12) => f.write_str("F12"),
-                    PhysicalKey::Code(KeyCode::F13) => f.write_str("F13"),
-                    PhysicalKey::Code(KeyCode::F14) => f.write_str("F14"),
-                    PhysicalKey::Code(KeyCode::F15) => f.write_str("F15"),
-                    PhysicalKey::Code(KeyCode::F16) => f.write_str("F16"),
-                    PhysicalKey::Code(KeyCode::F17) => f.write_str("F17"),
-                    PhysicalKey::Code(KeyCode::F18) => f.write_str("F18"),
-                    PhysicalKey::Code(KeyCode::F19) => f.write_str("F19"),
-                    PhysicalKey::Code(KeyCode::F20) => f.write_str("F20"),
-                    PhysicalKey::Code(KeyCode::F21) => f.write_str("F21"),
-                    PhysicalKey::Code(KeyCode::F22) => f.write_str("F22"),
-                    PhysicalKey::Code(KeyCode::F23) => f.write_str("F23"),
-                    PhysicalKey::Code(KeyCode::F24) => f.write_str("F24"),
-                    PhysicalKey::Code(KeyCode::F25) => f.write_str("F25"),
-                    PhysicalKey::Code(KeyCode::F26) => f.write_str("F26"),
-                    PhysicalKey::Code(KeyCode::F27) => f.write_str("F27"),
-                    PhysicalKey::Code(KeyCode::F28) => f.write_str("F28"),
-                    PhysicalKey::Code(KeyCode::F29) => f.write_str("F29"),
-                    PhysicalKey::Code(KeyCode::F30) => f.write_str("F30"),
-                    PhysicalKey::Code(KeyCode::F31) => f.write_str("F31"),
-                    PhysicalKey::Code(KeyCode::F32) => f.write_str("F32"),
-                    PhysicalKey::Code(KeyCode::F33) => f.write_str("F33"),
-                    PhysicalKey::Code(KeyCode::F34) => f.write_str("F34"),
-                    PhysicalKey::Code(KeyCode::F35) => f.write_str("F35"),
+                    KeyCode::Abort => f.write_str("Abort"),
+                    KeyCode::Resume => f.write_str("Resume"),
+                    KeyCode::Suspend => f.write_str("Suspend"),
+                    KeyCode::Again => f.write_str("Again"),
+                    KeyCode::Copy => f.write_str("Copy"),
+                    KeyCode::Cut => f.write_str("Cut"),
+                    KeyCode::Find => f.write_str("Find"),
+                    KeyCode::Open => f.write_str("Open"),
+                    KeyCode::Paste => f.write_str("Paste"),
+                    KeyCode::Props => f.write_str("Props"),
+                    KeyCode::Select => f.write_str("Select"),
+                    KeyCode::Undo => f.write_str("Undo"),
+                    KeyCode::Hiragana => f.write_str("Hiragana"),
+                    KeyCode::Katakana => f.write_str("Katakana"),
+                    KeyCode::F1 => f.write_str("F1"),
+                    KeyCode::F2 => f.write_str("F2"),
+                    KeyCode::F3 => f.write_str("F3"),
+                    KeyCode::F4 => f.write_str("F4"),
+                    KeyCode::F5 => f.write_str("F5"),
+                    KeyCode::F6 => f.write_str("F6"),
+                    KeyCode::F7 => f.write_str("F7"),
+                    KeyCode::F8 => f.write_str("F8"),
+                    KeyCode::F9 => f.write_str("F9"),
+                    KeyCode::F10 => f.write_str("F10"),
+                    KeyCode::F11 => f.write_str("F11"),
+                    KeyCode::F12 => f.write_str("F12"),
+                    KeyCode::F13 => f.write_str("F13"),
+                    KeyCode::F14 => f.write_str("F14"),
+                    KeyCode::F15 => f.write_str("F15"),
+                    KeyCode::F16 => f.write_str("F16"),
+                    KeyCode::F17 => f.write_str("F17"),
+                    KeyCode::F18 => f.write_str("F18"),
+                    KeyCode::F19 => f.write_str("F19"),
+                    KeyCode::F20 => f.write_str("F20"),
+                    KeyCode::F21 => f.write_str("F21"),
+                    KeyCode::F22 => f.write_str("F22"),
+                    KeyCode::F23 => f.write_str("F23"),
+                    KeyCode::F24 => f.write_str("F24"),
+                    KeyCode::F25 => f.write_str("F25"),
+                    KeyCode::F26 => f.write_str("F26"),
+                    KeyCode::F27 => f.write_str("F27"),
+                    KeyCode::F28 => f.write_str("F28"),
+                    KeyCode::F29 => f.write_str("F29"),
+                    KeyCode::F30 => f.write_str("F30"),
+                    KeyCode::F31 => f.write_str("F31"),
+                    KeyCode::F32 => f.write_str("F32"),
+                    KeyCode::F33 => f.write_str("F33"),
+                    KeyCode::F34 => f.write_str("F34"),
+                    KeyCode::F35 => f.write_str("F35"),
                     _ => f.write_str("Unidentified"),
                 }?;
                 f.write_str("]")
@@ -670,10 +566,8 @@ impl Display for KeyMapKey {
                     NamedKey::ArrowRight => f.write_str("ArrowRight"),
                     NamedKey::Escape => f.write_str("Escape"),
                     NamedKey::Fn => f.write_str("Fn"),
-                    NamedKey::Space => f.write_str("Space"),
                     NamedKey::Shift => f.write_str("Shift"),
                     NamedKey::Meta => f.write_str("Meta"),
-                    NamedKey::Super => f.write_str("Meta"),
                     NamedKey::Control => f.write_str("Ctrl"),
                     NamedKey::Alt => f.write_str("Alt"),
                     NamedKey::AltGraph => f.write_str("AltGraph"),
@@ -690,17 +584,20 @@ impl Display for KeyMapKey {
                     NamedKey::F10 => f.write_str("F10"),
                     NamedKey::F11 => f.write_str("F11"),
                     NamedKey::F12 => f.write_str("F12"),
+                    NamedKey::Dead => f.write_str("Dead"),
                     _ => f.write_str("Unidentified"),
                 },
-                Key::Character(s) => f.write_str(s),
-                Key::Unidentified(_) => f.write_str("Unidentified"),
-                Key::Dead(_) => f.write_str("dead"),
+                Key::Character(s) => {
+                    if s == " " {
+                        f.write_str("Space")
+                    } else {
+                        f.write_str(s)
+                    }
+                }
             },
-            Self::Pointer(B::Mouse(MouseButton::Auxiliary)) => {
-                f.write_str("MouseMiddle")
-            }
-            Self::Pointer(B::Mouse(MouseButton::X2)) => f.write_str("MouseForward"),
-            Self::Pointer(B::Mouse(MouseButton::X1)) => f.write_str("MouseBackward"),
+            Self::Pointer(PointerButton::Auxiliary) => f.write_str("MouseMiddle"),
+            Self::Pointer(PointerButton::X2) => f.write_str("MouseForward"),
+            Self::Pointer(PointerButton::X1) => f.write_str("MouseBackward"),
             Self::Pointer(_) => f.write_str("MouseUnimplemented"),
         }
     }

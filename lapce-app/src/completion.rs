@@ -51,9 +51,9 @@ pub struct CompletionData {
     /// The current input that the user has typed which is being sent for consideration by the LSP
     pub input: String,
     /// `(Input, CompletionItems)`
-    pub input_items: im::HashMap<String, im::Vector<ScoredCompletionItem>>,
+    pub input_items: imbl::HashMap<String, imbl::Vector<ScoredCompletionItem>>,
     /// The filtered items that are being displayed to the user
-    pub filtered_items: im::Vector<ScoredCompletionItem>,
+    pub filtered_items: imbl::Vector<ScoredCompletionItem>,
     /// The size of the completion element.  
     /// This is used for positioning the element.  
     /// As well, it is needed for some movement commands like page up/down that need to know the
@@ -77,8 +77,8 @@ impl CompletionData {
             offset: 0,
             active,
             input: "".to_string(),
-            input_items: im::HashMap::new(),
-            filtered_items: im::Vector::new(),
+            input_items: imbl::HashMap::new(),
+            filtered_items: imbl::Vector::new(),
             layout_rect: Rect::ZERO,
             matcher: cx
                 .create_rw_signal(nucleo::Matcher::new(nucleo::Config::DEFAULT)),
@@ -106,7 +106,7 @@ impl CompletionData {
             // TODO: Possibly handle the 'is_incomplete' field on List.
             CompletionResponse::List(list) => &list.items,
         };
-        let items: im::Vector<ScoredCompletionItem> = items
+        let items: imbl::Vector<ScoredCompletionItem> = items
             .iter()
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
@@ -130,7 +130,7 @@ impl CompletionData {
         position: Position,
     ) {
         self.latest_editor_id = Some(editor_id);
-        self.input_items.insert(input.clone(), im::Vector::new());
+        self.input_items.insert(input.clone(), imbl::Vector::new());
         proxy_rpc.completion(self.request_id, path, input, position);
     }
 
@@ -161,7 +161,7 @@ impl CompletionData {
         self.filter_items();
     }
 
-    fn all_items(&self) -> im::Vector<ScoredCompletionItem> {
+    fn all_items(&self) -> imbl::Vector<ScoredCompletionItem> {
         self.input_items
             .get(&self.input)
             .cloned()
@@ -179,7 +179,7 @@ impl CompletionData {
         }
 
         // Filter the items by the fuzzy matching with the input text.
-        let mut items: im::Vector<ScoredCompletionItem> = self
+        let mut items: imbl::Vector<ScoredCompletionItem> = self
             .matcher
             .try_update(|matcher| {
                 let pattern = nucleo::pattern::Pattern::parse(

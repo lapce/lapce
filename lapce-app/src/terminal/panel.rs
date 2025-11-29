@@ -29,7 +29,7 @@ use crate::{
 
 pub struct TerminalTabInfo {
     pub active: usize,
-    pub tabs: im::Vector<(RwSignal<usize>, TerminalTabData)>,
+    pub tabs: imbl::Vector<(RwSignal<usize>, TerminalTabData)>,
 }
 
 #[derive(Clone)]
@@ -56,7 +56,7 @@ impl TerminalPanelData {
         let cx = common.scope;
 
         let tabs =
-            im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
+            imbl::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
         let tab_info = cx.create_rw_signal(tab_info);
 

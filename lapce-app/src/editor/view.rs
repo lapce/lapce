@@ -7,7 +7,6 @@ use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
     event::{Event, EventListener, EventPropagation},
-    keyboard::Modifiers,
     kurbo::Stroke,
     peniko::{
         Color,
@@ -20,6 +19,7 @@ use floem::{
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
+    ui_events::{keyboard::Modifiers, pointer::PointerEvent},
     views::{
         Decorators, clip, container, dyn_stack,
         editor::{
@@ -242,7 +242,7 @@ pub fn editor_view(
                     ime_allowed.set(true);
                     set_ime_allowed(true);
                 }
-                let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity));
+                let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity()));
                 let (_, point_below) = ed1.points_of_offset(offset, affinity);
                 let window_origin = editor_window_origin.get();
                 let viewport = editor_viewport.get();
@@ -450,16 +450,16 @@ impl EditorView {
 
         cursor.with_untracked(|cursor| {
             let highlight_current_line = match cursor.mode {
-                CursorMode::Normal(_) | CursorMode::Insert(_) => true,
+                CursorMode::Normal { .. } | CursorMode::Insert(_) => true,
                 CursorMode::Visual { .. } => false,
             };
 
             if let Some(current_line_color) = current_line_color {
                 // Highlight the current line
                 if !is_local && highlight_current_line {
-                    for (_, end) in cursor.regions_iter() {
+                    for (_, end, affinity) in cursor.regions_iter() {
                         // TODO: unsure if this is correct for wrapping lines
-                        let rvline = ed.rvline_of_offset(end, cursor.affinity);
+                        let rvline = ed.rvline_of_offset(end, affinity);
 
                         if let Some(info) = screen_lines
                             .info(rvline)
@@ -1024,7 +1024,7 @@ impl View for EditorView {
         let editor = &self.editor.editor;
         if editor.es.try_update(|s| s.read(cx)).unwrap() {
             editor.floem_style_id.update(|val| *val += 1);
-            cx.app_state_mut().request_paint(self.id());
+            cx.window_state.request_paint(self.id());
         }
     }
 
@@ -1378,7 +1378,7 @@ pub fn editor_container_view(
 fn editor_gutter_breakpoint_view(
     i: usize,
     doc: DocSignal,
-    daps: RwSignal<im::HashMap<DapId, DapData>>,
+    daps: RwSignal<imbl::HashMap<DapId, DapData>>,
     breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
     screen_lines: RwSignal<ScreenLines>,
     common: Rc<CommonData>,
@@ -1591,7 +1591,7 @@ fn editor_gutter_breakpoints(
 fn editor_gutter_code_lens_view(
     window_tab_data: Rc<WindowTabData>,
     line: usize,
-    lens: (PluginId, usize, im::Vector<CodeLens>),
+    lens: (PluginId, usize, imbl::Vector<CodeLens>),
     screen_lines: RwSignal<ScreenLines>,
     viewport: RwSignal<Rect>,
     icon_padding: f32,
@@ -1805,7 +1805,7 @@ fn editor_gutter_code_actions(
     let code_action_vline = create_memo(move |_| {
         let doc = doc.get();
         let (offset, affinity) =
-            cursor.with(|cursor| (cursor.offset(), cursor.affinity));
+            cursor.with(|cursor| (cursor.offset(), cursor.affinity()));
         let has_code_actions = doc
             .code_actions()
             .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
@@ -1920,8 +1920,8 @@ fn editor_gutter(
                         gutter_rect.set(rect);
                     })
                     .on_event_stop(EventListener::PointerWheel, move |event| {
-                        if let Event::PointerWheel(pointer_event) = event {
-                            scroll_delta.set(pointer_event.delta);
+                        if let Some(delta) = event.pixel_scroll_delta_vec2() {
+                            scroll_delta.set(delta);
                         }
                     })
                     .style(|s| s.size_pct(100.0, 100.0)),
@@ -2112,25 +2112,23 @@ fn editor_content(
                 editor2.editor_view_focus_lost.notify();
             })
             .on_event_cont(EventListener::PointerDown, move |event| {
-                if let Event::PointerDown(pointer_event) = event {
+                if let Event::Pointer(PointerEvent::Down(pointer_event)) = event {
                     id.request_active();
                     e_data.get_untracked().pointer_down(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerMove, move |event| {
-                if let Event::PointerMove(pointer_event) = event {
+                if let Event::Pointer(PointerEvent::Move(pointer_event)) = event {
                     e_data.get_untracked().pointer_move(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerUp, move |event| {
-                if let Event::PointerUp(pointer_event) = event {
+                if let Event::Pointer(PointerEvent::Up(pointer_event)) = event {
                     e_data.get_untracked().pointer_up(pointer_event);
                 }
             })
-            .on_event_stop(EventListener::PointerLeave, move |event| {
-                if let Event::PointerLeave = event {
-                    e_data.get_untracked().pointer_leave();
-                }
+            .on_event_stop(EventListener::PointerLeave, move |_| {
+                e_data.get_untracked().pointer_leave();
             })
     })
     .on_move(move |point| {
@@ -2158,7 +2156,7 @@ fn editor_content(
             &e_data.editor,
             offset,
             !cursor.is_insert(),
-            cursor.affinity,
+            cursor.affinity(),
         );
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
@@ -2522,7 +2520,7 @@ fn find_view(
 
 /// Iterator over (len, color, modified) for each change in the diff
 fn changes_color_iter<'a>(
-    changes: &'a im::Vector<DiffLines>,
+    changes: &'a imbl::Vector<DiffLines>,
     config: &'a LapceConfig,
 ) -> impl Iterator<Item = (usize, Option<Color>, bool)> + 'a {
     let mut last_change = None;
@@ -2563,7 +2561,7 @@ fn changes_color_iter<'a>(
 pub fn changes_colors_screen(
     config: &LapceConfig,
     editor: &Editor,
-    changes: im::Vector<DiffLines>,
+    changes: imbl::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
     let screen_lines = editor.screen_lines.get_untracked();
 
@@ -2617,7 +2615,7 @@ pub fn changes_colors_screen(
 pub fn changes_colors_all(
     config: &LapceConfig,
     ed: &Editor,
-    changes: im::Vector<DiffLines>,
+    changes: imbl::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
     let line_height = config.editor.line_height();
 

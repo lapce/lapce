@@ -4,7 +4,6 @@ use floem::{
     IntoView, View,
     action::{TimerToken, add_overlay, exec_after, remove_overlay},
     event::EventListener,
-    keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
         Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
@@ -12,6 +11,7 @@ use floem::{
     },
     style::CursorStyle,
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    ui_events::keyboard::Modifiers,
     views::{
         Decorators, VirtualVector, container, dyn_stack, empty, label,
         scroll::{PropagatePointerWheel, scroll},
@@ -84,11 +84,11 @@ struct SettingsItem {
 
 #[derive(Clone, Debug)]
 struct SettingsData {
-    items: RwSignal<im::Vector<SettingsItem>>,
-    kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
-    plugin_items: RwSignal<im::Vector<SettingsItem>>,
-    plugin_kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
-    filtered_items: RwSignal<im::Vector<SettingsItem>>,
+    items: RwSignal<imbl::Vector<SettingsItem>>,
+    kinds: RwSignal<imbl::Vector<(String, RwSignal<Point>)>>,
+    plugin_items: RwSignal<imbl::Vector<SettingsItem>>,
+    plugin_kinds: RwSignal<imbl::Vector<(String, RwSignal<Point>)>>,
+    filtered_items: RwSignal<imbl::Vector<SettingsItem>>,
     common: Rc<CommonData>,
 }
 
@@ -145,16 +145,16 @@ impl SettingsData {
         }
 
         let config = common.config;
-        let plugin_items = cx.create_rw_signal(im::Vector::new());
-        let plugin_kinds = cx.create_rw_signal(im::Vector::new());
-        let filtered_items = cx.create_rw_signal(im::Vector::new());
-        let items = cx.create_rw_signal(im::Vector::new());
-        let kinds = cx.create_rw_signal(im::Vector::new());
+        let plugin_items = cx.create_rw_signal(imbl::Vector::new());
+        let plugin_kinds = cx.create_rw_signal(imbl::Vector::new());
+        let filtered_items = cx.create_rw_signal(imbl::Vector::new());
+        let items = cx.create_rw_signal(imbl::Vector::new());
+        let kinds = cx.create_rw_signal(imbl::Vector::new());
         cx.create_effect(move |_| {
             let config = config.get();
 
-            let mut data_items = im::Vector::new();
-            let mut data_kinds = im::Vector::new();
+            let mut data_items = imbl::Vector::new();
+            let mut data_kinds = imbl::Vector::new();
             let mut item_height_accum = 0.0;
             for (kind, fields, descs, mut settings_map) in [
                 (
@@ -240,8 +240,8 @@ impl SettingsData {
             items.set(data_items);
 
             let plugins = installed_plugin.get();
-            let mut setting_items = im::Vector::new();
-            let mut plugin_kinds_tmp = im::Vector::new();
+            let mut setting_items = imbl::Vector::new();
+            let mut plugin_kinds_tmp = imbl::Vector::new();
             for (_, volt) in plugins {
                 let meta = volt.meta.get();
                 let kind = meta.name;
@@ -351,7 +351,7 @@ pub fn settings_view(
             return;
         }
 
-        let mut filtered_items = im::Vector::new();
+        let mut filtered_items = imbl::Vector::new();
         for item in &items {
             if item.header || item.filter_text.contains(&pattern) {
                 filtered_items.push_back(item.clone());
@@ -489,9 +489,9 @@ pub fn settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigable()
                     .style(move |s| {
-                        s.width_pct(100.0)
+                        s.focusable(true)
+                            .width_pct(100.0)
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
@@ -639,11 +639,14 @@ fn settings_item_view(
                 });
 
                 text_input_view
-                    .keyboard_navigable()
                     .style(move |s| {
-                        s.width(300.0).border(1.0).border_radius(6.0).border_color(
-                            config.get().color(LapceColor::LAPCE_BORDER),
-                        )
+                        s.focusable(true)
+                            .width(300.0)
+                            .border(1.0)
+                            .border_radius(6.0)
+                            .border_color(
+                                config.get().color(LapceColor::LAPCE_BORDER),
+                            )
                     })
                     .into_any()
             } else if let SettingsValue::Dropdown(dropdown) = &item.value {
@@ -941,8 +944,9 @@ fn color_section_list(
                     text(&key).style(move |s| {
                         s.width(max_width.get()).margin_left(20).margin_right(10)
                     }),
-                    text_input_view.keyboard_navigable().style(move |s| {
-                        s.width(150.0)
+                    text_input_view.style(move |s| {
+                        s.focusable(true)
+                            .width(150.0)
                             .margin_vert(6)
                             .border(1)
                             .border_radius(6)
@@ -1086,9 +1090,9 @@ pub fn theme_color_settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigable()
                     .style(move |s| {
-                        s.width_pct(100.0)
+                        s.focusable(true)
+                            .width_pct(100.0)
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
@@ -1199,20 +1203,18 @@ fn dropdown_view(
             if expanded.get() {
                 let item = item.clone();
                 let dropdown = dropdown.clone();
-                let id = add_overlay(Point::ZERO, move |_| {
-                    dropdown_scroll(
-                        &item.clone(),
-                        current_value,
-                        &dropdown.clone(),
-                        expanded,
-                        dropdown_scroll_focus,
-                        dropdown_input_focus,
-                        window_origin,
-                        size,
-                        window_size,
-                        config,
-                    )
-                });
+                let id = add_overlay(dropdown_scroll(
+                    &item.clone(),
+                    current_value,
+                    &dropdown.clone(),
+                    expanded,
+                    dropdown_scroll_focus,
+                    dropdown_input_focus,
+                    window_origin,
+                    size,
+                    window_size,
+                    config,
+                ));
                 overlay_id.set(Some(id));
             } else if let Some(id) = overlay_id.get_untracked() {
                 remove_overlay(id);
@@ -1260,7 +1262,8 @@ fn dropdown_view(
         size.set(rect.size());
     })
     .style(move |s| {
-        s.items_center()
+        s.focusable(true)
+            .items_center()
             .cursor(CursorStyle::Pointer)
             .border_color(config.get().color(LapceColor::LAPCE_BORDER))
             .border(1.0)
@@ -1268,7 +1271,6 @@ fn dropdown_view(
             .width(250.0)
             .line_height(1.8)
     })
-    .keyboard_navigable()
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_input_focus.set(true);
     })
@@ -1335,11 +1337,11 @@ fn dropdown_scroll(
             .style(|s| s.flex_col().width_pct(100.0).cursor(CursorStyle::Pointer))
     })
     .style(move |s| {
-        s.width_pct(100.0)
+        s.focusable(true)
+            .width_pct(100.0)
             .max_height(200.0)
             .set(PropagatePointerWheel, false)
     })
-    .keyboard_navigable()
     .request_focus(|| {})
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_scroll_focus.set(true);

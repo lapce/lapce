@@ -11,9 +11,9 @@ use floem::{
     action::show_context_menu,
     event::EventPropagation,
     ext_event::create_ext_action,
-    keyboard::Modifiers,
-    menu::{Menu, MenuItem},
+    menu::Menu,
     reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;
@@ -500,15 +500,16 @@ impl FileExplorerData {
         };
         let base_path_a = base_path_a.as_ref().unwrap_or(workspace_path);
 
-        let mut menu = Menu::new("");
+        let mut menu = Menu::new();
 
         let base_path = base_path_a.clone();
         let data = self.clone();
         let naming = self.naming;
-        menu = menu.entry(MenuItem::new("New File").action(move || {
-            let base_path_b = &base_path;
-            let base_path = base_path.clone();
-            data.read_dir_cb(base_path_b, move |was_read| {
+        menu = menu.item("New File", move |builder| {
+            builder.action(move || {
+                let base_path_b = &base_path;
+                let base_path = base_path.clone();
+                data.read_dir_cb(base_path_b, move |was_read| {
                 if !was_read {
                     tracing::warn!(
                         "Failed to read directory, avoiding creating node in: {:?}",
@@ -524,15 +525,17 @@ impl FileExplorerData {
                     editor_needs_reset: true,
                 }));
             });
-        }));
+            })
+        });
 
         let base_path = base_path_a.clone();
         let data = self.clone();
         let naming = self.naming;
-        menu = menu.entry(MenuItem::new("New Directory").action(move || {
-            let base_path_b = &base_path;
-            let base_path = base_path.clone();
-            data.read_dir_cb(base_path_b, move |was_read| {
+        menu = menu.item("New Directory", move |builder| {
+            builder.action(move || {
+                let base_path_b = &base_path;
+                let base_path = base_path.clone();
+                data.read_dir_cb(base_path_b, move |was_read| {
                 if !was_read {
                     tracing::warn!(
                         "Failed to read directory, avoiding creating node in: {:?}",
@@ -548,7 +551,8 @@ impl FileExplorerData {
                     editor_needs_reset: true,
                 }));
             })
-        }));
+            })
+        });
 
         menu = menu.separator();
 
@@ -559,39 +563,45 @@ impl FileExplorerData {
             let title = "Reveal in system file explorer";
             #[cfg(target_os = "macos")]
             let title = "Reveal in Finder";
-            menu = menu.entry(MenuItem::new(title).action(move || {
-                let path = path.parent().unwrap_or(&path);
-                if !path.exists() {
-                    return;
-                }
+            menu = menu.item(title, move |builder| {
+                builder.action(move || {
+                    let path = path.parent().unwrap_or(&path);
+                    if !path.exists() {
+                        return;
+                    }
 
-                if let Err(err) = open::that(path) {
-                    tracing::error!(
-                        "Failed to reveal file in system file explorer: {}",
-                        err
-                    );
-                }
-            }));
+                    if let Err(err) = open::that(path) {
+                        tracing::error!(
+                            "Failed to reveal file in system file explorer: {}",
+                            err
+                        );
+                    }
+                })
+            });
         }
 
         if !is_workspace {
             let path = path_a.clone();
-            menu = menu.entry(MenuItem::new("Rename").action(move || {
-                naming.set(Naming::Renaming(Renaming {
-                    state: NamingState::Naming,
-                    path: path.clone(),
-                    editor_needs_reset: true,
-                }));
-            }));
+            menu = menu.item("Rename", move |builder| {
+                builder.action(move || {
+                    naming.set(Naming::Renaming(Renaming {
+                        state: NamingState::Naming,
+                        path: path.clone(),
+                        editor_needs_reset: true,
+                    }));
+                })
+            });
 
             let path = path_a.clone();
-            menu = menu.entry(MenuItem::new("Duplicate").action(move || {
-                naming.set(Naming::Duplicating(Duplicating {
-                    state: NamingState::Naming,
-                    path: path.clone(),
-                    editor_needs_reset: true,
-                }));
-            }));
+            menu = menu.item("Duplicate", move |builder| {
+                builder.action(move || {
+                    naming.set(Naming::Duplicating(Duplicating {
+                        state: NamingState::Naming,
+                        path: path.clone(),
+                        editor_needs_reset: true,
+                    }));
+                })
+            });
 
             // TODO: it is common for shift+right click to make 'Move file to trash' an actual
             // Delete, which can be useful for large files.
@@ -602,66 +612,73 @@ impl FileExplorerData {
             } else {
                 "Move File to Trash"
             };
-            menu = menu.entry(MenuItem::new(trash_text).action(move || {
-                proxy.trash_path(path.clone(), |res| {
-                    if let Err(err) = res {
-                        tracing::warn!("Failed to trash path: {:?}", err);
-                    }
+            menu = menu.item(trash_text, move |builder| {
+                builder.action(move || {
+                    proxy.trash_path(path.clone(), |res| {
+                        if let Err(err) = res {
+                            tracing::warn!("Failed to trash path: {:?}", err);
+                        }
+                    })
                 })
-            }));
+            });
         }
 
         menu = menu.separator();
 
         let path = path_a.clone();
-        menu = menu.entry(MenuItem::new("Copy Path").action(move || {
-            let mut clipboard = SystemClipboard::new();
-            clipboard.put_string(path.to_string_lossy());
-        }));
+        menu = menu.item("Copy Path", move |builder| {
+            builder.action(move || {
+                let mut clipboard = SystemClipboard::new();
+                clipboard.put_string(path.to_string_lossy());
+            })
+        });
 
         let path = path_a.clone();
         let workspace = common.workspace.clone();
-        menu = menu.entry(MenuItem::new("Copy Relative Path").action(move || {
-            let relative_path = if let Some(workspace_path) = &workspace.path {
-                path.strip_prefix(workspace_path).unwrap_or(&path)
-            } else {
-                path.as_ref()
-            };
+        menu = menu.item("Copy Relative Path", move |builder| {
+            builder.action(move || {
+                let relative_path = if let Some(workspace_path) = &workspace.path {
+                    path.strip_prefix(workspace_path).unwrap_or(&path)
+                } else {
+                    path.as_ref()
+                };
 
-            let mut clipboard = SystemClipboard::new();
-            clipboard.put_string(relative_path.to_string_lossy());
-        }));
+                let mut clipboard = SystemClipboard::new();
+                clipboard.put_string(relative_path.to_string_lossy());
+            })
+        });
 
         menu = menu.separator();
 
         let path = path_a.clone();
-        menu = menu.entry(
-            MenuItem::new("Select for Compare")
-                .action(move || left_diff_path.set(Some(path.clone()))),
-        );
+        menu = menu.item("Select for Compare", move |builder| {
+            builder.action(move || left_diff_path.set(Some(path.clone())))
+        });
 
         if let Some(left_path) = self.left_diff_path.get_untracked() {
             let common = self.common.clone();
             let right_path = path_a.to_owned();
 
-            menu = menu.entry(MenuItem::new("Compare with Selected").action(
-                move || {
+            menu = menu.item("Compare with Selected", move |builder| {
+                builder.action(move || {
                     common
                         .internal_command
                         .send(InternalCommand::OpenDiffFiles {
                             left_path: left_path.clone(),
                             right_path: right_path.clone(),
                         })
-                },
-            ))
+                })
+            })
         }
 
         menu = menu.separator();
 
         let internal_command = common.internal_command;
-        menu = menu.entry(MenuItem::new("Refresh").action(move || {
-            internal_command.send(InternalCommand::ReloadFileExplorer);
-        }));
+        menu = menu.item("Refresh", move |builder| {
+            builder.action(move || {
+                internal_command.send(InternalCommand::ReloadFileExplorer);
+            })
+        });
 
         show_context_menu(menu, None);
     }

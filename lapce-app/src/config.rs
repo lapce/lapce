@@ -88,7 +88,7 @@ static DEFAULT_ICON_THEME_ICON_CONFIG: Lazy<IconThemeConfig> = Lazy::new(|| {
 pub struct DropdownInfo {
     /// The currently selected item.
     pub active_index: usize,
-    pub items: im::Vector<String>,
+    pub items: imbl::Vector<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -120,12 +120,12 @@ pub struct LapceConfig {
     /// A list of the themes that are available. This is primarily for populating
     /// the theme picker, and serves as a cache.
     #[serde(skip)]
-    color_theme_list: im::Vector<String>,
+    color_theme_list: imbl::Vector<String>,
     #[serde(skip)]
-    icon_theme_list: im::Vector<String>,
+    icon_theme_list: imbl::Vector<String>,
     /// The couple names for the wrap style
     #[serde(skip)]
-    wrap_style_list: im::Vector<String>,
+    wrap_style_list: imbl::Vector<String>,
 }
 
 impl LapceConfig {
@@ -165,7 +165,7 @@ impl LapceConfig {
             .collect();
         lapce_config.icon_theme_list.sort();
 
-        lapce_config.wrap_style_list = im::vector![
+        lapce_config.wrap_style_list = imbl::vector![
             WrapStyle::None.to_string(),
             WrapStyle::EditorWidth.to_string(),
             // TODO: WrapStyle::WrapColumn.to_string(),
@@ -696,12 +696,12 @@ impl LapceConfig {
     }
 
     /// List of the color themes that are available by their display names.
-    pub fn color_theme_list(&self) -> im::Vector<String> {
+    pub fn color_theme_list(&self) -> imbl::Vector<String> {
         self.color_theme_list.clone()
     }
 
     /// List of the icon themes that are available by their display names.
-    pub fn icon_theme_list(&self) -> im::Vector<String> {
+    pub fn icon_theme_list(&self) -> imbl::Vector<String> {
         self.icon_theme_list.clone()
     }
 

@@ -18,13 +18,13 @@ use crate::{
     window_tab::{CommonData, Focus},
 };
 
-pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
+pub type PanelOrder = imbl::HashMap<PanelPosition, imbl::Vector<PanelKind>>;
 
 pub fn default_panel_order() -> PanelOrder {
     let mut order = PanelOrder::new();
     order.insert(
         PanelPosition::LeftTop,
-        im::vector![
+        imbl::vector![
             PanelKind::FileExplorer,
             PanelKind::Plugin,
             PanelKind::SourceControl,
@@ -33,7 +33,7 @@ pub fn default_panel_order() -> PanelOrder {
     );
     order.insert(
         PanelPosition::BottomLeft,
-        im::vector![
+        imbl::vector![
             PanelKind::Terminal,
             PanelKind::Search,
             PanelKind::Problem,
@@ -44,7 +44,7 @@ pub fn default_panel_order() -> PanelOrder {
     );
     order.insert(
         PanelPosition::RightTop,
-        im::vector![PanelKind::DocumentSymbol,],
+        imbl::vector![PanelKind::DocumentSymbol,],
     );
 
     order
@@ -78,32 +78,32 @@ pub struct PanelSize {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PanelInfo {
     pub panels: PanelOrder,
-    pub styles: im::HashMap<PanelPosition, PanelStyle>,
+    pub styles: imbl::HashMap<PanelPosition, PanelStyle>,
     pub size: PanelSize,
-    pub sections: im::HashMap<PanelSection, bool>,
+    pub sections: imbl::HashMap<PanelSection, bool>,
 }
 
 #[derive(Clone)]
 pub struct PanelData {
     pub panels: RwSignal<PanelOrder>,
-    pub styles: RwSignal<im::HashMap<PanelPosition, PanelStyle>>,
+    pub styles: RwSignal<imbl::HashMap<PanelPosition, PanelStyle>>,
     pub size: RwSignal<PanelSize>,
     pub available_size: Memo<Size>,
-    pub sections: RwSignal<im::HashMap<PanelSection, RwSignal<bool>>>,
+    pub sections: RwSignal<imbl::HashMap<PanelSection, RwSignal<bool>>>,
     pub common: Rc<CommonData>,
 }
 
 impl PanelData {
     pub fn new(
         cx: Scope,
-        panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
+        panels: imbl::HashMap<PanelPosition, imbl::Vector<PanelKind>>,
         available_size: Memo<Size>,
-        sections: im::HashMap<PanelSection, bool>,
+        sections: imbl::HashMap<PanelSection, bool>,
         common: Rc<CommonData>,
     ) -> Self {
         let panels = cx.create_rw_signal(panels);
 
-        let mut styles = im::HashMap::new();
+        let mut styles = imbl::HashMap::new();
         styles.insert(
             PanelPosition::LeftTop,
             PanelStyle {

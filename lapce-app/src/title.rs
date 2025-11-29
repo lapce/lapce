@@ -3,7 +3,7 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     View,
     event::EventListener,
-    menu::{Menu, MenuItem},
+    menu::Menu,
     peniko::Color,
     reactive::{
         Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_memo,
@@ -85,31 +85,31 @@ fn left(
         )
         .popout_menu(move || {
             #[allow(unused_mut)]
-            let mut menu = Menu::new("").entry(
-                MenuItem::new("Connect to SSH Host").action(move || {
+            let mut menu = Menu::new().item("Connect to SSH Host", move |builder| {
+                builder.action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
-                }),
-            );
+                })
+            });
             if !is_local
                 && proxy_status.get().is_some_and(|p| {
                     matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)
                 })
             {
-                menu = menu.entry(MenuItem::new("Disconnect remote").action(
-                    move || {
+                menu = menu.item("Disconnect remote", |builder| {
+                    builder.action(move || {
                         workbench_command
                             .send(LapceWorkbenchCommand::DisconnectRemote);
-                    },
-                ));
+                    })
+                });
             }
             #[cfg(windows)]
             {
-                menu = menu.entry(MenuItem::new("Connect to WSL Host").action(
-                    move || {
+                menu = menu.item("Connect to WSL Host", |builder| {
+                    builder.action(move || {
                         workbench_command
                             .send(LapceWorkbenchCommand::ConnectWslHost);
-                    },
-                ));
+                    })
+                });
             }
             menu
         })
@@ -208,13 +208,18 @@ fn middle(
             config,
         )
         .popout_menu(move || {
-            Menu::new("")
-                .entry(MenuItem::new("Open Folder").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
-                }))
-                .entry(MenuItem::new("Open Recent Workspace").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
-                }))
+            Menu::new()
+                .item("Open Folder", move |builder| {
+                    builder.action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::OpenFolder);
+                    })
+                })
+                .item("Open Recent Workspace", move |builder| {
+                    builder.action(move || {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::PaletteWorkspace);
+                    })
+                })
         })
     };
 
@@ -340,46 +345,61 @@ fn right(
                 config,
             )
             .popout_menu(move || {
-                Menu::new("")
-                    .entry(MenuItem::new("Command Palette").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::PaletteCommand)
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Open Settings").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::OpenSettings)
-                    }))
-                    .entry(MenuItem::new("Open Keyboard Shortcuts").action(
-                        move || {
+                let mut menu = Menu::new()
+                    .item("Command Palette", move |builder| {
+                        builder.action(move || {
                             workbench_command
-                                .send(LapceWorkbenchCommand::OpenKeyboardShortcuts)
-                        },
-                    ))
-                    .entry(MenuItem::new("Open Theme Color Settings").action(
-                        move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::OpenThemeColorSettings)
-                        },
-                    ))
-                    .separator()
-                    .entry(if let Some(v) = latest_version.get_untracked() {
-                        if update_in_progress.get_untracked() {
-                            MenuItem::new(format!("Update in progress ({v})"))
-                                .enabled(false)
-                        } else {
-                            MenuItem::new(format!("Restart to update ({v})")).action(
-                                move || {
-                                    workbench_command
-                                        .send(LapceWorkbenchCommand::RestartToUpdate)
-                                },
-                            )
-                        }
-                    } else {
-                        MenuItem::new("No update available").enabled(false)
+                                .send(LapceWorkbenchCommand::PaletteCommand)
+                        })
                     })
                     .separator()
-                    .entry(MenuItem::new("About Lapce").action(move || {
+                    .item("Open Settings", move |builder| {
+                        builder.action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenSettings)
+                        })
+                    })
+                    .item("Open Keyboard Shortcuts", move |builder| {
+                        builder.action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenKeyboardShortcuts)
+                        })
+                    })
+                    .item("Open Theme Color Settings", move |builder| {
+                        builder.action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenThemeColorSettings)
+                        })
+                    })
+                    .separator();
+
+                menu = if let Some(v) = latest_version.get_untracked() {
+                    if update_in_progress.get_untracked() {
+                        menu.item(format!("Update in progress ({v})"), |builder| {
+                            builder.enabled(false)
+                        })
+                    } else {
+                        menu.item(
+                            format!("Restart to update ({v})"),
+                            move |builder| {
+                                builder.action(move || {
+                                    workbench_command
+                                        .send(LapceWorkbenchCommand::RestartToUpdate)
+                                })
+                            },
+                        )
+                    }
+                } else {
+                    menu.item("No update available", |builder| {
+                        builder.enabled(false)
+                    })
+                };
+
+                menu.separator().item("About Lapce", move |builder| {
+                    builder.action(move || {
                         workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-                    }))
+                    })
+                })
             }),
             container(label(|| "1".to_string()).style(move |s| {
                 let config = config.get();

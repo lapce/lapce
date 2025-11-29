@@ -3,9 +3,9 @@ use std::rc::Rc;
 use floem::{
     View,
     event::EventListener,
-    keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     style::{CursorStyle, Display, Position},
+    ui_events::keyboard::Modifiers,
     views::{Decorators, container, label, stack, svg},
 };
 use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};

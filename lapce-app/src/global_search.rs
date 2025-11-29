@@ -2,12 +2,12 @@ use std::{ops::Range, path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    ui_events::keyboard::Modifiers,
     views::VirtualVector,
 };
 use indexmap::IndexMap;
-use lapce_core::{mode::Mode, selection::Selection};
+use lapce_core::{cursor::CursorAffinity, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
 use lapce_xi_rope::Rope;
 
@@ -22,7 +22,7 @@ use crate::{
 #[derive(Clone)]
 pub struct SearchMatchData {
     pub expanded: RwSignal<bool>,
-    pub matches: RwSignal<im::Vector<SearchMatch>>,
+    pub matches: RwSignal<imbl::Vector<SearchMatch>>,
     pub line_height: Memo<f64>,
 }
 
@@ -177,7 +177,7 @@ impl GlobalSearchData {
                                 matches: self
                                     .common
                                     .scope
-                                    .create_rw_signal(im::Vector::new()),
+                                    .create_rw_signal(imbl::Vector::new()),
                                 line_height: self.common.ui_line_height,
                             }
                         });
@@ -193,8 +193,12 @@ impl GlobalSearchData {
     pub fn set_pattern(&self, pattern: String) {
         let pattern_len = pattern.len();
         self.editor.doc().reload(Rope::from(pattern), true);
-        self.editor
-            .cursor()
-            .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
+        self.editor.cursor().update(|cursor| {
+            cursor.set_insert(Selection::region(
+                0,
+                pattern_len,
+                CursorAffinity::Backward,
+            ))
+        });
     }
 }

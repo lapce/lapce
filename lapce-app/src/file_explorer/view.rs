@@ -10,12 +10,13 @@ use floem::{
     },
     style::{AlignItems, CursorStyle, Position, Style},
     text::Style as FontStyle,
+    ui_events::pointer::{PointerButton, PointerEvent},
     views::{
         Container, Decorators, container, dyn_stack, label, scroll, stack, svg,
         virtual_stack,
     },
 };
-use lapce_core::selection::Selection;
+use lapce_core::{cursor::CursorAffinity, selection::Selection};
 use lapce_rpc::{
     file::{FileNodeViewData, FileNodeViewKind, Naming},
     source_control::FileDiffKind,
@@ -115,9 +116,13 @@ fn initialize_naming_editor(
 
     let doc = data.naming_editor_data.doc();
     doc.reload(text, true);
-    data.naming_editor_data
-        .cursor()
-        .update(|cursor| cursor.set_insert(Selection::region(0, selection_end)));
+    data.naming_editor_data.cursor().update(|cursor| {
+        cursor.set_insert(Selection::region(
+            0,
+            selection_end,
+            CursorAffinity::Backward,
+        ))
+    });
 
     data.naming
         .update(|naming| naming.set_editor_needs_reset(false));
@@ -451,8 +456,13 @@ fn file_explorer_view(
                     .on_event_stop(
                         EventListener::PointerDown,
                         move |event| {
-                            if let Event::PointerDown(pointer_event) = event {
-                                if pointer_event.button.is_auxiliary() {
+                            if let Event::Pointer(PointerEvent::Down(
+                                pointer_event,
+                            )) = event
+                            {
+                                if pointer_event.button
+                                    == Some(PointerButton::Auxiliary)
+                                {
                                     aux_click_data.middle_click(&aux_click_path);
                                 }
                             }
