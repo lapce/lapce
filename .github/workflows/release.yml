@@ -142,6 +142,7 @@ jobs:
           name: lapce-linux
           path: |
             ./lapce-linux-*.tar.gz
+            ./vendor.tar.gz
           retention-days: 1
 
   deb:
