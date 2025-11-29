@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- The file explorer can now be focused with the mouse, and has keybinds for renaming/deleting files
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
