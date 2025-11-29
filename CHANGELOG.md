@@ -4,11 +4,13 @@
 
 ### Features/Changes
 
+- Implement tab reordering for panes and terminals
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
 - Fix editor tabs not selectable while appearing selectable
-- Fix flickering when reordering editor tabs
+- Fix flickering when reordering tabs
 
 ## 0.4.5
 

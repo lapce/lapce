@@ -8,11 +8,11 @@ use floem::{
         ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_rw_signal,
     },
     style::{CursorStyle, Style},
-    taffy::AlignItems,
+    taffy::{AbsoluteAxis, AlignItems},
     unit::PxPctAuto,
     views::{
-        Decorators, container, dyn_stack, empty, h_stack, label, stack,
-        stack_from_iter, tab, text,
+        Decorators, container, empty, h_stack, label, stack, stack_from_iter, tab,
+        text,
     },
 };
 
@@ -29,13 +29,14 @@ use super::{
 use crate::{
     app::{clickable_icon, clickable_icon_base},
     config::{LapceConfig, color::LapceColor, icon::LapceIcons},
+    dyn_reorderable::dyn_reorderable,
     file_explorer::view::file_explorer_panel,
     panel::{
         call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,
         implementation_view::implementation_panel,
         references_view::references_panel,
     },
-    window_tab::{DragContent, WindowTabData},
+    window_tab::WindowTabData,
 };
 
 pub fn foldable_panel_section(
@@ -210,17 +211,13 @@ impl PanelBuilder {
 pub fn panel_container_view(
     window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,
+    dragging: RwSignal<Option<(PanelPosition, usize)>>,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
-    let dragging = window_tab_data.common.dragging;
     let current_size = create_rw_signal(Size::ZERO);
     let available_size = window_tab_data.panel.available_size;
-    let is_dragging_panel = move || {
-        dragging
-            .with(|d| d.as_ref().map(|d| d.is_panel()))
-            .unwrap_or(false)
-    };
+    let is_dragging_panel = move || dragging.with(|d| d.is_some());
     let drop_view = {
         let panel = panel.clone();
         move |position: PanelPosition| {
@@ -244,10 +241,16 @@ pub fn panel_container_view(
                     }
                 })
                 .on_event(EventListener::Drop, move |_| {
-                    if let Some(DragContent::Panel(kind)) = dragging.get_untracked()
+                    if let Some((from_position, from_index)) =
+                        dragging.get_untracked()
                     {
                         dragging_over.set(false);
-                        panel.move_panel_to_position(kind, &position);
+
+                        if let Some(kind) = panel.panel_at(from_position, from_index)
+                        {
+                            panel.move_panel_to_position(kind, &position);
+                        }
+
                         EventPropagation::Stop
                     } else {
                         EventPropagation::Continue
@@ -269,7 +272,6 @@ pub fn panel_container_view(
         let panel = panel.clone();
         let panel_size = panel.size;
         move |position: PanelContainerPosition| {
-            panel.panel_info();
             let view = empty();
             let view_id = view.id();
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
@@ -394,20 +396,22 @@ pub fn panel_container_view(
 
     let is_bottom = position.is_bottom();
     stack((
-        panel_picker(window_tab_data.clone(), position.first()),
-        panel_view(window_tab_data.clone(), position.first()),
-        panel_view(window_tab_data.clone(), position.second()),
-        panel_picker(window_tab_data.clone(), position.second()),
+        panel_picker(window_tab_data.clone(), position.first(), dragging),
+        stack((
+            panel_view(window_tab_data.clone(), position.first()),
+            panel_view(window_tab_data.clone(), position.second()),
+            stack((drop_view(position.first()), drop_view(position.second())))
+                .style(move |s| {
+                    let is_dragging_panel = is_dragging_panel();
+                    s.absolute()
+                        .size_full()
+                        .apply_if(!is_bottom, |s| s.flex_col())
+                        .apply_if(!is_dragging_panel, |s| s.pointer_events_none())
+                }),
+        ))
+        .style(move |s| s.size_full().apply_if(!is_bottom, |s| s.flex_col())),
+        panel_picker(window_tab_data.clone(), position.second(), dragging),
         resize_drag_view(position),
-        stack((drop_view(position.first()), drop_view(position.second()))).style(
-            move |s| {
-                let is_dragging_panel = is_dragging_panel();
-                s.absolute()
-                    .size_pct(100.0, 100.0)
-                    .apply_if(!is_bottom, |s| s.flex_col())
-                    .apply_if(!is_dragging_panel, |s| s.pointer_events_none())
-            },
-        ),
     ))
     .on_resize(move |rect| {
         let size = rect.size();
@@ -447,7 +451,7 @@ pub fn panel_container_view(
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .color(config.color(LapceColor::PANEL_FOREGROUND))
     })
-    .debug_name(format!("{:?} Pannel Container View", position))
+    .debug_name(format!("{:?} Panel Container View", position))
 }
 
 fn panel_view(
@@ -535,20 +539,32 @@ pub fn panel_header(
 fn panel_picker(
     window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
+    dragging: RwSignal<Option<(PanelPosition, usize)>>,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
     let panels = panel.panels;
     let config = window_tab_data.common.config;
-    let dragging = window_tab_data.common.dragging;
     let is_bottom = position.is_bottom();
     let is_first = position.is_first();
-    dyn_stack(
+
+    dyn_reorderable(
+        if position.is_bottom() {
+            AbsoluteAxis::Vertical
+        } else {
+            AbsoluteAxis::Horizontal
+        },
+        position,
+        dragging,
+        config,
         move || {
             panel
                 .panels
                 .with(|panels| panels.get(&position).cloned().unwrap_or_default())
         },
         |p| *p,
+        move |(from_position, from_index), (to_position, to_index)| {
+            panel.move_panel_to(from_position, to_position, from_index, to_index);
+        },
         move |p| {
             let window_tab_data = window_tab_data.clone();
             let tooltip = match p {
@@ -589,13 +605,6 @@ fn panel_picker(
                     move || tooltip,
                     config,
                 )
-                .draggable()
-                .on_event_stop(EventListener::DragStart, move |_| {
-                    dragging.set(Some(DragContent::Panel(p)));
-                })
-                .on_event_stop(EventListener::DragEnd, move |_| {
-                    dragging.set(None);
-                })
                 .dragging_style(move |s| {
                     let config = config.get();
                     s.border(1.0)

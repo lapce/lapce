@@ -201,6 +201,24 @@ impl TerminalPanelData {
         terminal_tab
     }
 
+    pub fn move_tab(&self, from_index: usize, to_index: usize) {
+        if from_index == to_index {
+            return;
+        }
+
+        let to_index = if from_index < to_index {
+            to_index - 1
+        } else {
+            to_index
+        };
+        self.tab_info.update(|info| {
+            let tab = info.tabs.remove(from_index);
+            info.tabs.insert(to_index, tab);
+
+            info.active = to_index;
+        });
+    }
+
     pub fn next_tab(&self) {
         self.tab_info.update(|info| {
             if info.active >= info.tabs.len().saturating_sub(1) {
