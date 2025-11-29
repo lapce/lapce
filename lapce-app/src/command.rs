@@ -600,6 +600,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "add_run_debug_config")]
     #[strum(message = "Add Run Debug Config")]
     AddRunDebugConfig,
+
+    #[strum(serialize = "jump_highlight_next")]
+    #[strum(message = "Jump to next document highlight")]
+    JumpHighlightNext,
+
+    #[strum(serialize = "jump_highlight_prev")]
+    #[strum(message = "Jump to previous document highlight")]
+    JumpHighlightPrev,
 }
 
 #[derive(Clone, Debug)]

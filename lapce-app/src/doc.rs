@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
+    cmp::Ordering,
     collections::HashMap,
     ops::Range,
     path::{Path, PathBuf},
@@ -161,6 +162,50 @@ pub type CodeActions =
 
 pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>)>;
 
+#[derive(Clone, Debug)]
+enum DocumentHighlightsStatus {
+    Ready,
+    Busy(usize),
+}
+
+pub struct DocumentHighlight {
+    pub start: usize,
+    pub end: usize,
+    // lsp_type::DocumentHighlight has kind, but it's not used now
+}
+
+impl From<&DocumentHighlight> for lapce_core::selection::SelRegion {
+    fn from(value: &DocumentHighlight) -> Self {
+        Self {
+            start: value.start,
+            end: value.end,
+            horiz: None,
+        }
+    }
+}
+
+impl DocumentHighlight {
+    pub fn find_for_offset(
+        list: &[DocumentHighlight],
+        offset: usize,
+    ) -> Option<usize> {
+        list.binary_search_by(|highlight| {
+            if highlight.start > offset {
+                Ordering::Greater
+            } else if highlight.end < offset {
+                Ordering::Less
+            } else {
+                Ordering::Equal
+            }
+        })
+        .ok()
+    }
+
+    pub fn sort(list: &mut [DocumentHighlight]) {
+        list.sort_by(|lhs, rhs| lhs.start.cmp(&rhs.start));
+    }
+}
+
 #[derive(Clone)]
 pub struct Doc {
     pub scope: Scope,
@@ -214,7 +259,11 @@ pub struct Doc {
     pub common: Rc<CommonData>,
 
     pub document_symbol_data: RwSignal<Option<SymbolData>>,
+
+    get_highlights_status: RwSignal<DocumentHighlightsStatus>,
+    pub highlights: RwSignal<Option<Vec<DocumentHighlight>>>,
 }
+
 impl Doc {
     pub fn new(
         cx: Scope,
@@ -260,6 +309,9 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            get_highlights_status: cx
+                .create_rw_signal(DocumentHighlightsStatus::Ready),
+            highlights: cx.create_rw_signal(None),
         }
     }
 
@@ -311,6 +363,9 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            get_highlights_status: cx
+                .create_rw_signal(DocumentHighlightsStatus::Ready),
+            highlights: cx.create_rw_signal(None),
         }
     }
 
@@ -362,6 +417,9 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            get_highlights_status: cx
+                .create_rw_signal(DocumentHighlightsStatus::Ready),
+            highlights: cx.create_rw_signal(None),
         }
     }
 
@@ -1506,7 +1564,95 @@ impl Doc {
                 })
             })
     }
+
+    pub fn update_highlights(&self, offset: usize) {
+        if !self.loaded() {
+            return;
+        }
+
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
+
+        let cursor_in_highlight = self.highlights.with_untracked(|highlights| {
+            if let Some(highlights) = highlights {
+                DocumentHighlight::find_for_offset(highlights, offset).is_some()
+            } else {
+                false
+            }
+        });
+
+        if cursor_in_highlight {
+            // Cursor is in the region of same highlight, skip querying LSP.
+            return;
+        }
+
+        let need_start = match self.get_highlights_status.get_untracked() {
+            DocumentHighlightsStatus::Ready => true,
+            DocumentHighlightsStatus::Busy(_) => false,
+        };
+
+        self.get_highlights_status
+            .update(|status| *status = DocumentHighlightsStatus::Busy(offset));
+
+        if !need_start {
+            return;
+        }
+
+        let (position, rev) = self
+            .buffer
+            .with_untracked(|b| (b.offset_to_position(offset), b.rev()));
+
+        let doc = self.clone();
+
+        let handle_response = create_ext_action(self.scope, move |response| {
+            let mut new_highlights: Option<Vec<DocumentHighlight>> = None;
+
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                if let DocumentHighlightsStatus::Busy(offset) =
+                    doc.get_highlights_status.get_untracked()
+                {
+                    if let Ok(ProxyResponse::GetDocumentHighlights {
+                        highlights: Some(highlights),
+                    }) = response
+                    {
+                        new_highlights = doc.buffer.with_untracked(move |buffer| {
+                            let mut result = highlights
+                                .iter()
+                                .map(|highlight| DocumentHighlight {
+                                    start: buffer
+                                        .offset_of_position(&highlight.range.start),
+                                    end: buffer
+                                        .offset_of_position(&highlight.range.end),
+                                })
+                                .collect::<Vec<_>>();
+                            DocumentHighlight::sort(&mut result);
+
+                            // This is a kind of debouncing - if cursor moves before we got response from LSP,
+                            // check if cursor is still in the region.
+                            // In case cursor moved too far we may want to issue LSP request again, for new offset
+                            // but it is easily recoverable by the user - just move cursor a bit to update highligts.
+                            DocumentHighlight::find_for_offset(&result, offset)
+                                .map(|_| result)
+                        });
+                    }
+                }
+            }
+
+            doc.highlights.update(|value| *value = new_highlights);
+            doc.get_highlights_status
+                .update(|status| *status = DocumentHighlightsStatus::Ready);
+        });
+
+        self.common
+            .proxy
+            .get_document_highlights(path, position, handle_response);
+    }
 }
+
 impl Document for Doc {
     fn text(&self) -> Rope {
         self.buffer.with_untracked(|buffer| buffer.text().clone())
