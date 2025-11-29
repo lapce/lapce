@@ -1,5 +1,5 @@
 include = ["**/*.toml"]
-exclude = ["lapce-proxy/src/**"]
+exclude = ["lapce-proxy/src/**", "vendor", "target"]
 
 [[rule]]
 include = ["**/Cargo.toml", ".taplo.toml", "Cargo.toml"]
