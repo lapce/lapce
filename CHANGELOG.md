@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Increased the size of primary title bar buttons to take the full height of the bar.
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
