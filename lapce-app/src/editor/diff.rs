@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::atomic};
 
 use floem::{
     View,
-    event::EventListener,
+    event::{Event, EventListener},
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
@@ -305,10 +305,11 @@ impl DiffEditorData {
     }
 }
 
+#[derive(Clone, PartialEq)]
 struct DiffShowMoreSection {
     left_actual_line: usize,
     right_actual_line: usize,
-    visual_line: usize,
+    skip_start: usize,
     lines: usize,
 }
 
@@ -318,74 +319,44 @@ pub fn diff_show_more_section_view(
 ) -> impl View + use<> {
     let left_editor_view = left_editor.kind;
     let right_editor_view = right_editor.kind;
+    let right_screen_lines = right_editor.screen_lines();
+    let right_scroll_delta = right_editor.editor.scroll_delta;
     let viewport = right_editor.viewport();
     let config = right_editor.common.config;
 
     let each_fn = move || {
         let editor_view = right_editor_view.get();
+
         if let EditorViewKind::Diff(diff_info) = editor_view {
-            let viewport = viewport.get();
-            let config = config.get_untracked();
-            let line_height = config.editor.line_height() as f64;
+            diff_info
+                .changes
+                .iter()
+                .filter_map(|change| {
+                    let DiffLines::Both(info) = change else {
+                        return None;
+                    };
 
-            let min_line = (viewport.y0 / line_height).floor() as usize;
-            let max_line = (viewport.y1 / line_height).ceil() as usize;
+                    let skip = info.skip.as_ref()?;
 
-            let mut visual_line = 0;
-            let mut last_change: Option<&DiffLines> = None;
-            let mut changes = diff_info.changes.iter().peekable();
-            let mut sections = Vec::new();
-            while let Some(change) = changes.next() {
-                match change {
-                    DiffLines::Left(range) => {
-                        if let Some(DiffLines::Right(_)) = changes.peek() {
-                        } else {
-                            let len = range.len();
-                            visual_line += len;
-                        }
-                    }
-                    DiffLines::Right(range) => {
-                        let len = range.len();
-                        visual_line += len;
-
-                        if let Some(DiffLines::Left(r)) = last_change {
-                            let len = r.len() - r.len().min(range.len());
-                            if len > 0 {
-                                visual_line += len;
-                            }
-                        };
-                    }
-                    DiffLines::Both(info) => {
-                        if let Some(skip) = info.skip.as_ref() {
-                            visual_line += skip.start;
-                            if visual_line + 1 >= min_line {
-                                sections.push(DiffShowMoreSection {
-                                    left_actual_line: info.left.start,
-                                    right_actual_line: info.right.start,
-                                    visual_line,
-                                    lines: skip.len(),
-                                });
-                            }
-                            visual_line += 1;
-                            visual_line += info.right.len() - skip.end;
-                        } else {
-                            visual_line += info.right.len();
-                        }
-                    }
-                }
-                if visual_line > max_line {
-                    break;
-                }
-                last_change = Some(change);
-            }
-            sections
+                    Some(DiffShowMoreSection {
+                        left_actual_line: info.left.start,
+                        right_actual_line: info.right.start,
+                        skip_start: skip.start,
+                        lines: skip.len(),
+                    })
+                })
+                .collect()
         } else {
             Vec::new()
         }
     };
 
-    let key_fn =
-        move |section: &DiffShowMoreSection| (section.visual_line, section.lines);
+    let key_fn = move |section: &DiffShowMoreSection| {
+        (
+            section.right_actual_line + section.skip_start,
+            section.lines,
+        )
+    };
 
     let view_fn = move |section: DiffShowMoreSection| {
         stack((
@@ -517,17 +488,46 @@ pub fn diff_show_more_section_view(
                     .hover(|s| s.cursor(CursorStyle::Pointer))
             }),
         ))
+        .on_event_cont(EventListener::PointerWheel, move |event| {
+            if let Event::PointerWheel(event) = event {
+                right_scroll_delta.set(event.delta);
+            }
+        })
         .style(move |s| {
+            let right_screen_lines = right_screen_lines.get();
+
+            let mut right_line = section.right_actual_line + section.skip_start;
+            let is_before_skip = if right_line > 0 {
+                right_line -= 1;
+                true
+            } else {
+                right_line += section.lines;
+                false
+            };
+
+            let Some(line_info) = right_screen_lines.info_for_line(right_line)
+            else {
+                return s.hide();
+            };
+
             let config = config.get();
+            let line_height = config.editor.line_height();
+
+            let mut y = line_info.y - viewport.get().y0;
+
+            if is_before_skip {
+                y += line_height as f64
+            } else {
+                y -= line_height as f64
+            }
+
             s.absolute()
                 .width_pct(100.0)
-                .height(config.editor.line_height() as f32)
+                .height(line_height as f32)
                 .justify_center()
                 .items_center()
-                .margin_top(
-                    (section.visual_line * config.editor.line_height()) as f32
-                        - viewport.get().y0 as f32,
-                )
+                .margin_top(y)
+                .pointer_events_auto()
                 .hover(|s| s.cursor(CursorStyle::Default))
         })
     };
@@ -542,6 +542,11 @@ pub fn diff_show_more_section_view(
         )
         .style(|s| s.size_pct(100.0, 100.0)),
     ))
-    .style(|s| s.absolute().flex_col().size_pct(100.0, 100.0))
+    .style(|s| {
+        s.absolute()
+            .flex_col()
+            .size_pct(100.0, 100.0)
+            .pointer_events_none()
+    })
     .debug_name("Diff Show More Section")
 }
