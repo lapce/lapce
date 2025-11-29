@@ -158,12 +158,14 @@ jobs:
             os-version: bookworm
           - os-name: debian
             os-version: bullseye
+          - os-name: debian
+            os-version: trixie
           - os-name: ubuntu
             os-version: jammy
           - os-name: ubuntu
             os-version: noble
           - os-name: ubuntu
-            os-version: plucky
+            os-version: questing
     steps:
       - uses: actions/checkout@v4
 
@@ -189,11 +191,11 @@ jobs:
       matrix:
         include:
           - os-name: fedora
-            os-version: 41
-          - os-name: fedora
             os-version: 42
-          # - os-name: fedora
-          #   os-version: rawhide
+          - os-name: fedora
+            os-version: 43
+          - os-name: fedora
+            os-version: rawhide
     steps:
       - uses: actions/checkout@v4
 

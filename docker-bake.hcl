@@ -108,6 +108,7 @@ target "debian" {
     build = [
       { packages = null, platforms = null, type = "package", os_version = "bullseye" }, # 11
       { packages = null, platforms = null, type = "package", os_version = "bookworm" }, # 12
+      { packages = null, platforms = null, type = "package", os_version = "trixie"   }, # 13
     ]
   }
 }
@@ -135,10 +136,11 @@ target "ubuntu" {
       { packages = null, platforms = null, type = "package", os_version = "noble"    }, # 24.04
       { packages = null, platforms = null, type = "package", os_version = "oracular" }, # 24.10
       { packages = null, platforms = null, type = "package", os_version = "plucky"   }, # 25.04
+      { packages = null, platforms = null, type = "package", os_version = "questing" }, # 25.10
       # static binary, it looks ugly to define the target this way
       # but I don't have a better way to make it more friendly on CLI side without
       # more terrible code-wise way to implement it
-      { packages = null, platforms = null, type = "binary", os_version = "focal"   }, # 20.04
+      { packages = null, platforms = null, type = "binary", os_version = "focal" }, # 20.04
     ]
   }
 }
@@ -178,6 +180,7 @@ target "fedora" {
       { packages = null, platforms = null, type = "package", version = "40" },
       { packages = null, platforms = null, type = "package", version = "41" },
       { packages = null, platforms = null, type = "package", version = "42" },
+      { packages = null, platforms = null, type = "package", version = "43" },
       { packages = null, platforms = null, type = "package", version = "rawhide" },
     ]
   }
