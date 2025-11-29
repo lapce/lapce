@@ -823,7 +823,13 @@ impl ProxyHandler for Dispatcher {
             ReadDir { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 thread::spawn(move || {
-                    let result = fs::read_dir(path)
+                    let path = match path {
+                        lapce_rpc::proxy::PathRequest::Home => {
+                            std::env::home_dir().unwrap_or(PathBuf::from("/"))
+                        }
+                        lapce_rpc::proxy::PathRequest::Path(path_buf) => path_buf,
+                    };
+                    let result = fs::read_dir(&path)
                         .map(|entries| {
                             let mut items = entries
                                 .into_iter()
@@ -843,11 +849,25 @@ impl ProxyHandler for Dispatcher {
 
                             items.sort();
 
-                            ProxyResponse::ReadDirResponse { items }
+                            ProxyResponse::ReadDirResponse {
+                                items,
+                                dir: FileNodeItem {
+                                    path: path.clone(),
+                                    is_dir: path.is_dir(),
+                                    read: false,
+                                    open: false,
+                                    children: HashMap::new(),
+                                    children_open_count: 0,
+                                },
+                            }
                         })
                         .map_err(|e| RpcError {
                             code: 0,
-                            message: e.to_string(),
+                            message: format!(
+                                "Error reading directory {:?}: {}",
+                                &path,
+                                e.to_string()
+                            ),
                         });
                     proxy_rpc.handle_response(id, result);
                 });
