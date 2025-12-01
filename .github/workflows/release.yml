@@ -59,7 +59,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Update rust
         run: rustup update --no-self-update
@@ -95,7 +95,7 @@ jobs:
           Start-Sleep -Seconds 10
           $compressor.close()
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-windows
           path: |
@@ -110,7 +110,7 @@ jobs:
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
@@ -137,7 +137,7 @@ jobs:
           mv ./vendor-config.toml ./vendor/
           tar -zcf vendor.tar.gz ./vendor/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-linux
           path: |
@@ -165,14 +165,14 @@ jobs:
           - os-name: ubuntu
             os-version: plucky
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
           docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
           path: |
@@ -195,14 +195,14 @@ jobs:
           # - os-name: fedora
           #   os-version: rawhide
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build rpm packages
         run: |
           docker buildx create --driver=docker-container --use
           docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
           path: |
@@ -221,7 +221,7 @@ jobs:
           - os-name: alpine
             os-version: "" # uses latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -236,7 +236,7 @@ jobs:
           gzip -c ./target/linux_amd64/lapce-proxy > ./lapce-proxy-linux-x86_64.gz
           gzip -c ./target/linux_arm64/lapce-proxy > ./lapce-proxy-linux-aarch64.gz
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-proxy-linux
           path: |
@@ -253,13 +253,13 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install ARM target
         run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
-        uses: Apple-Actions/import-codesign-certs@v3
+        uses: Apple-Actions/import-codesign-certs@v5
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -298,7 +298,7 @@ jobs:
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: lapce-macos
           path: |
@@ -323,9 +323,9 @@ jobs:
     steps:
       # Must perform checkout first, since it deletes the target directory
       # before running, and would therefore delete the downloaded artifacts
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
 
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" | tee -a $GITHUB_ENV
