@@ -32,7 +32,7 @@ jobs:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install dependencies on Ubuntu
         if: startsWith(matrix.os, 'ubuntu')
@@ -66,7 +66,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Update toolchain & add rustfmt
         run: |
@@ -84,7 +84,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Update toolchain & add clippy
         run: |
