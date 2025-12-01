@@ -22,11 +22,11 @@ lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
 
-libloading  = "0.8.1"
+libloading  = "0.8.9"
 slotmap     = "1.0"
-arc-swap    = "1.6.0"
+arc-swap    = "1.7.1"
 tree-sitter = "0.22.6"
-ahash       = "0.8.11"
+ahash       = "0.8.12"
 remain      = "0.2"
 hashbrown   = { version = "0.14.5", features = ["raw"] }
 
