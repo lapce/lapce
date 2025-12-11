@@ -98,28 +98,28 @@ pub fn editor_style(
         IndentStyleProp,
         doc.buffer.with_untracked(Buffer::indent_style),
     )
-    .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
-    .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
+    .set(CursorColor, config.color(&LapceColor::EDITOR_CARET))
+    .set(SelectionColor, config.color(&LapceColor::EDITOR_SELECTION))
     .set(
         CurrentLineColor,
-        config.color(LapceColor::EDITOR_CURRENT_LINE),
+        config.color(&LapceColor::EDITOR_CURRENT_LINE),
     )
     .set(
         VisibleWhitespaceColor,
-        config.color(LapceColor::EDITOR_VISIBLE_WHITESPACE),
+        config.color(&LapceColor::EDITOR_VISIBLE_WHITESPACE),
     )
     .set(
         IndentGuideColor,
-        config.color(LapceColor::EDITOR_INDENT_GUIDE),
+        config.color(&LapceColor::EDITOR_INDENT_GUIDE),
     )
     .set(ScrollBeyondLastLine, config.editor.scroll_beyond_last_line)
-    .color(config.color(LapceColor::EDITOR_FOREGROUND))
-    .set(TextColor, config.color(LapceColor::EDITOR_FOREGROUND))
-    .set(PhantomColor, config.color(LapceColor::EDITOR_DIM))
-    .set(PlaceholderColor, config.color(LapceColor::EDITOR_DIM))
+    .color(config.color(&LapceColor::EDITOR_FOREGROUND))
+    .set(TextColor, config.color(&LapceColor::EDITOR_FOREGROUND))
+    .set(PhantomColor, config.color(&LapceColor::EDITOR_DIM))
+    .set(PlaceholderColor, config.color(&LapceColor::EDITOR_DIM))
     .set(
         PreeditUnderlineColor,
-        config.color(LapceColor::EDITOR_FOREGROUND),
+        config.color(&LapceColor::EDITOR_FOREGROUND),
     )
     .set(ShowIndentGuide, config.editor.show_indent_guide)
     .set(Modal, config.core.modal)
@@ -325,7 +325,7 @@ impl EditorView {
                                 (section.y_idx * config.editor.line_height()) as f64,
                             )),
                         config
-                            .color(LapceColor::SOURCE_CONTROL_ADDED)
+                            .color(&LapceColor::SOURCE_CONTROL_ADDED)
                             .multiply_alpha(0.2),
                         0.0,
                     );
@@ -343,7 +343,7 @@ impl EditorView {
                                 (section.y_idx * config.editor.line_height()) as f64,
                             )),
                         config
-                            .color(LapceColor::SOURCE_CONTROL_REMOVED)
+                            .color(&LapceColor::SOURCE_CONTROL_REMOVED)
                             .multiply_alpha(0.2),
                         0.0,
                     );
@@ -394,7 +394,7 @@ impl EditorView {
                 let p1 = Point::new(x as f64 - height, y + height);
                 cx.stroke(
                     &Line::new(p0, p1),
-                    config.color(LapceColor::EDITOR_DIM),
+                    config.color(&LapceColor::EDITOR_DIM),
                     &Stroke::new(1.0),
                 );
             }
@@ -442,7 +442,7 @@ impl EditorView {
 
                 cx.fill(
                     &rect,
-                    config.color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
+                    config.color(&LapceColor::EDITOR_DEBUG_BREAK_LINE),
                     0.0,
                 );
             }
@@ -501,7 +501,7 @@ impl EditorView {
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let color = config.color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(&LapceColor::EDITOR_FOREGROUND);
 
         let start = ed.offset_of_line(min_line);
         let end = ed.offset_of_line(max_line + 1);
@@ -672,12 +672,12 @@ impl EditorView {
 
         cx.fill(
             &sticky_area_rect,
-            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW),
             3.0,
         );
         cx.fill(
             &sticky_area_rect,
-            config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            config.color(&LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
         self.editor.sticky_header_info.get_untracked();
@@ -734,7 +734,7 @@ impl EditorView {
                     viewport.y0,
                 ))
                 .inflate(0.0, 10.0),
-            config.color(LapceColor::LAPCE_SCROLL_BAR),
+            config.color(&LapceColor::LAPCE_SCROLL_BAR),
             0.0,
         );
 
@@ -808,7 +808,7 @@ impl EditorView {
 
                 cx.stroke(
                     &rect,
-                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    config.color(&LapceColor::EDITOR_FOREGROUND),
                     &Stroke::new(1.0),
                 );
             }
@@ -829,7 +829,7 @@ impl EditorView {
         let doc = self.editor.doc();
         let config = self.editor.common.config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let brush = config.color(LapceColor::EDITOR_FOREGROUND);
+        let brush = config.color(&LapceColor::EDITOR_FOREGROUND);
 
         if start == end {
             if let Some(line_info) = screen_lines.info(start) {
@@ -1324,7 +1324,7 @@ pub fn editor_container_view(
                     // .box_shadow_blur(5.0)
                     // .border_bottom(1.0)
                     // .border_color(
-                    //     config.get_color(LapceColor::LAPCE_BORDER),
+                    //     config.get_color(&LapceColor::LAPCE_BORDER),
                     // )
                     .apply_if(
                         !config.editor.sticky_header
@@ -1392,7 +1392,7 @@ fn editor_gutter_breakpoint_view(
                 let config = config.get();
                 let size = config.ui.icon_size() as f32 + 2.0;
                 s.size(size, size)
-                    .color(config.color(LapceColor::DEBUG_BREAKPOINT_HOVER))
+                    .color(config.color(&LapceColor::DEBUG_BREAKPOINT_HOVER))
                     .apply_if(!hovered.get(), |s| s.hide())
             },
         ),
@@ -1554,9 +1554,9 @@ fn editor_gutter_breakpoints(
                             let config = config.get();
                             let size = config.ui.icon_size() as f32 + 2.0;
                             let color = if active {
-                                LapceColor::DEBUG_BREAKPOINT
+                                &LapceColor::DEBUG_BREAKPOINT
                             } else {
-                                LapceColor::EDITOR_DIM
+                                &LapceColor::EDITOR_DIM
                             };
                             let color = config.color(color);
                             s.size(size, size).color(color)
@@ -1584,7 +1584,7 @@ fn editor_gutter_breakpoints(
     .style(move |s| {
         s.absolute()
             .size_pct(100.0, 100.0)
-            .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+            .background(config.get().color(&LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -1602,7 +1602,7 @@ fn editor_gutter_code_lens_view(
             let config = config.get();
             let size = config.ui.icon_size() as f32;
             s.size(size, size)
-                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
         },
     ))
     .style(move |s| {
@@ -1611,11 +1611,11 @@ fn editor_gutter_code_lens_view(
             .border_radius(6.0)
             .hover(|s| {
                 s.cursor(CursorStyle::Pointer)
-                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_HOVERED_BACKGROUND))
             })
             .active(|s| {
                 s.background(
-                    config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    config.color(&LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                 )
             })
     })
@@ -1661,7 +1661,7 @@ fn editor_gutter_folding_view(
             let config = config.get();
             let size = config.ui.icon_size() as f32;
             s.size(size, size)
-                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
         }),
     )
     .style(move |s| {
@@ -1670,11 +1670,11 @@ fn editor_gutter_folding_view(
             .border_radius(6.0)
             .hover(|s| {
                 s.cursor(CursorStyle::Pointer)
-                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_HOVERED_BACKGROUND))
             })
             .active(|s| {
                 s.background(
-                    config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    config.color(&LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                 )
             })
     });
@@ -1824,7 +1824,7 @@ fn editor_gutter_code_actions(
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     s.size(size, size)
-                        .color(config.color(LapceColor::LAPCE_WARN))
+                        .color(config.color(&LapceColor::LAPCE_WARN))
                 },
             ),
         )
@@ -1837,12 +1837,12 @@ fn editor_gutter_code_actions(
                 .border_radius(6.0)
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
                 .active(|s| {
                     s.background(
-                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        config.color(&LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
                 })
         }),
@@ -1995,7 +1995,7 @@ fn editor_breadcrumbs(
                                         .size(size, size)
                                         .color(
                                             config.color(
-                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                                &LapceColor::LAPCE_ICON_ACTIVE,
                                             ),
                                         )
                                 }),
@@ -2035,7 +2035,7 @@ fn editor_breadcrumbs(
             s.absolute()
                 .size_pct(100.0, 100.0)
                 .border_bottom(1.0)
-                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(&LapceColor::LAPCE_BORDER))
                 .items_center()
         }),
     )
@@ -2276,8 +2276,8 @@ fn search_editor_view(
             .items_center()
             .border(1.0)
             .border_radius(6.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -2318,8 +2318,8 @@ fn replace_editor_view(
             .items_center()
             .border(1.0)
             .border_radius(6.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -2480,10 +2480,10 @@ fn find_view(
         .style(move |s| {
             let config = config.get();
             s.margin_right(50.0)
-                .background(config.color(LapceColor::PANEL_BACKGROUND))
+                .background(config.color(&LapceColor::PANEL_BACKGROUND))
                 .border_radius(6.0)
                 .border(1.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(&LapceColor::LAPCE_BORDER))
                 .padding_vert(4.0)
                 .cursor(CursorStyle::Default)
                 .flex_col()
@@ -2535,16 +2535,16 @@ fn changes_color_iter<'a>(
         let mut modified = false;
         let color = match change {
             DiffLines::Left(_range) => {
-                Some(config.color(LapceColor::SOURCE_CONTROL_REMOVED))
+                Some(config.color(&LapceColor::SOURCE_CONTROL_REMOVED))
             }
             DiffLines::Right(_range) => {
                 if let Some(DiffLines::Left(_)) = last_change.as_ref() {
                     modified = true;
                 }
                 if modified {
-                    Some(config.color(LapceColor::SOURCE_CONTROL_MODIFIED))
+                    Some(config.color(&LapceColor::SOURCE_CONTROL_MODIFIED))
                 } else {
-                    Some(config.color(LapceColor::SOURCE_CONTROL_ADDED))
+                    Some(config.color(&LapceColor::SOURCE_CONTROL_ADDED))
                 }
             }
             _ => None,

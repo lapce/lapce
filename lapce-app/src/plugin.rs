@@ -773,17 +773,17 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         .border_radius(6.0)
                         .color(
                             config
-                                .color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND),
+                                .color(&LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND),
                         )
                         .background(
                             config
-                                .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
+                                .color(&LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
                         )
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
                                 config
                                     .color(
-                                        LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                                        &LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
                                     .multiply_alpha(0.8),
                             )
@@ -792,13 +792,13 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                             s.background(
                                 config
                                     .color(
-                                        LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
+                                        &LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
                                     .multiply_alpha(0.6),
                             )
                         })
                         .disabled(|s| {
-                            s.background(config.color(LapceColor::EDITOR_DIM))
+                            s.background(config.color(&LapceColor::EDITOR_DIM))
                         })
                         .selectable(false)
                 })
@@ -895,7 +895,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                         move || {
                                             config
                                                 .get()
-                                                .color(LapceColor::EDITOR_LINK)
+                                                .color(&LapceColor::EDITOR_LINK)
                                         },
                                         internal_command,
                                     ),
@@ -908,7 +908,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     .unwrap_or(""),
                             )
                             .style(move |s| {
-                                s.color(config.get().color(LapceColor::EDITOR_DIM))
+                                s.color(config.get().color(&LapceColor::EDITOR_DIM))
                             }),
                             version_view(local_plugin.clone(), plugin_info.clone()),
                         ))
@@ -925,10 +925,9 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         s.size(rect.width(), rect.height()).pointer_events_none()
                     }),
                     empty().style(move |s| {
-                        s.margin_vert(6)
-                            .height(1)
-                            .width_full()
-                            .background(config.get().color(LapceColor::LAPCE_BORDER))
+                        s.margin_vert(6).height(1).width_full().background(
+                            config.get().color(&LapceColor::LAPCE_BORDER),
+                        )
                     }),
                     {
                         let readme = create_rw_signal(None);
@@ -984,11 +983,9 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                             s.width_full()
                                                 .margin_vert(5.0)
                                                 .height(1.0)
-                                                .background(
-                                                    config.get().color(
-                                                        LapceColor::LAPCE_BORDER,
-                                                    ),
-                                                )
+                                                .background(config.get().color(
+                                                    &LapceColor::LAPCE_BORDER,
+                                                ))
                                         }))
                                     }
                                 },

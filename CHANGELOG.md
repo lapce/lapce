@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Added `PANEL_BACKGROUND_SIDE` and `PANEL_BACKGROUND_BOTTOM` theme keys
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)

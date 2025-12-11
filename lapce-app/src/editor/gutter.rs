@@ -97,12 +97,12 @@ impl EditorGutterView {
                 .inflate(25.0, 0.0);
         cx.fill(
             &sticky_area_rect,
-            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            config.color(&LapceColor::LAPCE_DROPDOWN_SHADOW),
             3.0,
         );
         cx.fill(
             &sticky_area_rect,
-            config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            config.color(&LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
     }
@@ -145,13 +145,13 @@ impl View for EditorGutterView {
             FamilyOwned::parse_list(&config.editor.font_family).collect();
         let attrs = Attrs::new()
             .family(&family)
-            .color(config.color(LapceColor::EDITOR_DIM))
+            .color(config.color(&LapceColor::EDITOR_DIM))
             .font_size(config.editor.font_size() as f32);
         let attrs_list = AttrsList::new(attrs.clone());
         let current_line_attrs_list = AttrsList::new(
             attrs
                 .clone()
-                .color(config.color(LapceColor::EDITOR_FOREGROUND)),
+                .color(config.color(&LapceColor::EDITOR_FOREGROUND)),
         );
         let show_relative = config.core.modal
             && config.editor.modal_mode_relative_line_numbers

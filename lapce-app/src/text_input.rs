@@ -727,7 +727,7 @@ impl View for TextInput {
                             &Rect::ZERO
                                 .with_size(Size::new(max - min, height))
                                 .with_origin(Point::new(min + point.x, point.y)),
-                            config.color(LapceColor::EDITOR_SELECTION),
+                            config.color(&LapceColor::EDITOR_SELECTION),
                             0.0,
                         );
                     }
@@ -762,7 +762,7 @@ impl View for TextInput {
                 );
                 cx.stroke(
                     &line,
-                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    config.color(&LapceColor::EDITOR_FOREGROUND),
                     &Stroke::new(1.0),
                 );
             }
@@ -790,7 +790,7 @@ impl View for TextInput {
 
                 cx.stroke(
                     &line,
-                    self.config.get_untracked().color(LapceColor::EDITOR_CARET),
+                    self.config.get_untracked().color(&LapceColor::EDITOR_CARET),
                     &Stroke::new(2.0),
                 );
             }

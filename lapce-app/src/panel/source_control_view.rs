@@ -73,7 +73,7 @@ pub fn source_control_panel(
                             s.absolute()
                                 .items_center()
                                 .height(config.editor.line_height() as f32)
-                                .color(config.color(LapceColor::EDITOR_DIM))
+                                .color(config.color(&LapceColor::EDITOR_DIM))
                                 .apply_if(!is_empty.get(), |s| s.hide())
                                 .selectable(false)
                         }),
@@ -146,8 +146,8 @@ pub fn source_control_panel(
                     .border(1.0)
                     .padding(-1.0)
                     .border_radius(6.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .background(config.color(LapceColor::EDITOR_BACKGROUND))
+                    .border_color(config.color(&LapceColor::LAPCE_BORDER))
+                    .background(config.color(&LapceColor::EDITOR_BACKGROUND))
             }),
             {
                 let source_control = source_control.clone();
@@ -163,16 +163,17 @@ pub fn source_control_panel(
                             .justify_center()
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .border_color(config.color(&LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    config
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    config.color(
+                                        &LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
                                 )
                             })
                             .active(|s| {
                                 s.background(config.color(
-                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                    &LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
                             .selectable(false)
@@ -268,7 +269,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 s.text_ellipsis()
                     .flex_grow(1.0)
                     .flex_basis(0.0)
-                    .color(config.get().color(LapceColor::EDITOR_DIM))
+                    .color(config.get().color(&LapceColor::EDITOR_DIM))
                     .min_width(0.0)
                     .selectable(false)
             }),
@@ -286,11 +287,13 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     let color = match &diff_for_style {
-                        FileDiff::Modified(_) => LapceColor::SOURCE_CONTROL_MODIFIED,
-                        FileDiff::Added(_) => LapceColor::SOURCE_CONTROL_ADDED,
-                        FileDiff::Deleted(_) => LapceColor::SOURCE_CONTROL_REMOVED,
+                        FileDiff::Modified(_) => {
+                            &LapceColor::SOURCE_CONTROL_MODIFIED
+                        }
+                        FileDiff::Added(_) => &LapceColor::SOURCE_CONTROL_ADDED,
+                        FileDiff::Deleted(_) => &LapceColor::SOURCE_CONTROL_REMOVED,
                         FileDiff::Renamed(_, _) => {
-                            LapceColor::SOURCE_CONTROL_MODIFIED
+                            &LapceColor::SOURCE_CONTROL_MODIFIED
                         }
                     };
                     let color = config.color(color);
@@ -339,7 +342,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 .items_center()
                 .cursor(CursorStyle::Pointer)
                 .hover(|s| {
-                    s.background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                    s.background(config.color(&LapceColor::PANEL_HOVERED_BACKGROUND))
                 })
         })
     };
