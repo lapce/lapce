@@ -11,6 +11,7 @@ pub mod debug;
 pub mod doc;
 pub mod editor;
 pub mod editor_tab;
+pub mod editorconfig;
 pub mod file_explorer;
 pub mod find;
 pub mod focus_text;

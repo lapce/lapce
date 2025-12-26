@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Add `.editorconfig` support for indent style, indent size, tab width, and line endings ([#95](https://github.com/lapce/lapce/issues/95))
+
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)

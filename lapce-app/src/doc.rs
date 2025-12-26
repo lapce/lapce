@@ -76,6 +76,7 @@ use crate::{
     command::{CommandKind, LapceCommand},
     config::{LapceConfig, color::LapceColor},
     editor::{EditorData, compute_screen_lines, gutter::FoldingRanges},
+    editorconfig,
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
@@ -441,12 +442,32 @@ impl Doc {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
         batch(|| {
+            // Get editorconfig properties if this is a file
+            let ec_props = self
+                .content
+                .with_untracked(|c| c.path().cloned())
+                .map(|path| editorconfig::get_properties(&path));
+
             self.syntax.with_untracked(|syntax| {
                 self.buffer.update(|buffer| {
                     buffer.init_content(content);
+
+                    // Detect indent style, using editorconfig as fallback if available
+                    let ec_indent = ec_props
+                        .as_ref()
+                        .and_then(|props| props.effective_indent_style());
                     buffer.detect_indent(|| {
-                        IndentStyle::from_str(syntax.language.indent_unit())
+                        ec_indent.unwrap_or_else(|| {
+                            IndentStyle::from_str(syntax.language.indent_unit())
+                        })
                     });
+
+                    // Apply editorconfig line ending if available
+                    if let Some(ref props) = ec_props {
+                        if let Some(line_ending) = props.end_of_line {
+                            buffer.set_line_ending(line_ending);
+                        }
+                    }
                 });
             });
             self.loaded.set(true);
