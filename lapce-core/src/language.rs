@@ -1020,7 +1020,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Json,
         indent: Indent::space(4),
         files: &[],
-        extensions: &["json"],
+        extensions: &["json", "har"],
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
