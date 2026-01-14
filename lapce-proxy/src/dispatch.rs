@@ -338,7 +338,9 @@ impl ProxyHandler for Dispatcher {
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {
-                        Ok(()) => (),
+                        Ok(()) => {
+                            self.core_rpc.git_commit_result(true);
+                        }
                         Err(e) => {
                             self.core_rpc.show_message(
                                 "Git Commit failure".to_owned(),
@@ -347,6 +349,7 @@ impl ProxyHandler for Dispatcher {
                                     message: e.to_string(),
                                 },
                             );
+                            self.core_rpc.git_commit_result(false);
                         }
                     }
                 }

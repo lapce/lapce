@@ -98,7 +98,10 @@ impl SourceControlData {
             return;
         }
 
-        self.editor.reset();
         self.common.proxy.git_commit(message.to_string(), diffs);
+    }
+
+    pub fn clear_commit_message(&self) {
+        self.editor.reset();
     }
 }
