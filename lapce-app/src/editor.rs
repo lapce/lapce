@@ -105,6 +105,7 @@ pub struct EditorInfo {
     pub unsaved: Option<String>,
     pub offset: usize,
     pub scroll_offset: (f64, f64),
+    pub confirmed: Option<bool>,
 }
 
 impl EditorInfo {
@@ -124,7 +125,8 @@ impl EditorInfo {
                     doc,
                     Some(editor_tab_id),
                     None,
-                    None,
+                    self.confirmed
+                        .map(|confirmed| data.scope.create_rw_signal(confirmed)),
                     common,
                 );
                 editor.go_to_location(
@@ -362,6 +364,7 @@ impl EditorData {
             unsaved,
             offset,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
+            confirmed: Some(self.confirmed.get_untracked()),
         }
     }
 
