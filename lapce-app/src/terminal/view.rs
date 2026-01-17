@@ -485,12 +485,6 @@ impl TerminalView {
     }
 }
 
-impl Drop for TerminalView {
-    fn drop(&mut self) {
-        self.proxy.terminal_close(self.term_id);
-    }
-}
-
 impl View for TerminalView {
     fn id(&self) -> ViewId {
         self.id

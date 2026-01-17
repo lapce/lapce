@@ -9,6 +9,7 @@ pub mod config;
 pub mod db;
 pub mod debug;
 pub mod doc;
+pub mod dyn_reorderable;
 pub mod editor;
 pub mod editor_tab;
 pub mod file_explorer;

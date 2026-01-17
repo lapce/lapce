@@ -238,6 +238,16 @@ impl PanelData {
             .with_untracked(|panels| panel_position(panels, kind))
     }
 
+    pub fn panel_at(
+        &self,
+        position: PanelPosition,
+        index: usize,
+    ) -> Option<PanelKind> {
+        self.panels.with_untracked(|panels| {
+            panels.get(&position).and_then(|p| p.get(index).cloned())
+        })
+    }
+
     pub fn is_panel_visible(&self, kind: &PanelKind) -> bool {
         if let Some((index, position)) = self.panel_position(kind) {
             if let Some(style) = self
@@ -427,6 +437,47 @@ impl PanelData {
 
             let style = styles.entry(*position).or_default();
             style.active = index;
+            style.shown = true;
+        });
+
+        let db: Arc<LapceDb> = use_context().unwrap();
+        db.save_panel_orders(self.panels.get_untracked());
+    }
+
+    pub fn move_panel_to(
+        &self,
+        from_position: PanelPosition,
+        to_position: PanelPosition,
+        from_index: usize,
+        mut to_index: usize,
+    ) {
+        if from_position == to_position && from_index == to_index {
+            return;
+        }
+
+        self.panels.update(|panels| {
+            let Some(from_panels) = panels.get_mut(&from_position) else {
+                return;
+            };
+            let panel = from_panels.remove(from_index);
+
+            if from_position == to_position && from_index < to_index {
+                to_index -= 1;
+            }
+
+            let Some(to_panels) = panels.get_mut(&to_position) else {
+                return;
+            };
+
+            to_panels.insert(to_index, panel);
+        });
+
+        self.styles.update(|styles| {
+            let style = styles.entry(from_position).or_default();
+            style.active = style.active.saturating_sub(1);
+
+            let style = styles.entry(to_position).or_default();
+            style.active = to_index;
             style.shown = true;
         });
 
