@@ -96,20 +96,20 @@ pub fn status(
 
                 let (bg, fg) = match mode.get() {
                     Mode::Normal => (
-                        LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
+                        &LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
+                        &LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
                     ),
                     Mode::Insert => (
-                        LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
-                        LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
+                        &LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
+                        &LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
                     ),
                     Mode::Visual(_) => (
-                        LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
+                        &LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
+                        &LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
                     ),
                     Mode::Terminal => (
-                        LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
+                        &LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
+                        &LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
                     ),
                 };
 
@@ -129,11 +129,11 @@ pub fn status(
                     let config = config.get();
                     let icon_size = config.ui.icon_size() as f32;
                     s.size(icon_size, icon_size)
-                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                 }),
                 label(branch).style(move |s| {
                     s.margin_left(10.0)
-                        .color(config.get().color(LapceColor::STATUS_FOREGROUND))
+                        .color(config.get().color(&LapceColor::STATUS_FOREGROUND))
                         .selectable(false)
                 }),
             ))
@@ -148,7 +148,7 @@ pub fn status(
                 .align_items(Some(AlignItems::Center))
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             })
@@ -174,7 +174,7 @@ pub fn status(
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
                             s.size(size, size)
-                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                                .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                         },
                     ),
                     label(move || diagnostic_count.get().0.to_string()).style(
@@ -183,7 +183,7 @@ pub fn status(
                                 .color(
                                     config
                                         .get()
-                                        .color(LapceColor::STATUS_FOREGROUND),
+                                        .color(&LapceColor::STATUS_FOREGROUND),
                                 )
                                 .selectable(false)
                         },
@@ -194,7 +194,7 @@ pub fn status(
                             let size = config.ui.icon_size() as f32;
                             s.size(size, size)
                                 .margin_left(5.0)
-                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                                .color(config.color(&LapceColor::LAPCE_ICON_ACTIVE))
                         },
                     ),
                     label(move || diagnostic_count.get().1.to_string()).style(
@@ -203,7 +203,7 @@ pub fn status(
                                 .color(
                                     config
                                         .get()
-                                        .color(LapceColor::STATUS_FOREGROUND),
+                                        .color(&LapceColor::STATUS_FOREGROUND),
                                 )
                                 .selectable(false)
                         },
@@ -220,7 +220,7 @@ pub fn status(
                             s.cursor(CursorStyle::Pointer).background(
                                 config
                                     .get()
-                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(&LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                 })
@@ -316,7 +316,7 @@ pub fn status(
         .style(move |s| {
             s.height_pct(100.0)
                 .items_center()
-                .color(config.get().color(LapceColor::STATUS_FOREGROUND))
+                .color(config.get().color(&LapceColor::STATUS_FOREGROUND))
         }),
         stack({
             let palette_clone = palette.clone();
@@ -398,8 +398,8 @@ pub fn status(
     .style(move |s| {
         let config = config.get();
         s.border_top(1.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::STATUS_BACKGROUND))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
+            .background(config.color(&LapceColor::STATUS_BACKGROUND))
             .flex_basis(config.ui.status_height() as f32)
             .flex_grow(0.0)
             .flex_shrink(0.0)
@@ -430,7 +430,7 @@ fn progress_view(
                     .text_ellipsis()
                     .selectable(false)
                     .items_center()
-                    .color(config.get().color(LapceColor::STATUS_FOREGROUND))
+                    .color(config.get().color(&LapceColor::STATUS_FOREGROUND))
             })
         },
     )
@@ -463,10 +463,10 @@ fn status_text<S: std::fmt::Display + 'static>(
             .height_full()
             .padding_horiz(10.0)
             .items_center()
-            .color(config.color(LapceColor::STATUS_FOREGROUND))
+            .color(config.color(&LapceColor::STATUS_FOREGROUND))
             .hover(|s| {
                 s.cursor(CursorStyle::Pointer)
-                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                    .background(config.color(&LapceColor::PANEL_HOVERED_BACKGROUND))
             })
             .selectable(false)
     })

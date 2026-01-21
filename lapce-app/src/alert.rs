@@ -66,7 +66,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
                     move |s| {
                         s.size(50.0, 50.0)
-                            .color(config.get().color(LapceColor::LAPCE_WARN))
+                            .color(config.get().color(&LapceColor::LAPCE_WARN))
                     },
                 ),
                 label(move || title.get()).style(move |s| {
@@ -97,18 +97,17 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                     .border(1.0)
                                     .border_radius(6.0)
                                     .border_color(
-                                        config.color(LapceColor::LAPCE_BORDER),
+                                        config.color(&LapceColor::LAPCE_BORDER),
                                     )
                                     .hover(|s| {
-                                        s.cursor(CursorStyle::Pointer).background(
-                                            config.color(
-                                                LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ),
-                                        )
+                                        s.cursor(CursorStyle::Pointer)
+                                            .background(config.color(
+                                            &LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ))
                                     })
                                     .active(|s| {
                                         s.background(config.color(
-                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                    &LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                                     })
                             })
@@ -128,16 +127,17 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                             .line_height(1.5)
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .border_color(config.color(&LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    config
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    config.color(
+                                        &LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
                                 )
                             })
                             .active(|s| {
                                 s.background(config.color(
-                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                    &LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
                     }),
@@ -151,9 +151,9 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 .width(250.0)
                 .border(1.0)
                 .border_radius(6.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
-                .color(config.color(LapceColor::EDITOR_FOREGROUND))
-                .background(config.color(LapceColor::PANEL_BACKGROUND))
+                .border_color(config.color(&LapceColor::LAPCE_BORDER))
+                .color(config.color(&LapceColor::EDITOR_FOREGROUND))
+                .background(config.color(&LapceColor::PANEL_BACKGROUND))
         })
     })
     .on_event_stop(EventListener::PointerDown, move |_| {})
@@ -166,7 +166,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             .background(
                 config
                     .get()
-                    .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
+                    .color(&LapceColor::LAPCE_DROPDOWN_SHADOW)
                     .multiply_alpha(0.5),
             )
     })
