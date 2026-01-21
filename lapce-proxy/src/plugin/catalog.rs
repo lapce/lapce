@@ -182,8 +182,10 @@ impl PluginCatalog {
         f: Box<dyn ClonableCallback<Value, RpcError>>,
     ) {
         let id = volt.id();
+        let mut found = false;
         for (plugin_id, plugin) in self.plugins.iter() {
             if plugin.volt_id == id {
+                found = true;
                 let f = dyn_clone::clone_box(&*f);
                 let plugin_id = *plugin_id;
                 plugin.server_request_async(
@@ -198,6 +200,11 @@ impl PluginCatalog {
                 );
                 plugin.shutdown();
             }
+        }
+        // If plugin is not found (it might be disabled), still call the callback
+        if !found {
+            let f = dyn_clone::clone_box(&*f);
+            f(PluginId(0), Ok(Value::Null));
         }
     }
 
