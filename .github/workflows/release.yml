@@ -192,8 +192,6 @@ jobs:
             os-version: 41
           - os-name: fedora
             os-version: 42
-          # - os-name: fedora
-          #   os-version: rawhide
     steps:
       - uses: actions/checkout@v4
 
@@ -244,7 +242,7 @@ jobs:
           retention-days: 1
 
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
@@ -263,10 +261,6 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-
-      - name: Select newer Xcode for building
-        run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
       - name: Fetch dependencies
         run: cargo fetch --locked
