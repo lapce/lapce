@@ -265,14 +265,16 @@ impl EditorData {
         }
     }
 
-    /// Create a new local editor.  
+    /// Create a new local editor.
+    ///
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
     pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self::new_local_id(cx, EditorId::next(), editors, common)
     }
 
-    /// Create a new local editor with the given id.  
+    /// Create a new local editor with the given id.
+    ///
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
     pub fn new_local_id(
@@ -287,7 +289,8 @@ impl EditorData {
         Self::new(cx, editor, None, None, None, common)
     }
 
-    /// Create a new editor with a specific doc.  
+    /// Create a new editor with a specific doc.
+    ///
     /// You should prefer calling [`Editors::new_editor_doc`] / [`Editors::make_from_doc`] instead.
     pub fn new_doc(
         cx: Scope,
@@ -307,7 +310,7 @@ impl EditorData {
         self.editor.update_doc(doc, Some(style));
     }
 
-    /// Create a new editor using the same underlying [`Doc`]  
+    /// Create a new editor using the same underlying [`Doc`]
     pub fn copy(
         &self,
         cx: Scope,
@@ -389,7 +392,7 @@ impl EditorData {
         self.editor.active
     }
 
-    /// Get the line information for lines on the screen.  
+    /// Get the line information for lines on the screen.
     pub fn screen_lines(&self) -> RwSignal<ScreenLines> {
         self.editor.screen_lines
     }
@@ -403,7 +406,7 @@ impl EditorData {
         doc
     }
 
-    /// The signal for the editor's document.  
+    /// The signal for the editor's document.
     pub fn doc_signal(&self) -> DocSignal {
         DocSignal {
             inner: self.editor.doc_signal(),
@@ -3422,8 +3425,9 @@ impl KeyPressFocus for EditorData {
 
 /// Custom signal wrapper for [`Doc`], because [`Editor`] only knows it as a
 /// `Rc<dyn Document>`, and there is currently no way to have an `RwSignal<Rc<Doc>>` and
-/// an `RwSignal<Rc<dyn Document>>`.  
-/// This could possibly be swapped with a generic impl?
+/// an `RwSignal<Rc<dyn Document>>`.
+///
+// FIXME: This could possibly be swapped with a generic impl?
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DocSignal {
     // TODO: replace with ReadSignal once that impls `track`

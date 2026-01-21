@@ -126,9 +126,10 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
-    /// Path(s) to plugins to load.  
+    /// Path(s) to plugins to load.
+    ///
     /// This is primarily used for plugin development to make it easier to test changes to the
-    /// plugin without needing to copy the plugin to the plugins directory.  
+    /// plugin without needing to copy the plugin to the plugins directory.
     /// This will cause any plugin with the same author & name to not run.
     #[clap(long, action)]
     plugin_path: Vec<PathBuf>,
@@ -2141,7 +2142,8 @@ pub fn clickable_icon_base(
     }
 }
 
-/// A tooltip with a label inside.  
+/// A tooltip with a label inside.
+///
 /// When styling an element that has the tooltip, it will style the child rather than the tooltip
 /// label.
 pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
