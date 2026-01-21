@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Implemented Folder/File choosing in remotes
+
 ### Bug Fixes
 
 ## 0.4.6

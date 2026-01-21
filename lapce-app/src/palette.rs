@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    ffi::OsString,
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -27,7 +28,7 @@ use lapce_core::{
     line_ending::LineEnding, mode::Mode, movement::Movement, selection::Selection,
     syntax::Syntax,
 };
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::proxy::{PathRequest, ProxyResponse};
 use lapce_xi_rope::Rope;
 use lsp_types::{DocumentSymbol, DocumentSymbolResponse};
 use nucleo::Utf32Str;
@@ -107,6 +108,7 @@ pub struct PaletteData {
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+    file_chooser_directory: RwSignal<Option<PathBuf>>,
 }
 
 impl std::fmt::Debug for PaletteData {
@@ -214,6 +216,7 @@ impl PaletteData {
 
         let clicked_index = cx.create_rw_signal(Option::<usize>::None);
         let left_diff_path = cx.create_rw_signal(None);
+        let cached_path = cx.create_rw_signal(None);
 
         let palette = Self {
             run_id_counter,
@@ -238,6 +241,7 @@ impl PaletteData {
             source_control,
             common,
             left_diff_path,
+            file_chooser_directory: cached_path,
         };
 
         {
@@ -371,6 +375,9 @@ impl PaletteData {
             PaletteKind::File | PaletteKind::DiffFiles => {
                 self.get_files();
             }
+            PaletteKind::FileChooser => {
+                self.get_files_in_file_chooser_dir();
+            }
             PaletteKind::HelpAndFile => self.get_palette_help_and_file(),
             PaletteKind::Line => {
                 self.get_lines();
@@ -423,6 +430,78 @@ impl PaletteData {
     fn get_palette_help(&self) {
         let items = self.get_palette_help_items();
         self.items.set(items);
+    }
+
+    fn get_files_in_file_chooser_dir(&self) {
+        let input = self.file_chooser_directory.get_untracked();
+        let items_set = self.items.write_only();
+        let internal_command_sender = self.common.internal_command.clone();
+        let file_chooser_directory_writer = self.file_chooser_directory.write_only();
+        let send =
+            create_ext_action(self.common.scope, move |result| match result {
+                Ok(ProxyResponse::ReadDirResponse { items, dir }) => {
+                    let mut palette_items = Vec::new();
+                    let main_path = dir.path.clone();
+                    palette_items.push(PaletteItem {
+                        content: PaletteItemContent::ConfirmFileChooserEntry {
+                            full_path: main_path.clone(),
+                        },
+                        filter_text: main_path
+                            .file_name()
+                            .unwrap_or(&OsString::from("/"))
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                        score: 0,
+                        indices: vec![],
+                    });
+                    if let Some(parent) = main_path.parent() {
+                        palette_items.push(PaletteItem {
+                            content: PaletteItemContent::FileChooserEntry {
+                                path: parent.to_path_buf(),
+                                full_path: parent.to_path_buf(),
+                                is_dir: true,
+                            },
+                            filter_text: "..".to_string(),
+                            score: 0,
+                            indices: vec![],
+                        });
+                    }
+                    for item in items {
+                        palette_items.push(PaletteItem {
+                            content: PaletteItemContent::FileChooserEntry {
+                                path: item.path.clone(),
+                                full_path: item.path.clone(),
+                                is_dir: item.is_dir,
+                            },
+                            filter_text: item
+                                .path
+                                .file_name()
+                                .unwrap()
+                                .to_str()
+                                .unwrap()
+                                .to_string(),
+                            score: 0,
+                            indices: vec![],
+                        });
+                    }
+                    // let item_len = palette_items.len();
+                    items_set.set(palette_items.into());
+                }
+                _ => {
+                    internal_command_sender.send(InternalCommand::ShowAlert {
+                        title: format!("Error loading files."),
+                        msg: format!("Could not load file picker."),
+                        buttons: Vec::new(),
+                    });
+                    file_chooser_directory_writer.set(None);
+                }
+            });
+        let input = match input {
+            None => PathRequest::Home,
+            Some(path) => PathRequest::Path(path),
+        };
+        self.common.proxy.read_dir(input, send);
     }
 
     fn get_palette_help_items(&self) -> Vector<PaletteItem> {
@@ -1158,6 +1237,37 @@ impl PaletteData {
                         );
                     }
                 }
+                PaletteItemContent::FileChooserEntry {
+                    full_path, is_dir, ..
+                } => {
+                    if *is_dir {
+                        self.file_chooser_directory.set(Some(full_path.clone()));
+                        self.run(PaletteKind::FileChooser);
+                    } else {
+                        self.common.internal_command.send(
+                            InternalCommand::OpenFile {
+                                path: full_path.clone(),
+                            },
+                        );
+                    }
+                }
+                PaletteItemContent::ConfirmFileChooserEntry {
+                    full_path, ..
+                } => {
+                    let kind = self.workspace.kind.clone();
+                    let workspace = LapceWorkspace {
+                        kind,
+                        path: Some(full_path.clone()),
+                        last_open: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                    };
+                    self.common
+                        .window_common
+                        .window_command
+                        .send(WindowCommand::SetWorkspace { workspace });
+                }
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
@@ -1357,6 +1467,8 @@ impl PaletteData {
             match &item.content {
                 PaletteItemContent::PaletteHelp { .. } => {}
                 PaletteItemContent::File { .. } => {}
+                PaletteItemContent::FileChooserEntry { .. } => {}
+                PaletteItemContent::ConfirmFileChooserEntry { .. } => {}
                 PaletteItemContent::Line { line, .. } => {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
