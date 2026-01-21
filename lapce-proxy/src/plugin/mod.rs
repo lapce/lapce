@@ -40,12 +40,13 @@ use lsp_types::{
     CodeActionResponse, CodeLens, CodeLensParams, CompletionClientCapabilities,
     CompletionItem, CompletionItemCapability,
     CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
-    Diagnostic, DocumentFormattingParams, DocumentSymbolClientCapabilities,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeClientCapabilities, FoldingRangeParams, FormattingOptions,
-    GotoCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverClientCapabilities, HoverParams, InlayHint, InlayHintClientCapabilities,
-    InlayHintParams, InlineCompletionClientCapabilities, InlineCompletionParams,
+    Diagnostic, DocumentFormattingParams, DocumentHighlight,
+    DocumentHighlightParams, DocumentSymbolClientCapabilities, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeClientCapabilities,
+    FoldingRangeParams, FormattingOptions, GotoCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverClientCapabilities, HoverParams, InlayHint,
+    InlayHintClientCapabilities, InlayHintParams,
+    InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
     PartialResultParams, Position, PrepareRenameResponse,
@@ -63,12 +64,13 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
-        GotoImplementation, GotoImplementationResponse, GotoTypeDefinition,
-        GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
-        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
-        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
+        DocumentHighlightRequest, DocumentSymbolRequest, FoldingRangeRequest,
+        Formatting, GotoDefinition, GotoImplementation, GotoImplementationResponse,
+        GotoTypeDefinition, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
+        HoverRequest, InlayHintRequest, InlineCompletionRequest,
+        PrepareRenameRequest, References, Rename, Request, ResolveCompletionItem,
+        SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+        WorkspaceSymbolRequest,
     },
 };
 use parking_lot::Mutex;
@@ -941,6 +943,28 @@ impl PluginCatalogRpcHandler {
         let method = WorkspaceSymbolRequest::METHOD;
         let params = WorkspaceSymbolParams {
             query,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        self.send_request_to_all_plugins(method, params, None, None, cb);
+    }
+
+    pub fn get_document_highlights(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<Option<Vec<DocumentHighlight>>, RpcError>)
+        + Clone
+        + Send
+        + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = DocumentHighlightRequest::METHOD;
+        let params = DocumentHighlightParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };

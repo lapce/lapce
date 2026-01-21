@@ -1204,6 +1204,19 @@ impl ProxyHandler for Dispatcher {
                 let resp = ProxyResponse::ReferencesResolveResponse { items };
                 self.proxy_rpc.handle_response(id, Ok(resp));
             }
+            GetDocumentHighlights { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_document_highlights(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result = result.map(|highlights| {
+                            ProxyResponse::GetDocumentHighlights { highlights }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
         }
     }
 }
