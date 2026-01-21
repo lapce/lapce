@@ -111,7 +111,7 @@ pub struct DocHistory {
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File { path: PathBuf, read_only: bool },
-    /// A local document, which doens't need to be sync to the disk.
+    /// A local document, which doesn't need to be sync to the disk.
     Local,
     /// A document of an old version in the source control
     History(DocHistory),
@@ -387,7 +387,7 @@ impl Doc {
 
         let register = common.register;
         // TODO: we could have these Rcs created once and stored somewhere, maybe on
-        // common, to avoid recreating them everytime.
+        // common, to avoid recreating them every time.
         let cursor_info = CursorInfo {
             blink_interval: Rc::new(move || config.editor.blink_interval()),
             blink_timer: common.window_common.cursor_blink_timer,

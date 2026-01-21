@@ -126,9 +126,9 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
-    /// Path(s) to plugins to load.  
+    /// Path(s) to plugins to load.
     /// This is primarily used for plugin development to make it easier to test changes to the
-    /// plugin without needing to copy the plugin to the plugins directory.  
+    /// plugin without needing to copy the plugin to the plugins directory.
     /// This will cause any plugin with the same author & name to not run.
     #[clap(long, action)]
     plugin_path: Vec<PathBuf>,
@@ -2141,7 +2141,7 @@ pub fn clickable_icon_base(
     }
 }
 
-/// A tooltip with a label inside.  
+/// A tooltip with a label inside.
 /// When styling an element that has the tooltip, it will style the child rather than the tooltip
 /// label.
 pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
@@ -2830,7 +2830,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .items_center()
         .pointer_events_none()
     })
-    .debug_name("Pallete Layer")
+    .debug_name("Palette Layer")
 }
 
 fn window_message_view(
@@ -3905,8 +3905,8 @@ pub fn launch() {
                 for (_, window) in app_data.windows.get_untracked() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
-                            doc.syntax.update(|syntaxt| {
-                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            doc.syntax.update(|syntax| {
+                                *syntax = Syntax::from_language(syntax.language);
                             });
                             doc.trigger_syntax_change(None);
                         }

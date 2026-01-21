@@ -1106,7 +1106,7 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(
                             id,
                             result.map(|resp| ProxyResponse::DapVariableResponse {
-                                varialbes: resp,
+                                variables: resp,
                             }),
                         );
                     });

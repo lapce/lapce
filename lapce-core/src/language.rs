@@ -96,19 +96,19 @@ macro_rules! comment_properties {
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
 pub struct SyntaxProperties {
-    /// An extra check to make sure that the array elements are in the correct order.  
+    /// An extra check to make sure that the array elements are in the correct order.
     /// If this id does not match the enum value, a panic will happen with a debug assertion message.
     id: LapceLanguage,
 
     /// All tokens that can be used for comments in language
     comment: CommentProperties,
-    /// The indent unit.  
+    /// The indent unit.
     /// "  " for bash, "    " for rust, for example.
     indent: &'static str,
-    /// Filenames that belong to this language  
+    /// Filenames that belong to this language
     /// `["Dockerfile"]` for Dockerfile, `[".editorconfig"]` for EditorConfig
     files: &'static [&'static str],
-    /// File name extensions to determine the language.  
+    /// File name extensions to determine the language.
     /// `["py"]` for python, `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
     /// Tree-sitter properties
@@ -125,7 +125,7 @@ struct TreeSitterProperties {
     query: Option<&'static str>,
     /// Preface: Originally this feature was called "Code Lens", which is not
     /// an LSP "Code Lens". It is renamed to "Code Glance", below doc text is
-    /// left unchanged.  
+    /// left unchanged.
     ///
     /// Lists of tree-sitter node types that control how code lenses are built.
     /// The first is a list of nodes that should be traversed and included in
@@ -1884,7 +1884,7 @@ fn load_grammar(
     if !library_path.exists() {
         event!(Level::WARN, "Grammar not found at: {library_path:?}");
 
-        // Load backwar compat libraries
+        // Load backward compat libraries
         library_path = path.join(format!("tree-sitter-{grammar_name}"));
         library_path.set_extension(std::env::consts::DLL_EXTENSION);
 

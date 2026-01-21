@@ -268,7 +268,7 @@ fn visual_line(c: &mut Criterion) {
         })
     });
 
-    // TODO: when we have the reverse search of vline for offset, we should have a separate instance where the last vline isn't cached, which would give us a range of 'worst case' (never reused, have to recopmute it everytime) and 'best case' (always reused)
+    // TODO: when we have the reverse search of vline for offset, we should have a separate instance where the last vline isn't cached, which would give us a range of 'worst case' (never reused, have to recompute it every time) and 'best case' (always reused)
 
     // TODO: bench common operations, like a single line changing or the (equivalent of)  cache rev
     // updating.

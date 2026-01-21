@@ -2024,7 +2024,7 @@ impl WindowTabData {
                 match cmd.wait() {
                     Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
                     Err(e) => {
-                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                        event!(Level::ERROR, "Process exited with an error: {e}")
                     }
                 };
             }
@@ -2042,7 +2042,7 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal tab data: index={tab_index}");
+                    error!("could not find terminal tab data: index={tab_index}");
                     return;
                 };
                 let Some(raw) = tab.terminals.with_untracked(|x| {
@@ -2054,7 +2054,7 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal data: index={terminal_index}");
+                    error!("could not find terminal data: index={terminal_index}");
                     return;
                 };
                 raw.write().term.reset_state();
