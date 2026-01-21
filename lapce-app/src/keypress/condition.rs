@@ -59,6 +59,8 @@ pub enum Condition {
     TerminalFocus,
     #[strum(serialize = "source_control_focus")]
     SourceControlFocus,
+    #[strum(serialize = "file_explorer_focus")]
+    FileExplorerFocus,
     #[strum(serialize = "panel_focus")]
     PanelFocus,
     #[strum(serialize = "rename_focus")]

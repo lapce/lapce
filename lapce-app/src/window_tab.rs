@@ -217,6 +217,10 @@ impl KeyPressFocus for WindowTabData {
                 self.common.focus.get_untracked()
                     == Focus::Panel(PanelKind::SourceControl)
             }
+            Condition::FileExplorerFocus => {
+                self.common.focus.get_untracked()
+                    == Focus::Panel(PanelKind::FileExplorer)
+            }
             _ => false,
         }
     }
@@ -1033,6 +1037,14 @@ impl WindowTabData {
                         }
                     });
                 }
+            }
+
+            // ==== File Explorer ====
+            FileExplorerRename => {
+                self.file_explorer.rename_selected();
+            }
+            FileExplorerTrash => {
+                self.file_explorer.trash_selected();
             }
 
             // ==== Terminal ====
@@ -2629,8 +2641,7 @@ impl WindowTabData {
     /// Toggle a specific kind of panel.
     fn toggle_panel_focus(&self, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer
-            | PanelKind::Plugin
+            PanelKind::Plugin
             | PanelKind::Problem
             | PanelKind::Debug
             | PanelKind::CallHierarchy
@@ -2641,9 +2652,10 @@ impl WindowTabData {
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
             }
-            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
-                self.is_panel_focused(kind)
-            }
+            PanelKind::Terminal
+            | PanelKind::SourceControl
+            | PanelKind::Search
+            | PanelKind::FileExplorer => self.is_panel_focused(kind),
         };
         if should_hide {
             self.hide_panel(kind);
