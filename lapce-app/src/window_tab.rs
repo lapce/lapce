@@ -110,11 +110,19 @@ pub enum Focus {
 pub enum DragContent {
     Panel(PanelKind),
     EditorTab(EditorTabChild),
+    File(PathBuf),
 }
 
 impl DragContent {
     pub fn is_panel(&self) -> bool {
         matches!(self, DragContent::Panel(_))
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        match self {
+            DragContent::File(path) => Some(path),
+            _ => None,
+        }
     }
 }
 

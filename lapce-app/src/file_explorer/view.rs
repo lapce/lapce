@@ -1,8 +1,8 @@
-use std::{path::Path, rc::Rc, sync::Arc};
+use std::{path::Path, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     View,
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     kurbo::Rect,
     peniko::Color,
     reactive::{
@@ -35,7 +35,7 @@ use crate::{
     plugin::PluginData,
     source_control::SourceControlData,
     text_input::TextInputBuilder,
-    window_tab::{Focus, WindowTabData},
+    window_tab::{DragContent, Focus, WindowTabData},
 };
 
 /// Blends `foreground` with `background`.
@@ -317,6 +317,8 @@ fn file_explorer_view(
     let secondary_click_data = data.clone();
     let scroll_rect = create_rw_signal(Rect::ZERO);
 
+    let dragging = data.common.dragging;
+    let dragged_over = create_rw_signal::<Option<PathBuf>>(None);
     scroll(
         virtual_stack(
             move || FileNodeVirtualList::new(root.get(), data.naming.get()),
@@ -328,7 +330,9 @@ fn file_explorer_view(
                 let double_click_data = data.clone();
                 let secondary_click_data = data.clone();
                 let aux_click_data = data.clone();
+                let drop_data = data.clone();
                 let kind = node.kind.clone();
+                let path = kind.path().map(|f| f.to_path_buf());
                 let open = node.open;
                 let is_dir = node.is_dir;
 
@@ -397,6 +401,31 @@ fn file_explorer_view(
                     },
                     file_node_text_view(data, node, source_control.clone()),
                 ))
+                .on_event(EventListener::DragEnter, move |_| {
+                    if
+                    /*is_dir &&*/
+                    dragging.with(|d| d.is_some()) {
+                        dragged_over.set(if is_dir {
+                            path.clone()
+                        } else {
+                            path.clone()
+                                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                        });
+                    }
+                    EventPropagation::Continue
+                })
+                .on_event(EventListener::DragLeave, move |_| {
+                    if
+                    /*is_dir &&*/
+                    dragging.with(|d| d.is_some()) {
+                        // dragged_over.set(None);
+                    }
+                    EventPropagation::Continue
+                })
+                .on_event(EventListener::Drop, move |_event| {
+                    dragged_over.set(None);
+                    EventPropagation::Continue
+                })
                 .style({
                     let kind = kind.clone();
                     move |s| {
@@ -422,6 +451,18 @@ fn file_explorer_view(
                                     )
                                 },
                             )
+                            .apply_if(
+                                dragging.with(|d| d.is_some())
+                                    && dragged_over.get().is_some_and(|p| {
+                                        kind.path()
+                                            .is_some_and(|p2| p2.starts_with(p))
+                                    }),
+                                |s| {
+                                    s.background(config.get().color(
+                                        LapceColor::EDITOR_DRAG_DROP_BACKGROUND,
+                                    ))
+                                },
+                            )
                     }
                 })
                 .debug_name("file item");
@@ -432,6 +473,7 @@ fn file_explorer_view(
                     let double_click_path = path.clone();
                     let secondary_click_path = path.clone();
                     let aux_click_path = path.clone();
+                    let drop_path = path.clone();
                     view.on_click_stop({
                         let kind = kind.clone();
                         move |_| {
@@ -448,13 +490,34 @@ fn file_explorer_view(
                     .on_secondary_click_stop(move |_| {
                         secondary_click_data.secondary_click(&secondary_click_path);
                     })
+                    .on_event_stop(EventListener::PointerDown, move |event| {
+                        if let Event::PointerDown(pointer_event) = event {
+                            if pointer_event.button.is_auxiliary() {
+                                aux_click_data.middle_click(&aux_click_path);
+                            }
+                        }
+                    })
+                    .on_event_stop(EventListener::Drop, move |_| {
+                        if let Some(DragContent::File(from_path)) =
+                            dragging.get_untracked()
+                        {
+                            drop_data.move_path(&from_path, &drop_path);
+                        }
+                    })
+                    .draggable()
+                    .on_event_stop(EventListener::DragStart, {
+                        let path = path.clone();
+                        move |_| {
+                            dragging.set(Some(DragContent::File(path.clone())));
+                        }
+                    })
                     .on_event_stop(
-                        EventListener::PointerDown,
-                        move |event| {
-                            if let Event::PointerDown(pointer_event) = event {
-                                if pointer_event.button.is_auxiliary() {
-                                    aux_click_data.middle_click(&aux_click_path);
-                                }
+                        EventListener::DragEnd,
+                        move |_| {
+                            if let Some(DragContent::File(_)) =
+                                dragging.get_untracked()
+                            {
+                                dragging.set(None);
                             }
                         },
                     )
