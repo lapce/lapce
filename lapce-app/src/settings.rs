@@ -605,6 +605,8 @@ fn settings_item_view(
                             }
 
                             let value = buffer.with_untracked(|b| b.to_string());
+                            // FIXME: Figure out how to block certain keys in inputs and not hate myself
+                            let value = value.trim();
                             let value = match &item_value {
                                 SettingsValue::Float(_) => {
                                     value.parse::<f64>().ok().and_then(|v| {
