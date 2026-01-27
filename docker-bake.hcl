@@ -178,6 +178,7 @@ target "fedora" {
       { packages = null, platforms = null, type = "package", version = "40" },
       { packages = null, platforms = null, type = "package", version = "41" },
       { packages = null, platforms = null, type = "package", version = "42" },
+      { packages = null, platforms = null, type = "package", version = "43" },
       { packages = null, platforms = null, type = "package", version = "rawhide" },
     ]
   }
