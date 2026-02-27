@@ -86,7 +86,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                     None
                 }
             })
-            .collect::<im::Vector<(LapceCommand, Option<KeyMap>)>>();
+            .collect::<imbl::Vector<(LapceCommand, Option<KeyMap>)>>();
         items.extend(keypress.commands_without_keymap.iter().filter_map(|cmd| {
             let match_pattern = cmd.kind.str().replace('_', " ").contains(&pattern)
                 || cmd
@@ -102,7 +102,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
         items
             .into_iter()
             .enumerate()
-            .collect::<im::Vector<(usize, (LapceCommand, Option<KeyMap>))>>()
+            .collect::<imbl::Vector<(usize, (LapceCommand, Option<KeyMap>))>>()
     };
 
     let view_fn =
@@ -282,10 +282,10 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
         container(
             text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
-                .keyboard_navigable()
                 .request_focus(|| {})
                 .style(move |s| {
-                    s.width_pct(100.0)
+                    s.focusable(true)
+                        .width_pct(100.0)
                         .border_radius(6.0)
                         .border(1.0)
                         .border_color(config.get().color(LapceColor::LAPCE_BORDER))
@@ -513,9 +513,8 @@ fn keyboard_picker_view(
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
         }),
     )
-    .keyboard_navigable()
     .on_event_stop(EventListener::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
+        if let Event::Key(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
                 if let Some(keypress) = keypress.keymap_press() {
                     picker.keys.update(|keys| {
@@ -533,17 +532,16 @@ fn keyboard_picker_view(
             }
         }
     })
-    .on_event_stop(EventListener::KeyUp, move |event| {
-        if let Event::KeyUp(_key_event) = event {
-            picker.keys.update(|keys| {
-                if let Some((_last_key, last_key_confirmed)) = keys.last_mut() {
-                    *last_key_confirmed = true;
-                }
-            })
-        }
+    .on_event_stop(EventListener::KeyUp, move |_| {
+        picker.keys.update(|keys| {
+            if let Some((_last_key, last_key_confirmed)) = keys.last_mut() {
+                *last_key_confirmed = true;
+            }
+        })
     })
     .style(move |s| {
-        s.absolute()
+        s.focusable(true)
+            .absolute()
             .size_pct(100.0, 100.0)
             .items_center()
             .justify_center()

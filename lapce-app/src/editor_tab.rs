@@ -108,7 +108,7 @@ impl EditorTabInfo {
                     .collect(),
                 layout_rect: Rect::ZERO,
                 window_origin: Point::ZERO,
-                locations: cx.create_rw_signal(im::Vector::new()),
+                locations: cx.create_rw_signal(imbl::Vector::new()),
                 current_location: cx.create_rw_signal(0),
             };
             cx.create_rw_signal(editor_tab_data)
@@ -201,7 +201,7 @@ impl EditorTabChild {
     pub fn view_info(
         &self,
         editors: Editors,
-        diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
+        diff_editors: RwSignal<imbl::HashMap<DiffEditorId, DiffEditorData>>,
         plugin: PluginData,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Memo<EditorTabChildViewInfo> {
@@ -411,7 +411,7 @@ pub struct EditorTabData {
     pub children: Vec<(RwSignal<usize>, RwSignal<Rect>, EditorTabChild)>,
     pub window_origin: Point,
     pub layout_rect: Rect,
-    pub locations: RwSignal<im::Vector<EditorLocation>>,
+    pub locations: RwSignal<imbl::Vector<EditorLocation>>,
     pub current_location: RwSignal<usize>,
 }
 
@@ -443,7 +443,7 @@ impl EditorTabData {
     pub fn get_unconfirmed_editor_tab_child(
         &self,
         editors: Editors,
-        diff_editors: &im::HashMap<EditorId, DiffEditorData>,
+        diff_editors: &imbl::HashMap<EditorId, DiffEditorData>,
     ) -> Option<(usize, EditorTabChild)> {
         for (i, (_, _, child)) in self.children.iter().enumerate() {
             match child {

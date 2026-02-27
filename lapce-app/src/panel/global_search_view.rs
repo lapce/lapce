@@ -212,7 +212,7 @@ fn search_result(
                                 if expanded.get() {
                                     match_data.matches.get()
                                 } else {
-                                    im::Vector::new()
+                                    imbl::Vector::new()
                                 }
                             },
                             |m| (m.line, m.start, m.end),

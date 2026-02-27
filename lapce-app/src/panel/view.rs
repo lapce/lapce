@@ -4,6 +4,7 @@ use floem::{
     AnyView, IntoView, View,
     event::{Event, EventListener, EventPropagation},
     kurbo::{Point, Size},
+    prelude::PointerEvent,
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_rw_signal,
     },
@@ -275,19 +276,19 @@ pub fn panel_container_view(
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
             view.on_event_stop(EventListener::PointerDown, move |event| {
                 view_id.request_active();
-                if let Event::PointerDown(pointer_event) = event {
-                    drag_start.set(Some(pointer_event.pos));
+                if let Event::Pointer(PointerEvent::Down(pointer_event)) = event {
+                    drag_start.set(Some(pointer_event.state.logical_point()));
                 }
             })
             .on_event_stop(EventListener::PointerMove, move |event| {
-                if let Event::PointerMove(pointer_event) = event {
+                if let Event::Pointer(PointerEvent::Move(pointer_event)) = event {
                     if let Some(drag_start_point) = drag_start.get_untracked() {
                         let current_size = current_size.get_untracked();
                         let available_size = available_size.get_untracked();
+                        let pointer_point = pointer_event.current.logical_point();
                         match position {
                             PanelContainerPosition::Left => {
-                                let new_size = current_size.width
-                                    + pointer_event.pos.x
+                                let new_size = current_size.width + pointer_point.x
                                     - drag_start_point.x;
                                 let current_panel_size = panel_size.get_untracked();
                                 let new_size = new_size
@@ -304,7 +305,7 @@ pub fn panel_container_view(
                             }
                             PanelContainerPosition::Bottom => {
                                 let new_size = current_size.height
-                                    - (pointer_event.pos.y - drag_start_point.y);
+                                    - (pointer_point.y - drag_start_point.y);
                                 let maximized = panel.panel_bottom_maximized(false);
                                 if (maximized
                                     && new_size < available_size.height - 50.0)
@@ -327,7 +328,7 @@ pub fn panel_container_view(
                             }
                             PanelContainerPosition::Right => {
                                 let new_size = current_size.width
-                                    - (pointer_event.pos.x - drag_start_point.x);
+                                    - (pointer_point.x - drag_start_point.x);
                                 let current_panel_size = panel_size.get_untracked();
                                 let new_size = new_size
                                     .max(150.0)
@@ -460,11 +461,8 @@ fn panel_view(
             .panels
             .with(|p| p.get(&position).cloned().unwrap_or_default())
     };
-    let active_fn = move || {
-        panel
-            .styles
-            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
-    };
+    let active_fn =
+        move || panel.styles.with(|s| s.get(&position).map(|s| s.active));
     tab(
         active_fn,
         panels,
@@ -589,7 +587,6 @@ fn panel_picker(
                     move || tooltip,
                     config,
                 )
-                .draggable()
                 .on_event_stop(EventListener::DragStart, move |_| {
                     dragging.set(Some(DragContent::Panel(p)));
                 })
@@ -608,7 +605,7 @@ fn panel_picker(
                                 .multiply_alpha(0.7),
                         )
                 })
-                .style(|s| s.padding(1.0)),
+                .style(|s| s.draggable(true).padding(1.0)),
                 label(|| "".to_string()).style(move |s| {
                     s.selectable(false)
                         .pointer_events_none()

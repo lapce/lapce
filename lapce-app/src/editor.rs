@@ -10,14 +10,16 @@ use floem::{
     ViewId,
     action::{TimerToken, exec_after, show_context_menu},
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
-    menu::{Menu, MenuItem},
-    pointer::{MouseButton, PointerInputEvent, PointerMoveEvent},
+    menu::Menu,
     prelude::SignalTrack,
     reactive::{
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, batch,
         use_context,
+    },
+    ui_events::{
+        keyboard::Modifiers,
+        pointer::{PointerButton, PointerButtonEvent, PointerUpdate},
     },
     views::editor::{
         Editor,
@@ -42,7 +44,7 @@ use lapce_core::{
         EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
         ScrollCommand,
     },
-    cursor::{Cursor, CursorMode},
+    cursor::{Cursor, CursorAffinity, CursorMode},
     editor::EditType,
     mode::{Mode, MotionMode},
     rope_text_pos::RopeTextPosition,
@@ -541,7 +543,12 @@ impl EditorData {
                             find.next(rope_text.text(), offset, false, false)
                         {
                             offset = end;
-                            selection.add_region(SelRegion::new(start, end, None));
+                            selection.add_region(SelRegion::new(
+                                start,
+                                end,
+                                CursorAffinity::Backward,
+                                None,
+                            ));
                         }
                     }
                     cursor.set_insert(selection);
@@ -585,7 +592,10 @@ impl EditorData {
                                     .any(|r| r.min() == start && r.max() == end)
                                 {
                                     selection.add_region(SelRegion::new(
-                                        start, end, None,
+                                        start,
+                                        end,
+                                        CursorAffinity::Backward,
+                                        None,
                                     ));
                                     break;
                                 }
@@ -607,7 +617,10 @@ impl EditorData {
                         if r.is_caret() {
                             let (start, end) = rope_text.select_word(r.start);
                             selection.replace_last_inserted_region(SelRegion::new(
-                                start, end, None,
+                                start,
+                                end,
+                                CursorAffinity::Backward,
+                                None,
                             ));
                         } else {
                             let find = doc.find();
@@ -626,7 +639,12 @@ impl EditorData {
                                     .any(|r| r.min() == start && r.max() == end)
                                 {
                                     selection.replace_last_inserted_region(
-                                        SelRegion::new(start, end, None),
+                                        SelRegion::new(
+                                            start,
+                                            end,
+                                            CursorAffinity::Backward,
+                                            None,
+                                        ),
                                     );
                                     break;
                                 }
@@ -976,7 +994,10 @@ impl EditorData {
                             let mut selection =
                                 lapce_core::selection::Selection::new();
                             let region = lapce_core::selection::SelRegion::new(
-                                *start, *end, None,
+                                *start,
+                                *end,
+                                CursorAffinity::Backward,
+                                None,
                             );
                             selection.add_region(region);
                             self.cursor().update(|cursor| {
@@ -1013,7 +1034,10 @@ impl EditorData {
                                 let mut selection =
                                     lapce_core::selection::Selection::new();
                                 let region = lapce_core::selection::SelRegion::new(
-                                    *start, *end, None,
+                                    *start,
+                                    *end,
+                                    CursorAffinity::Backward,
+                                    None,
                                 );
                                 selection.add_region(region);
                                 self.cursor().update(|cursor| {
@@ -1228,7 +1252,9 @@ impl EditorData {
 
         items
             .into_iter()
-            .map(|(_, start, end)| SelRegion::new(start, end, None))
+            .map(|(_, start, end)| {
+                SelRegion::new(start, end, CursorAffinity::Backward, None)
+            })
             .collect()
     }
 
@@ -1914,6 +1940,7 @@ impl EditorData {
                 let selection = lapce_core::selection::Selection::region(
                     buffer.offset_of_position(&edit.range.start),
                     buffer.offset_of_position(&edit.range.end),
+                    CursorAffinity::Backward,
                 );
                 (selection, edit.new_text.as_str())
             })
@@ -1934,6 +1961,7 @@ impl EditorData {
                     let selection = lapce_core::selection::Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
+                        CursorAffinity::Backward,
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
@@ -1966,7 +1994,8 @@ impl EditorData {
         let offset = cursor.offset();
         let start_offset = buffer.prev_code_boundary(offset);
         let end_offset = buffer.next_code_boundary(offset);
-        let selection = Selection::region(start_offset, end_offset);
+        let selection =
+            Selection::region(start_offset, end_offset, CursorAffinity::Backward);
 
         self.do_edit(
             &selection,
@@ -2025,7 +2054,12 @@ impl EditorData {
 
         let mut selection = lapce_core::selection::Selection::new();
         let (_tab, (start, end)) = &snippet_tabs[0];
-        let region = lapce_core::selection::SelRegion::new(*start, *end, None);
+        let region = lapce_core::selection::SelRegion::new(
+            *start,
+            *end,
+            CursorAffinity::Backward,
+            None,
+        );
         selection.add_region(region);
         cursor.set_insert(selection);
 
@@ -2101,6 +2135,7 @@ impl EditorData {
                     let selection = lapce_core::selection::Selection::region(
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
+                        CursorAffinity::Backward,
                     );
                     (selection, edit.new_text.as_str())
                 })
@@ -2205,10 +2240,16 @@ impl EditorData {
             .buffer
             .with_untracked(|buffer| position.to_offset(buffer));
         let config = self.common.config.get_untracked();
+        let affinity = CursorAffinity::Backward;
+
         self.cursor().set(if config.core.modal {
-            Cursor::new(CursorMode::Normal(offset), None, None)
+            Cursor::new(CursorMode::Normal { offset, affinity }, None, None)
         } else {
-            Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
+            Cursor::new(
+                CursorMode::Insert(Selection::caret(offset, affinity)),
+                None,
+                None,
+            )
         });
         if let Some(scroll_offset) = scroll_offset {
             self.editor.scroll_to.set(Some(scroll_offset));
@@ -2240,7 +2281,7 @@ impl EditorData {
 
         // insert some empty data, so that we won't make the request again
         doc.code_actions().update(|c| {
-            c.insert(offset, (PluginId(0), im::Vector::new()));
+            c.insert(offset, (PluginId(0), imbl::Vector::new()));
         });
 
         let (position, rev, diagnostics) = doc.buffer.with_untracked(|buffer| {
@@ -2469,7 +2510,7 @@ impl EditorData {
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, end)) = next {
-            let selection = Selection::region(start, end);
+            let selection = Selection::region(start, end, CursorAffinity::Backward);
             self.do_edit(&selection, &[(selection.clone(), text)]);
         }
     }
@@ -2486,10 +2527,22 @@ impl EditorData {
             .get_untracked()
             .regions()
             .iter()
-            .map(|region| (Selection::region(region.start, region.end), text))
+            .map(|region| {
+                (
+                    Selection::region(
+                        region.start,
+                        region.end,
+                        CursorAffinity::Backward,
+                    ),
+                    text,
+                )
+            })
             .collect();
         if !edits.is_empty() {
-            self.do_edit(&Selection::caret(offset), &edits);
+            self.do_edit(
+                &Selection::caret(offset, CursorAffinity::Backward),
+                &edits,
+            );
         }
     }
 
@@ -2601,20 +2654,19 @@ impl EditorData {
     pub fn word_at_cursor(&self) -> String {
         let doc = self.doc();
         let region = self.cursor().with_untracked(|c| match &c.mode {
-            lapce_core::cursor::CursorMode::Normal(offset) => {
-                lapce_core::selection::SelRegion::caret(*offset)
+            lapce_core::cursor::CursorMode::Normal { offset, affinity } => {
+                lapce_core::selection::SelRegion::caret(*offset, *affinity)
             }
-            lapce_core::cursor::CursorMode::Visual {
-                start,
-                end,
-                mode: _,
-            } => lapce_core::selection::SelRegion::new(
-                *start.min(end),
-                doc.buffer.with_untracked(|buffer| {
-                    buffer.next_grapheme_offset(*start.max(end), 1, buffer.len())
-                }),
-                None,
-            ),
+            lapce_core::cursor::CursorMode::Visual { start, end, .. } => {
+                lapce_core::selection::SelRegion::new(
+                    *start.min(end),
+                    doc.buffer.with_untracked(|buffer| {
+                        buffer.next_grapheme_offset(*start.max(end), 1, buffer.len())
+                    }),
+                    CursorAffinity::Backward,
+                    None,
+                )
+            }
             lapce_core::cursor::CursorMode::Insert(selection) => {
                 *selection.last_inserted().unwrap()
             }
@@ -2656,7 +2708,7 @@ impl EditorData {
         self.common.find.replace_focus.set(false);
     }
 
-    pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
+    pub fn pointer_down(&self, pointer_event: &PointerButtonEvent) {
         self.cancel_completion();
         self.cancel_inline_completion();
         if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
@@ -2672,13 +2724,13 @@ impl EditorData {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
-        match pointer_event.button.mouse_button() {
-            MouseButton::Primary => {
+        match pointer_event.button {
+            Some(PointerButton::Primary) => {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
-                let y =
-                    pointer_event.pos.y - self.editor.viewport.get_untracked().y0;
+                let pointer_pos = pointer_event.state.logical_point();
+                let y = pointer_pos.y - self.editor.viewport.get_untracked().y0;
                 if self.sticky_header_height.get_untracked() > y {
                     let index = y as usize
                         / self.common.config.get_untracked().editor.line_height();
@@ -2704,11 +2756,12 @@ impl EditorData {
                     }
                 }
 
-                if (cfg!(target_os = "macos") && pointer_event.modifiers.meta())
-                    || (cfg!(not(target_os = "macos"))
-                        && pointer_event.modifiers.control())
+                let pointer_modifiers = pointer_event.state.modifiers;
+
+                if (cfg!(target_os = "macos") && pointer_modifiers.meta())
+                    || (cfg!(not(target_os = "macos")) && pointer_modifiers.ctrl())
                 {
-                    let rs = self.find_hint(pointer_event.pos);
+                    let rs = self.find_hint(pointer_pos);
                     match rs {
                         FindHintRs::NoMatchBreak
                         | FindHintRs::NoMatchContinue { .. } => {
@@ -2741,7 +2794,7 @@ impl EditorData {
                     }
                 }
             }
-            MouseButton::Secondary => {
+            Some(PointerButton::Secondary) => {
                 self.right_click(pointer_event);
             }
             _ => {}
@@ -2783,8 +2836,8 @@ impl EditorData {
     }
 
     #[instrument]
-    fn left_click(&self, pointer_event: &PointerInputEvent) {
-        match pointer_event.count {
+    fn left_click(&self, pointer_event: &PointerButtonEvent) {
+        match pointer_event.state.count {
             1 => {
                 self.single_click(pointer_event);
             }
@@ -2799,30 +2852,36 @@ impl EditorData {
     }
 
     #[instrument]
-    fn single_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.single_click(pointer_event);
+    fn single_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.single_click(&pointer_event.state);
     }
 
     #[instrument]
-    fn double_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.double_click(pointer_event);
+    fn double_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.double_click(&pointer_event.state);
     }
 
     #[instrument]
-    fn triple_click(&self, pointer_event: &PointerInputEvent) {
-        self.editor.triple_click(pointer_event);
+    fn triple_click(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.triple_click(&pointer_event.state);
     }
 
     #[instrument]
-    pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
+    pub fn pointer_move(&self, pointer_event: &PointerUpdate) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
-        let (offset, is_inside) =
-            self.editor.offset_of_point(mode, pointer_event.pos);
+        let pointer_pos = pointer_event.current.logical_point();
+        let (offset, is_inside, affinity) =
+            self.editor.offset_of_point(mode, pointer_pos);
         if self.active().get_untracked()
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
             self.cursor().update(|cursor| {
-                cursor.set_offset(offset, true, pointer_event.modifiers.alt())
+                cursor.set_offset(
+                    offset,
+                    affinity,
+                    true,
+                    pointer_event.current.modifiers.alt(),
+                )
             });
         }
         if self.common.hover.active.get_untracked() {
@@ -2866,8 +2925,8 @@ impl EditorData {
     }
 
     #[instrument]
-    pub fn pointer_up(&self, pointer_event: &PointerInputEvent) {
-        self.editor.pointer_up(pointer_event);
+    pub fn pointer_up(&self, pointer_event: &PointerButtonEvent) {
+        self.editor.pointer_up(&pointer_event.state);
     }
 
     #[instrument]
@@ -2876,9 +2935,10 @@ impl EditorData {
     }
 
     #[instrument]
-    fn right_click(&self, pointer_event: &PointerInputEvent) {
+    fn right_click(&self, pointer_event: &PointerButtonEvent) {
         let mode = self.cursor().with_untracked(|c| c.get_mode());
-        let (offset, _) = self.editor.offset_of_point(mode, pointer_event.pos);
+        let pointer_pos = pointer_event.state.logical_point();
+        let (offset, ..) = self.editor.offset_of_point(mode, pointer_pos);
         let doc = self.doc();
         let pointer_inside_selection = doc.buffer.with_untracked(|buffer| {
             self.cursor()
@@ -2897,7 +2957,7 @@ impl EditorData {
             | DocContent::History(_)
             | DocContent::Scratch { .. } => (None, false),
         });
-        let mut menu = Menu::new("");
+        let mut menu = Menu::new();
         let mut cmds = if is_file {
             if path
                 .as_ref()
@@ -2983,15 +3043,16 @@ impl EditorData {
         let lapce_command = self.common.lapce_command;
         for cmd in cmds {
             if let Some(cmd) = cmd {
-                menu = menu.entry(
-                    MenuItem::new(cmd.desc().unwrap_or_else(|| cmd.str())).action(
-                        move || {
+                menu = menu.item(
+                    cmd.desc().unwrap_or_else(|| cmd.str()),
+                    move |builder| {
+                        builder.action(move || {
                             lapce_command.send(LapceCommand {
                                 kind: cmd.clone(),
                                 data: None,
                             })
-                        },
-                    ),
+                        })
+                    },
                 );
             } else {
                 menu = menu.separator();
@@ -3034,8 +3095,9 @@ impl EditorData {
     pub fn reset(&self) {
         let doc = self.doc();
         doc.reload(Rope::from(""), true);
-        self.cursor()
-            .update(|cursor| cursor.set_offset(0, false, false));
+        self.cursor().update(|cursor| {
+            cursor.set_offset(0, CursorAffinity::Backward, false, false)
+        });
     }
 
     pub fn visual_line(&self, line: usize) -> usize {

@@ -5,7 +5,7 @@ use floem::{
     reactive::{Memo, SignalGet, SignalWith},
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
 };
-use im::HashMap;
+use imbl::HashMap;
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 use serde::{Deserialize, Serialize};
 

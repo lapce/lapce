@@ -1,4 +1,4 @@
-use floem::keyboard::Modifiers;
+use floem::ui_events::keyboard::Modifiers;
 
 use super::{key::KeyInput, keymap::KeyMapPress};
 

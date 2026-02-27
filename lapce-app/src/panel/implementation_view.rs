@@ -9,7 +9,7 @@ use floem::{
         virtual_stack,
     },
 };
-use im::HashMap;
+use imbl::HashMap;
 use itertools::Itertools;
 use lapce_rpc::file_line::FileLine;
 use lsp_types::{Location, SymbolKind, request::GotoImplementationResponse};

@@ -16,12 +16,12 @@ use floem::{
     ViewId,
     action::exec_after,
     ext_event::create_ext_action,
-    keyboard::Modifiers,
     peniko::Color,
     reactive::{
         ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith, batch,
     },
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    ui_events::keyboard::Modifiers,
     views::editor::{
         CursorInfo, Editor, EditorStyle,
         actions::CommonAction,
@@ -91,7 +91,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct DiagnosticData {
     pub expanded: RwSignal<bool>,
-    pub diagnostics: RwSignal<im::Vector<Diagnostic>>,
+    pub diagnostics: RwSignal<imbl::Vector<Diagnostic>>,
     pub diagnostics_span: RwSignal<Spans<Diagnostic>>,
 }
 
@@ -157,9 +157,10 @@ pub struct DocInfo {
 
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions =
-    im::HashMap<usize, (PluginId, im::Vector<CodeActionOrCommand>)>;
+    imbl::HashMap<usize, (PluginId, imbl::Vector<CodeActionOrCommand>)>;
 
-pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>)>;
+pub type AllCodeLens =
+    imbl::HashMap<usize, (PluginId, usize, imbl::Vector<CodeLens>)>;
 
 #[derive(Clone)]
 pub struct Doc {
@@ -194,8 +195,8 @@ pub struct Doc {
     pub folding_ranges: RwSignal<FoldingRanges>,
 
     /// Stores information about different versions of the document from source control.
-    histories: RwSignal<im::HashMap<String, DocumentHistory>>,
-    pub head_changes: RwSignal<im::Vector<DiffLines>>,
+    histories: RwSignal<imbl::HashMap<String, DocumentHistory>>,
+    pub head_changes: RwSignal<imbl::Vector<DiffLines>>,
 
     line_styles: Rc<RefCell<LineStyles>>,
     pub parser: Rc<RefCell<BracketParser>>,
@@ -249,15 +250,15 @@ impl Doc {
                 read_only: false,
             }),
             loaded: cx.create_rw_signal(false),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
+            histories: cx.create_rw_signal(imbl::HashMap::new()),
+            head_changes: cx.create_rw_signal(imbl::Vector::new()),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
+            code_actions: cx.create_rw_signal(imbl::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: PreeditData::new(cx),
             editors,
             common,
-            code_lens: cx.create_rw_signal(im::HashMap::new()),
+            code_lens: cx.create_rw_signal(imbl::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
@@ -290,7 +291,7 @@ impl Doc {
             inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
+                diagnostics: cx.create_rw_signal(imbl::Vector::new()),
                 diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
             },
             completion_lens: cx.create_rw_signal(None),
@@ -299,16 +300,16 @@ impl Doc {
             inline_completion_pos: cx.create_rw_signal((0, 0)),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
+            histories: cx.create_rw_signal(imbl::HashMap::new()),
+            head_changes: cx.create_rw_signal(imbl::Vector::new()),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             loaded: cx.create_rw_signal(true),
             find_result: FindResult::new(cx),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
+            code_actions: cx.create_rw_signal(imbl::HashMap::new()),
             preedit: PreeditData::new(cx),
             editors,
             common,
-            code_lens: cx.create_rw_signal(im::HashMap::new()),
+            code_lens: cx.create_rw_signal(imbl::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
@@ -341,7 +342,7 @@ impl Doc {
             inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
+                diagnostics: cx.create_rw_signal(imbl::Vector::new()),
                 diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
             },
             completion_lens: cx.create_rw_signal(None),
@@ -352,14 +353,14 @@ impl Doc {
             content: cx.create_rw_signal(content),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             loaded: cx.create_rw_signal(true),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
+            histories: cx.create_rw_signal(imbl::HashMap::new()),
+            head_changes: cx.create_rw_signal(imbl::Vector::new()),
+            code_actions: cx.create_rw_signal(imbl::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: PreeditData::new(cx),
             editors,
             common,
-            code_lens: cx.create_rw_signal(im::HashMap::new()),
+            code_lens: cx.create_rw_signal(imbl::HashMap::new()),
             document_symbol_data: cx.create_rw_signal(None),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
@@ -688,6 +689,7 @@ impl Doc {
                     let selection = lapce_core::selection::Selection::region(
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
+                        CursorAffinity::Backward,
                     );
                     (selection, edit.new_text.as_str())
                 })
@@ -949,7 +951,7 @@ impl Doc {
                                                 codelens.range.start.line as usize,
                                             )
                                         }),
-                                        im::Vector::new(),
+                                        imbl::Vector::new(),
                                     )
                                 });
                             entry.2.push_back(codelens);
@@ -1314,7 +1316,7 @@ impl Doc {
         lines
     }
 
-    pub fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
+    pub fn head_changes(&self) -> RwSignal<imbl::Vector<DiffLines>> {
         self.head_changes
     }
 
@@ -1394,7 +1396,7 @@ impl Doc {
         rayon::spawn(move || {
             let changes =
                 rope_diff(left_rope, right_rope, rev, atomic_rev.clone(), None);
-            send(changes.map(im::Vector::from));
+            send(changes.map(imbl::Vector::from));
         });
     }
 

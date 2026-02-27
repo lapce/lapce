@@ -75,7 +75,7 @@ pub enum Condition {
 
 #[cfg(test)]
 mod test {
-    use floem::keyboard::Modifiers;
+    use floem::ui_events::keyboard::Modifiers;
     use lapce_core::mode::Mode;
 
     use super::Condition;

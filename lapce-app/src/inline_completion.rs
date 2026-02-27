@@ -6,6 +6,7 @@ use lapce_core::{
         Buffer,
         rope_text::{RopeText, RopeTextRef},
     },
+    cursor::CursorAffinity,
     rope_text_pos::RopeTextPosition,
     selection::Selection,
 };
@@ -53,9 +54,9 @@ impl InlineCompletionItem {
             .unwrap_or(InsertTextFormat::PLAIN_TEXT);
 
         let selection = if let Some(range) = &self.range {
-            Selection::region(range.start, range.end)
+            Selection::region(range.start, range.end, CursorAffinity::Backward)
         } else {
-            Selection::caret(start_offset)
+            Selection::caret(start_offset, CursorAffinity::Backward)
         };
 
         match text_format {
@@ -95,7 +96,7 @@ pub struct InlineCompletionData {
     pub status: InlineCompletionStatus,
     /// The active inline completion index in the list of completions.
     pub active: RwSignal<usize>,
-    pub items: im::Vector<InlineCompletionItem>,
+    pub items: imbl::Vector<InlineCompletionItem>,
     pub start_offset: usize,
     pub path: PathBuf,
 }
@@ -104,7 +105,7 @@ impl InlineCompletionData {
         Self {
             status: InlineCompletionStatus::Inactive,
             active: cx.create_rw_signal(0),
-            items: im::vector![],
+            items: imbl::vector![],
             start_offset: 0,
             path: PathBuf::new(),
         }
@@ -146,7 +147,7 @@ impl InlineCompletionData {
     /// Sets `active` to `0` and `status` to `InlineCompletionStatus::Active`.
     pub fn set_items(
         &mut self,
-        items: im::Vector<InlineCompletionItem>,
+        items: imbl::Vector<InlineCompletionItem>,
         start_offset: usize,
         path: PathBuf,
     ) {

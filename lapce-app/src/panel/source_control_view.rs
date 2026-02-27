@@ -4,11 +4,12 @@ use floem::{
     View,
     action::show_context_menu,
     event::{Event, EventListener},
-    menu::{Menu, MenuItem},
+    menu::Menu,
     peniko::kurbo::Rect,
     prelude::SignalTrack,
     reactive::{SignalGet, SignalUpdate, SignalWith, create_memo, create_rw_signal},
     style::{CursorStyle, Style},
+    ui_events::pointer::{PointerButton, PointerEvent},
     views::{
         Decorators, container, dyn_stack,
         editor::view::{LineRegion, cursor_caret},
@@ -88,14 +89,18 @@ pub fn source_control_panel(
                     let id = view.id();
                     view.on_event_cont(EventListener::PointerDown, move |event| {
                         let event = event.clone().offset((10.0, 6.0));
-                        if let Event::PointerDown(pointer_event) = event {
+                        if let Event::Pointer(PointerEvent::Down(pointer_event)) =
+                            event
+                        {
                             id.request_active();
                             editor.get_untracked().pointer_down(&pointer_event);
                         }
                     })
                     .on_event_stop(EventListener::PointerMove, move |event| {
                         let event = event.clone().offset((10.0, 6.0));
-                        if let Event::PointerMove(pointer_event) = event {
+                        if let Event::Pointer(PointerEvent::Move(pointer_event)) =
+                            event
+                        {
                             editor.get_untracked().pointer_move(&pointer_event);
                         }
                     })
@@ -103,7 +108,9 @@ pub fn source_control_panel(
                         EventListener::PointerUp,
                         move |event| {
                             let event = event.clone().offset((10.0, 6.0));
-                            if let Event::PointerUp(pointer_event) = event {
+                            if let Event::Pointer(PointerEvent::Up(pointer_event)) =
+                                event
+                            {
                                 editor.get_untracked().pointer_up(&pointer_event);
                             }
                         },
@@ -125,7 +132,7 @@ pub fn source_control_panel(
                         &e_data.editor,
                         offset,
                         !cursor.is_insert(),
-                        cursor.affinity,
+                        cursor.affinity(),
                     );
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
@@ -322,10 +329,11 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 });
             };
 
-            if let Event::PointerDown(pointer_event) = event {
-                if pointer_event.button.is_secondary() {
-                    let menu = Menu::new("")
-                        .entry(MenuItem::new("Discard Changes").action(discard));
+            if let Event::Pointer(PointerEvent::Down(pointer_event)) = event {
+                if pointer_event.button == Some(PointerButton::Secondary) {
+                    let menu = Menu::new().item("Discard Changes", move |builder| {
+                        builder.action(discard)
+                    });
                     show_context_menu(menu, None);
                 }
             }
