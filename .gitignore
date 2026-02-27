@@ -10,3 +10,5 @@ vendor/
 
 .DS_Store
 *.patch
+*.tar
+*.gz
