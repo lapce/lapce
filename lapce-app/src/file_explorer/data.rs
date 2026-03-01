@@ -146,14 +146,14 @@ impl FileExplorerData {
         data
     }
 
-    /// Reload the file explorer data via reading the root directory.  
+    /// Reload the file explorer data via reading the root directory.
     /// Note that this will not update immediately.
     pub fn reload(&self) {
         let path = self.root.with_untracked(|root| root.path.clone());
         self.read_dir(&path);
     }
 
-    /// Toggle whether the directory is expanded or not.  
+    /// Toggle whether the directory is expanded or not.
     /// Does nothing if the path does not exist or is not a directory.
     pub fn toggle_expand(&self, path: &Path) {
         let Some(Some(read)) = self.root.try_update(|root| {
@@ -185,7 +185,7 @@ impl FileExplorerData {
         self.read_dir_cb(path, |_| {});
     }
 
-    /// Read the directory's information and update the file explorer tree.  
+    /// Read the directory's information and update the file explorer tree.
     /// `done : FnOnce(was_read: bool)` is called when the operation is completed, whether success,
     /// failure, or ignored.
     pub fn read_dir_cb(&self, path: &Path, done: impl FnOnce(bool) + 'static) {
@@ -261,7 +261,7 @@ impl FileExplorerData {
         })
     }
 
-    /// The current path that we're renaming to / creating or duplicating a node at.  
+    /// The current path that we're renaming to / creating or duplicating a node at.
     /// Note: returns `None` when renaming if the file name has not changed.
     fn naming_path(&self) -> Option<PathBuf> {
         self.naming.with_untracked(|naming| match naming {
@@ -408,7 +408,7 @@ impl FileExplorerData {
         let done = self
             .root
             .try_update(|root| {
-                // the directories in which the file are located are all readed and opened
+                // the directories in which the file are located are all read and opened
                 if root.get_file_node(&path).is_some() {
                     for current_path in path.ancestors() {
                         if let Some(file) = root.get_file_node_mut(current_path) {

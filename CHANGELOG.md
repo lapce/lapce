@@ -81,7 +81,7 @@
 ### Features/Changes
 
 - Add fedora builds
-- Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
+- Finish tree sitter dynamic library support by downloading from https://github.com/lapce/tree-sitter-grammars
 - Saves scale configuration in settings to restore at startup
 - text in ui can be selected and copied
 - add right click context menu for editor tab

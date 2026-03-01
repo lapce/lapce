@@ -1,0 +1,4 @@
+[codespell]
+skip = ./.git,./target,./vendor,./node_modules,./po,./Cargo.lock,./extra/windows/wix/license.rtf
+ignore-regex = .*(ratatui|Affinitized|affinitized|ede|fo|onl).*
+ignore-words-list = ser,edn,tese,rcall,wit,Wit,WIT,wast

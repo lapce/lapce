@@ -8,7 +8,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - lapce-**
-      - .github/wofklows/ci.yml
+      - .github/workflows/ci.yml
   workflow_dispatch:
 
 name: CI
@@ -97,7 +97,7 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 

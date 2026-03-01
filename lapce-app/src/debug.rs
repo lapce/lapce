@@ -361,7 +361,7 @@ impl DapData {
         let variables_id = self.variables_id;
 
         let send = create_ext_action(self.common.scope, move |result| {
-            if let Ok(ProxyResponse::DapVariableResponse { varialbes }) = result {
+            if let Ok(ProxyResponse::DapVariableResponse { variables }) = result {
                 variables_id.update(|id| {
                     *id += 1;
                 });
@@ -370,7 +370,7 @@ impl DapData {
                         let mut new_parent = parent.clone();
                         new_parent.push(reference);
                         var.read = true;
-                        var.children = varialbes
+                        var.children = variables
                             .into_iter()
                             .map(|v| DapVariable {
                                 item: ScopeOrVar::Var(v),

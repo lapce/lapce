@@ -267,9 +267,9 @@ pub fn load_all_volts(
     }
 }
 
-/// Find all installed volts.  
+/// Find all installed volts.
 /// `plugin_dev_path` allows launching Lapce with a plugin on your local system for testing
-/// purposes.  
+/// purposes.
 /// As well, this function skips any volt in the typical plugin directory that match the name
 /// of the dev plugin so as to support developing a plugin you actively use.
 pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
@@ -528,7 +528,7 @@ pub fn start_volt(
             let instance = linker.instantiate(&mut store, &module).unwrap();
             let handle_rpc = instance
                 .get_func(&mut store, "handle_rpc")
-                .ok_or_else(|| anyhow!("can't convet to function"))
+                .ok_or_else(|| anyhow!("can't convert to function"))
                 .unwrap()
                 .typed::<(), ()>(&mut store)
                 .unwrap();
