@@ -62,6 +62,7 @@ base64           = { version = "0.21.7" }
 sha2             = { version = "0.10.8" }
 zip              = { version = "0.6.6", default-features = false, features = ["deflate"] }
 percent-encoding = { version = "2.3.1" }
+ec4rs            = { version = "1.2" }
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
