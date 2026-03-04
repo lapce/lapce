@@ -311,6 +311,12 @@ when = "!in_snippet && !completion_focus && !inline_completion_visible && !searc
 mode = "i"
 
 [[keymaps]]
+key = "shift+tab"
+command = "outdent_line"
+when = "!in_snippet && !completion_focus && !inline_completion_visible && !search_focus && !replace_focus"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+m"
 command = "insert_new_line"
 when = "!list_focus"
