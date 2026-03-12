@@ -64,6 +64,9 @@ jobs:
       - name: Update rust
         run: rustup update --no-self-update
 
+      - name: Workaround https://github.com/rust-lang/rust/issues/153486
+        run: rustup default 1.93
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 
