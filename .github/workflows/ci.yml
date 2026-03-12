@@ -8,7 +8,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - lapce-**
-      - .github/wofklows/ci.yml
+      - .github/workflows/ci.yml
   workflow_dispatch:
 
 name: CI
@@ -19,17 +19,26 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  CARGO_PROFILE_DEV_DEBUG: none
+  CARGO_PROFILE_TEST_DEBUG: none
+  CARGO_PROFILE_BENCH_DEBUG: none
 
 jobs:
   build:
-    name: Rust on ${{ matrix.os }}
+    name: ${{ matrix.target }}
     if: github.event.pull_request.draft == false
     needs: [fmt, clippy]
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        include:
+          - { target: i686-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { target: aarch64-pc-windows-msvc, os: windows-11-arm }
+          - { target: i686-pc-windows-msvc, os: windows-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-apple-darwin, os: macos-latest }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -38,22 +47,31 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo make ubuntu-deps
 
+      - name: Install dependencies on Ubuntu x86
+        if: startsWith(matrix.os, 'ubuntu') && startsWith(matrix.target, 'i686')
+        run: sudo apt-get -yq install crossbuild-essential-i386 libc6-dev-i386 gcc-multilib-i686-linux-gnu
+
       - name: Update toolchain & add llvm-tools
         run: |
           rustup update --no-self-update
+
+      - name: Set toolchain
+        if: matrix.target != ''
+        run: |
+          rustup target add --toolchain=stable ${{ matrix.target }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Fetch dependencies
-        run: cargo fetch --locked
+        run: cargo fetch --locked --target ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --frozen
+        run: cargo build --locked --target ${{ matrix.target }}
 
       - name: Build as portable
         if: startsWith(matrix.os, 'windows')
-        run: cargo build --frozen --features lapce-app/portable
+        run: cargo build --frozen --target ${{ matrix.target }} --features lapce-app/portable
 
       - name: Free space on Windows
         if: startsWith(matrix.os, 'windows')
@@ -81,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +115,7 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 
