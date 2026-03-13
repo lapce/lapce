@@ -79,13 +79,13 @@ lapce-proxy = { path = "./lapce-proxy" }
 [workspace.dependencies.floem]
 # path = "../floem"
 git = "https://github.com/lapce/floem"
-rev = "703d22f1de711bf443ba0fae2802de32bbbfc8fd"
+rev = "31fa8f444c37f4c314f47d88c23ffdbc25f2ab53"
 features = ["editor", "serde", "default-image-formats", "rfd-async-std"]
 
 [workspace.dependencies.floem-editor-core]
 # path = "../floem/editor-core/"
 git = "https://github.com/lapce/floem"
-rev = "703d22f1de711bf443ba0fae2802de32bbbfc8fd"
+rev = "31fa8f444c37f4c314f47d88c23ffdbc25f2ab53"
 features = ["serde"]
 
 [patch.crates-io]

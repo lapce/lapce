@@ -99,6 +99,9 @@ pub(super) fn panic_hook() {
 
         #[cfg(windows)]
         error_modal("Error", &info.to_string());
+
+        #[cfg(unix)]
+        error_notification("Error", &info.to_string());
     }))
 }
 
@@ -130,4 +133,21 @@ pub(super) fn error_modal(title: &str, msg: &str) -> i32 {
     }
 
     result
+}
+
+#[cfg(unix)]
+pub fn error_notification(title: &str, msg: &str) {
+    let res = std::process::Command::new("notify-send")
+        .args([
+            "-a",
+            "dev.lapce.lapce",
+            "-w",
+            "-n",
+            "dev.lapce.lapce",
+            "-c",
+            "error",
+            title,
+            msg,
+        ])
+        .spawn();
 }

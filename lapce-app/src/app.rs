@@ -13,7 +13,7 @@ use std::{
     },
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use floem::{
     IntoView, View,
@@ -3839,7 +3839,9 @@ pub fn launch() {
     let plugin_paths = Arc::new(cli.plugin_path);
 
     let (tx, rx) = channel();
-    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
+    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx))
+        .context("Failed to spawn file watcher")
+        .unwrap();
     if let Some(path) = LapceConfig::settings_file() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
             tracing::error!("{:?}", err);
