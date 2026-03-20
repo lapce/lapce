@@ -40,7 +40,8 @@
             <issues>
                 <issue url="https://github.com/lapce/lapce/issues/3821">#3821</issue>
                 <issue url="https://github.com/lapce/lapce/issues/3832">#3832</issue>
-                <issue url="https://github.com/lapce/lapce/issues/3821">#3821</issue>
+                <issue url="https://github.com/lapce/lapce/pull/3818">#3818</issue>
+                <issue url="https://github.com/lapce/lapce/pull/3819">#3819</issue>
             </issues>
         </release>
         <release version="0.4.5" date="2025-09-05">
