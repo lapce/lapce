@@ -24,6 +24,8 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   CARGO_TERM_COLOR: always
 
+permissions: {}
+
 jobs:
   tagname:
     runs-on: ubuntu-latest
@@ -53,13 +55,13 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
-
     defaults:
       run:
         shell: bash
-
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Update rust
         run: rustup update --no-self-update
@@ -95,7 +97,7 @@ jobs:
           Start-Sleep -Seconds 10
           $compressor.close()
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-windows
           path: |
@@ -109,8 +111,10 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
@@ -137,7 +141,7 @@ jobs:
           mv ./vendor-config.toml ./vendor/
           tar -zcf vendor.tar.gz ./vendor/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-linux
           path: |
@@ -150,6 +154,8 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -165,14 +171,14 @@ jobs:
           - os-name: ubuntu
             os-version: plucky
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
           docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
           path: |
@@ -184,6 +190,8 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -193,14 +201,14 @@ jobs:
           - os-name: fedora
             os-version: 43
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Build rpm packages
         run: |
           docker buildx create --driver=docker-container --use
           docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
           path: |
@@ -212,6 +220,8 @@ jobs:
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -219,10 +229,10 @@ jobs:
           - os-name: alpine
             os-version: "" # uses latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
 
       - name: Build lapce-proxy binary
         run: |
@@ -234,7 +244,7 @@ jobs:
           gzip -c ./target/linux_amd64/lapce-proxy > ./lapce-proxy-linux-x86_64.gz
           gzip -c ./target/linux_arm64/lapce-proxy > ./lapce-proxy-linux-aarch64.gz
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-proxy-linux
           path: |
@@ -249,15 +259,16 @@ jobs:
 
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
-
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Install ARM target
         run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
-        uses: Apple-Actions/import-codesign-certs@v3
+        uses: Apple-Actions/import-codesign-certs@b610f78488812c1e56b20e6df63ec42d833f2d14
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -278,7 +289,7 @@ jobs:
           gzip -c ./target/aarch64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-aarch64.gz
 
       - name: Notarize Release Build
-        uses: lando/notarize-action@v2
+        uses: lando/notarize-action@b5c3ef16cf2fbcf2af26dc58c90255ec242abeed
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
           appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
@@ -292,7 +303,7 @@ jobs:
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: lapce-macos
           path: |
@@ -317,9 +328,9 @@ jobs:
     steps:
       # Must perform checkout first, since it deletes the target directory
       # before running, and would therefore delete the downloaded artifacts
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
 
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" | tee -a $GITHUB_ENV
