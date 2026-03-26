@@ -40,7 +40,6 @@ jobs:
 
       - name: Update toolchain
         run: |
-          rustup default 1.93
           rustup update --no-self-update
 
       - name: Cache Rust dependencies
@@ -61,7 +60,7 @@ jobs:
 
       - name: Build as portable
         if: startsWith(matrix.os, 'windows')
-        run: cargo +1.93 build --profile ci --frozen --features lapce-app/portable
+        run: cargo build --profile ci --frozen --features lapce-app/portable
 
       - name: Free space on Windows
         if: startsWith(matrix.os, 'windows')
@@ -96,7 +95,6 @@ jobs:
 
       - name: Update toolchain & add clippy
         run: |
-          rustup default 1.93
           rustup update --no-self-update
           rustup component add clippy
 
