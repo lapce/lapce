@@ -81,7 +81,7 @@
 ### Features/Changes
 
 - Add fedora builds
-- Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
+- Finish tree sitter dynamic library support by downloading from https://github.com/lapce/tree-sitter-grammars
 - Saves scale configuration in settings to restore at startup
 - text in ui can be selected and copied
 - add right click context menu for editor tab
@@ -318,7 +318,7 @@
 - [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
-- [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus
+- [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regardless of the current focus
 - [#1507](https://github.com/lapce/lapce/pull/1507): Fixed a crash when scratch buffer is closed
 - [#1547](https://github.com/lapce/lapce/pull/1547): Fix infinite cycle in workspace symbol search
 - [#1628](https://github.com/lapce/lapce/pull/1541): Fix kts files not being recognized

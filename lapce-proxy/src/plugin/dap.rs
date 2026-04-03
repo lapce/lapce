@@ -366,7 +366,7 @@ impl DapClient {
     }
 
     // check if the DAP was restared when we received terminated or disconnected
-    // if the DAP doesn't suports terminate request, then we also need to wait for
+    // if the DAP doesn't supports terminate request, then we also need to wait for
     // disconnected
     fn check_restart(&mut self) -> Result<()> {
         if !self.restarted {

@@ -49,7 +49,7 @@ pub struct WindowCommonData {
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub ime_allowed: RwSignal<bool>,
     pub cursor_blink_timer: RwSignal<TimerToken>,
-    // the value to be update by curosr blinking
+    // the value to be update by cursor blinking
     pub hide_cursor: RwSignal<bool>,
     pub app_view_id: RwSignal<ViewId>,
     pub extra_plugin_paths: Arc<Vec<PathBuf>>,

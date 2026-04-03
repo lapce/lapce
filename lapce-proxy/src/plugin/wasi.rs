@@ -528,7 +528,7 @@ pub fn start_volt(
             let instance = linker.instantiate(&mut store, &module).unwrap();
             let handle_rpc = instance
                 .get_func(&mut store, "handle_rpc")
-                .ok_or_else(|| anyhow!("can't convet to function"))
+                .ok_or_else(|| anyhow!("can't convert to function"))
                 .unwrap()
                 .typed::<(), ()>(&mut store)
                 .unwrap();

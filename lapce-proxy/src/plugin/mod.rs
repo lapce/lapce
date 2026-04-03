@@ -80,7 +80,7 @@ use tracing::error;
 use self::{
     catalog::PluginCatalog,
     dap::DapRpcHandler,
-    psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
+    psp::{CloneableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
 use crate::buffer::language_id_from_path;
@@ -97,7 +97,7 @@ pub enum PluginCatalogRpc {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
-        f: Box<dyn ClonableCallback<Value, RpcError>>,
+        f: Box<dyn CloneableCallback<Value, RpcError>>,
     },
     ServerNotification {
         plugin_id: Option<PluginId>,
@@ -147,7 +147,7 @@ pub enum PluginCatalogRpc {
     Handler(PluginCatalogNotification),
     RemoveVolt {
         volt: VoltInfo,
-        f: Box<dyn ClonableCallback<Value, RpcError>>,
+        f: Box<dyn CloneableCallback<Value, RpcError>>,
     },
     Shutdown,
 }

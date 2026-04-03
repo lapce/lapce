@@ -455,7 +455,7 @@ pub enum ProxyResponse {
         matches: IndexMap<PathBuf, Vec<SearchMatch>>,
     },
     DapVariableResponse {
-        varialbes: Vec<dap_types::Variable>,
+        variables: Vec<dap_types::Variable>,
     },
     DapGetScopesResponse {
         scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,

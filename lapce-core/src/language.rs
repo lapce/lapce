@@ -561,11 +561,10 @@ const LANGUAGES: &[SyntaxProperties] = &[
         files: &[],
         extensions: &[
             "clj",
-            "edn",
+            "edn", // spellchecker:disable-line
             "cljs",
             "cljc",
             "cljd",
-            "edn",
             "bb",
             "clj_kondo",
         ],
@@ -850,12 +849,14 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Glsl,
         indent: Indent::space(2),
         files: &[],
+        // spellchecker:off
         extensions: &[
             "glsl", "cs", "vs", "gs", "fs", "csh", "vsh", "gsh", "fsh", "cshader",
             "vshader", "gshader", "fshader", "comp", "vert", "geom", "frag", "tesc",
             "tese", "mesh", "task", "rgen", "rint", "rahit", "rchit", "rmiss",
             "rcall",
         ],
+        // spellchecker:on
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
@@ -1884,7 +1885,7 @@ fn load_grammar(
     if !library_path.exists() {
         event!(Level::WARN, "Grammar not found at: {library_path:?}");
 
-        // Load backwar compat libraries
+        // Load backward compat libraries
         library_path = path.join(format!("tree-sitter-{grammar_name}"));
         library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
@@ -2067,7 +2068,7 @@ mod tests {
     use super::LapceLanguage;
 
     #[test]
-    fn test_lanaguage_from_path() {
+    fn test_language_from_path() {
         let l = LapceLanguage::from_path(&PathBuf::new().join("test.rs"));
         assert_eq!(l, LapceLanguage::Rust);
     }

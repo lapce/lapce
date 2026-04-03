@@ -308,7 +308,7 @@ impl AppData {
     ) -> floem::Application {
         let mut app = floem::Application::new();
 
-        let mut inital_windows = 0;
+        let mut initial_windows = 0;
 
         // Split user input into known existing directors and
         // file paths that exist or not
@@ -376,7 +376,7 @@ impl AppData {
                     move |window_id| app_data.app_view(window_id, info, files),
                     Some(config),
                 );
-                inital_windows += 1;
+                initial_windows += 1;
             }
         } else if files.is_none() {
             // There were no dirs and no files specified, so we'll load the last windows
@@ -401,7 +401,7 @@ impl AppData {
                             },
                             Some(config),
                         );
-                        inital_windows += 1;
+                        initial_windows += 1;
                     }
                 }
                 Err(err) => {
@@ -410,7 +410,7 @@ impl AppData {
             }
         }
 
-        if inital_windows == 0 {
+        if initial_windows == 0 {
             let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
                 size: Size::new(800.0, 600.0),
                 pos: Point::ZERO,
@@ -2832,7 +2832,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .items_center()
         .pointer_events_none()
     })
-    .debug_name("Pallete Layer")
+    .debug_name("Palette Layer")
 }
 
 fn window_message_view(
@@ -3909,8 +3909,8 @@ pub fn launch() {
                 for (_, window) in app_data.windows.get_untracked() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
-                            doc.syntax.update(|syntaxt| {
-                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            doc.syntax.update(|syntax| {
+                                *syntax = Syntax::from_language(syntax.language);
                             });
                             doc.trigger_syntax_change(None);
                         }

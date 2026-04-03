@@ -34,8 +34,8 @@ pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
         if let Some(second_rhs) = splits.peek().and_then(|s| s.parse::<usize>().ok())
         {
             splits.next();
-            let remaning: Vec<&str> = splits.rev().collect();
-            let path = remaning.join(":");
+            let remaining: Vec<&str> = splits.rev().collect();
+            let path = remaining.join(":");
             let path = PathBuf::from(path);
             let path = if let Ok(path) = path.canonicalize() {
                 path
@@ -50,8 +50,8 @@ pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
                 }),
             )
         } else {
-            let remaning: Vec<&str> = splits.rev().collect();
-            let path = remaning.join(":");
+            let remaining: Vec<&str> = splits.rev().collect();
+            let path = remaining.join(":");
             let path = PathBuf::from(path);
             let path = if let Ok(path) = path.canonicalize() {
                 path

@@ -74,7 +74,7 @@ jobs:
         run: cargo test --profile ci --doc --workspace
 
   fmt:
-    name: Rustfmt
+    name: Formatting and spellchecking
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -86,6 +86,9 @@ jobs:
 
       - name: Run rustfmt
         run: cargo fmt --all --check
+
+      - name: Spell Check Repo
+        uses: crate-ci/typos@02ea592e44b3a53c302f697cddca7641cd051c3d
 
   clippy:
     name: Clippy on ${{ matrix.os }}

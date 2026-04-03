@@ -111,7 +111,7 @@ pub struct DocHistory {
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File { path: PathBuf, read_only: bool },
-    /// A local document, which doens't need to be sync to the disk.
+    /// A local document, which doesn't need to be sync to the disk.
     Local,
     /// A document of an old version in the source control
     History(DocHistory),
@@ -1193,7 +1193,7 @@ impl Doc {
         // In normal typing, if we didn't do this, then the text would jitter forward and then
         // backwards as the completion lens is updated.
         // TODO: this could also handle simple deletion, but we don't currently keep track of
-        // the past copmletion lens string content in the field.
+        // the past completion lens string content in the field.
         if delta.as_simple_insert().is_some() {
             let (iv, new_len) = delta.summary();
             if iv.start() == iv.end()
@@ -1331,13 +1331,13 @@ impl Doc {
                         content, ..
                     }) = result
                     {
-                        let hisotry = DocumentHistory::new(
+                        let history = DocumentHistory::new(
                             path.clone(),
                             "head".to_string(),
                             &content,
                         );
                         histories.update(|histories| {
-                            histories.insert("head".to_string(), hisotry);
+                            histories.insert("head".to_string(), history);
                         });
 
                         doc.trigger_head_change();

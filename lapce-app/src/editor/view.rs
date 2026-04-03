@@ -1424,9 +1424,9 @@ fn editor_gutter_breakpoint_view(
                         });
                     } else {
                         let mut toggle_active = false;
-                        if let Some(breakpint) = breakpoints.get_mut(&line) {
-                            if !breakpint.active {
-                                breakpint.active = true;
+                        if let Some(breakpoint) = breakpoints.get_mut(&line) {
+                            if !breakpoint.active {
+                                breakpoint.active = true;
                                 toggle_active = true;
                             }
                         }

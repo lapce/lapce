@@ -83,13 +83,13 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
     }
 }
 
-pub trait ClonableCallback<Resp, Error>:
+pub trait CloneableCallback<Resp, Error>:
     FnOnce(PluginId, Result<Resp, Error>) + Send + DynClone
 {
 }
 
 impl<Resp, Error, F: Send + FnOnce(PluginId, Result<Resp, Error>) + DynClone>
-    ClonableCallback<Resp, Error> for F
+    CloneableCallback<Resp, Error> for F
 {
 }
 
@@ -1223,7 +1223,7 @@ impl PluginHostHandler {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -1286,7 +1286,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
+            Some(language_id),
             path,
             false,
         );

@@ -78,7 +78,7 @@ struct SettingsItem {
     serde_value: Value,
     pos: RwSignal<Point>,
     size: RwSignal<Size>,
-    // this is only the header that give an visual sepeartion between different type of settings
+    // this is only the header that give an visual separation between different type of settings
     header: bool,
 }
 

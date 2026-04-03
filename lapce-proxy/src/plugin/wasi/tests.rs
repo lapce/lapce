@@ -104,7 +104,7 @@ fn test_load_volt() {
         .and_then(|path| path.to_str())
         .map(ToOwned::to_owned);
 
-    let color_themes_pathes = ["Dark.toml", "Light.toml"]
+    let color_themes_paths = ["Dark.toml", "Light.toml"]
         .into_iter()
         .filter_map(|theme| {
             parent_path
@@ -117,7 +117,7 @@ fn test_load_volt() {
         })
         .collect::<Vec<_>>();
 
-    let icon_themes_pathes = ["Dark.svg", "Light.svg"]
+    let icon_themes_paths = ["Dark.svg", "Light.svg"]
         .into_iter()
         .filter_map(|theme| {
             parent_path
@@ -141,8 +141,8 @@ fn test_load_volt() {
             icon: Some("icon.svg".to_string()),
             repository: Some("https://github.com/lapce".to_string()),
             wasm: wasm_path,
-            color_themes: Some(color_themes_pathes),
-            icon_themes: Some(icon_themes_pathes),
+            color_themes: Some(color_themes_paths),
+            icon_themes: Some(icon_themes_paths),
             dir: parent_path.canonicalize().ok(),
             activation: None,
             config: None
@@ -164,7 +164,7 @@ fn test_load_volt() {
         .and_then(|path| path.to_str())
         .map(ToOwned::to_owned);
 
-    let color_themes_pathes = ["Light.toml"]
+    let color_themes_paths = ["Light.toml"]
         .into_iter()
         .filter_map(|theme| {
             parent_path
@@ -177,7 +177,7 @@ fn test_load_volt() {
         })
         .collect::<Vec<_>>();
 
-    let icon_themes_pathes = ["Light.svg"]
+    let icon_themes_paths = ["Light.svg"]
         .into_iter()
         .filter_map(|theme| {
             parent_path
@@ -201,8 +201,8 @@ fn test_load_volt() {
             icon: Some("icon.svg".to_string()),
             repository: Some("https://github.com/lapce".to_string()),
             wasm: wasm_path,
-            color_themes: Some(color_themes_pathes),
-            icon_themes: Some(icon_themes_pathes),
+            color_themes: Some(color_themes_paths),
+            icon_themes: Some(icon_themes_paths),
             dir: parent_path.canonicalize().ok(),
             activation: None,
             config: None

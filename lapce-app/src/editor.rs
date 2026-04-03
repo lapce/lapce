@@ -1254,7 +1254,7 @@ impl EditorData {
             (start_position, position)
         });
 
-        enum DefinitionOrReferece {
+        enum DefinitionOrReference {
             Location(EditorLocation),
             References(Vec<Location>),
         }
@@ -1268,11 +1268,11 @@ impl EditorData {
             }
 
             match d {
-                DefinitionOrReferece::Location(location) => {
+                DefinitionOrReference::Location(location) => {
                     internal_command
                         .send(InternalCommand::JumpToLocation { location });
                 }
-                DefinitionOrReferece::References(locations) => {
+                DefinitionOrReference::References(locations) => {
                     internal_command.send(InternalCommand::PaletteReferences {
                         references: locations
                             .into_iter()
@@ -1333,7 +1333,7 @@ impl EditorData {
                                         }
                                         if references.len() == 1 {
                                             let location = &references[0];
-                                            send(DefinitionOrReferece::Location(
+                                            send(DefinitionOrReference::Location(
                                                 EditorLocation {
                                                     path: path_from_url(
                                                         &location.uri,
@@ -1349,7 +1349,7 @@ impl EditorData {
                                                 },
                                             ));
                                         } else {
-                                            send(DefinitionOrReferece::References(
+                                            send(DefinitionOrReference::References(
                                                 references,
                                             ));
                                         }
@@ -1358,7 +1358,7 @@ impl EditorData {
                             );
                         } else {
                             let path = path_from_url(&location.uri);
-                            send(DefinitionOrReferece::Location(EditorLocation {
+                            send(DefinitionOrReference::Location(EditorLocation {
                                 path,
                                 position: Some(EditorPosition::Position(
                                     location.range.start,
@@ -1430,7 +1430,7 @@ impl EditorData {
         );
     }
 
-    pub fn find_refenrence(&self, window_tab_data: WindowTabData) {
+    pub fn find_reference(&self, window_tab_data: WindowTabData) {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
