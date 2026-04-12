@@ -31,9 +31,11 @@ use im::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
-    mode::Mode, register::Register,
+    command::FocusCommand, cursor::CursorAffinity, cursor::CursorMode,
+    directory::Directory, editor::EditType, meta, mode::Mode, register::Register,
+    selection::Selection,
 };
+use lapce_xi_rope::Rope;
 use lapce_rpc::{
     RpcError,
     core::CoreNotification,
@@ -1573,6 +1575,9 @@ impl WindowTabData {
                     editor_data.receive_char(DEFAULT_RUN_TOML);
                 }
             }
+            FilterThroughShell => {
+                self.palette.run(PaletteKind::ShellFilter);
+            }
 
         }
     }
@@ -2069,6 +2074,132 @@ impl WindowTabData {
             }
             InternalCommand::CallHierarchyIncoming { item_id } => {
                 self.call_hierarchy_incoming(item_id);
+            }
+            InternalCommand::FilterThroughShell {
+                command,
+                new_document,
+                timeout_secs,
+            } => {
+                let editor = match self.main_split.active_editor.get_untracked() {
+                    Some(e) => e,
+                    None => return,
+                };
+                let doc = editor.doc();
+                let cursor = editor.cursor().get_untracked();
+
+                let (selection_text, sel_start, sel_end) = match &cursor.mode {
+                    CursorMode::Insert(sel) => {
+                        let regions = sel.regions();
+                        if regions.len() != 1 {
+                            return;
+                        }
+                        let region = &regions[0];
+                        if region.is_caret() {
+                            (String::new(), region.start, region.start)
+                        } else {
+                            let text = doc.buffer.with_untracked(|b| {
+                                b.slice_to_cow(region.min()..region.max())
+                                    .to_string()
+                            });
+                            (text, region.min(), region.max())
+                        }
+                    }
+                    CursorMode::Normal(offset) => {
+                        (String::new(), *offset, *offset)
+                    }
+                    CursorMode::Visual { start, end, .. } => {
+                        let min = *start.min(end);
+                        let max = doc.buffer.with_untracked(|b| {
+                            b.next_grapheme_offset(
+                                *start.max(end),
+                                1,
+                                b.len(),
+                            )
+                        });
+                        let text = doc.buffer.with_untracked(|b| {
+                            b.slice_to_cow(min..max).to_string()
+                        });
+                        (text, min, max)
+                    }
+                };
+
+                let internal_command = self.common.internal_command;
+                let send = create_ext_action(
+                    cx,
+                    move |result: Result<ProxyResponse, RpcError>| {
+                        match result {
+                            Ok(ProxyResponse::FilterThroughShellResponse {
+                                stdout,
+                                success,
+                            }) => {
+                                if !success {
+                                    internal_command.send(
+                                        InternalCommand::ShowAlert {
+                                            title: "Shell command failed"
+                                                .to_string(),
+                                            msg: "Command exited with non-zero status".to_string(),
+                                            buttons: vec![],
+                                        },
+                                    );
+                                }
+                                let output = stdout;
+                                internal_command.send(
+                                    InternalCommand::FilterThroughShellResult {
+                                        output,
+                                        new_document,
+                                        selection_start: sel_start,
+                                        selection_end: sel_end,
+                                    },
+                                );
+                            }
+                            Err(e) => {
+                                internal_command.send(
+                                    InternalCommand::ShowAlert {
+                                        title: "Shell command error".to_string(),
+                                        msg: e.message,
+                                        buttons: vec![],
+                                    },
+                                );
+                            }
+                            _ => {}
+                        }
+                    },
+                );
+
+                self.common.proxy.filter_through_shell(
+                    command,
+                    selection_text,
+                    timeout_secs,
+                    Box::new(move |result| {
+                        send(result);
+                    }),
+                );
+            }
+            InternalCommand::FilterThroughShellResult {
+                output,
+                new_document,
+                selection_start,
+                selection_end,
+            } => {
+                if new_document {
+                    self.main_split.new_file();
+                    if let Some(editor) =
+                        self.main_split.active_editor.get_untracked()
+                    {
+                        let doc = editor.doc();
+                        doc.reload(Rope::from(&output), true);
+                    }
+                } else if let Some(editor) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let doc = editor.doc();
+                    let selection =
+                        Selection::region(selection_start, selection_end);
+                    doc.do_raw_edit(
+                        &[(&selection, output.as_str())],
+                        EditType::Completion,
+                    );
+                }
             }
         }
     }

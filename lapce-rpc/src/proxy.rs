@@ -220,6 +220,11 @@ pub enum ProxyRequest {
     ReferencesResolve {
         items: Vec<Location>,
     },
+    FilterThroughShell {
+        command: String,
+        stdin_content: String,
+        timeout_secs: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -467,6 +472,10 @@ pub enum ProxyResponse {
     SaveResponse {},
     ReferencesResolveResponse {
         items: Vec<FileLine>,
+    },
+    FilterThroughShellResponse {
+        stdout: String,
+        success: bool,
     },
 }
 
@@ -1210,6 +1219,23 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::DapGetScopes { dap_id, frame_id }, f);
+    }
+
+    pub fn filter_through_shell(
+        &self,
+        command: String,
+        stdin_content: String,
+        timeout_secs: u64,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::FilterThroughShell {
+                command,
+                stdin_content,
+                timeout_secs,
+            },
+            f,
+        );
     }
 }
 

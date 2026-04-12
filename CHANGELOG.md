@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Add "Filter Through Shell Command" to pipe selection through an external command and replace it with the output
+
 ### Bug Fixes
 
 ## 0.4.6

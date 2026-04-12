@@ -93,7 +93,7 @@ pub struct PaletteData {
     pub items: RwSignal<im::Vector<PaletteItem>>,
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub input: RwSignal<PaletteInput>,
-    kind: RwSignal<PaletteKind>,
+    pub kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
     pub preview_editor: EditorData,
     pub has_preview: RwSignal<bool>,
@@ -107,6 +107,9 @@ pub struct PaletteData {
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+    pub shell_filter_history: Rc<RefCell<Vec<String>>>,
+    pub shell_filter_new_doc: RwSignal<bool>,
+    pub shell_filter_timeout: RwSignal<u64>,
 }
 
 impl std::fmt::Debug for PaletteData {
@@ -214,6 +217,8 @@ impl PaletteData {
 
         let clicked_index = cx.create_rw_signal(Option::<usize>::None);
         let left_diff_path = cx.create_rw_signal(None);
+        let shell_filter_new_doc = cx.create_rw_signal(false);
+        let shell_filter_timeout = cx.create_rw_signal(5);
 
         let palette = Self {
             run_id_counter,
@@ -238,6 +243,9 @@ impl PaletteData {
             source_control,
             common,
             left_diff_path,
+            shell_filter_history: Rc::new(RefCell::new(Vec::new())),
+            shell_filter_new_doc,
+            shell_filter_timeout,
         };
 
         {
@@ -354,6 +362,9 @@ impl PaletteData {
                     "Seleft left file"
                 }
             }
+            PaletteKind::ShellFilter => {
+                "Type a shell command or select from history"
+            }
             _ => "",
         }
     }
@@ -416,6 +427,7 @@ impl PaletteData {
                 self.get_scm_references();
             }
             PaletteKind::TerminalProfile => self.get_terminal_profiles(),
+            PaletteKind::ShellFilter => self.get_shell_filter_commands(),
         }
     }
 
@@ -818,6 +830,42 @@ impl PaletteData {
             })
             .collect();
         self.items.set(items);
+    }
+
+    fn get_shell_filter_commands(&self) {
+        let history = self.shell_filter_history.borrow();
+        let items = history
+            .iter()
+            .map(|cmd| PaletteItem {
+                content: PaletteItemContent::ShellFilterCommand {
+                    command: cmd.clone(),
+                },
+                filter_text: cmd.clone(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn execute_shell_filter(&self, command: String) {
+        {
+            let mut history = self.shell_filter_history.borrow_mut();
+            history.retain(|c| c != &command);
+            history.insert(0, command.clone());
+            history.truncate(50);
+        }
+
+        let new_document = self.shell_filter_new_doc.get_untracked();
+        let timeout_secs = self.shell_filter_timeout.get_untracked();
+
+        self.common.internal_command.send(
+            InternalCommand::FilterThroughShell {
+                command,
+                new_document,
+                timeout_secs,
+            },
+        );
     }
 
     #[cfg(windows)]
@@ -1329,6 +1377,9 @@ impl PaletteData {
                     .send(InternalCommand::NewTerminal {
                         profile: Some(profile.to_owned()),
                     }),
+                PaletteItemContent::ShellFilterCommand { command } => {
+                    self.execute_shell_filter(command.clone());
+                }
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
@@ -1342,6 +1393,11 @@ impl PaletteData {
                     },
                 },
             );
+        } else if self.kind.get_untracked() == PaletteKind::ShellFilter {
+            let input = self.input.with_untracked(|input| input.input.clone());
+            if !input.is_empty() {
+                self.execute_shell_filter(input);
+            }
         }
     }
 
@@ -1461,6 +1517,7 @@ impl PaletteData {
                     }),
                 PaletteItemContent::SCMReference { .. } => {}
                 PaletteItemContent::TerminalProfile { .. } => {}
+                PaletteItemContent::ShellFilterCommand { .. } => {}
             }
         }
     }

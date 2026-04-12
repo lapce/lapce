@@ -84,4 +84,7 @@ pub enum PaletteItemContent {
         name: String,
         profile: lapce_rpc::terminal::TerminalProfile,
     },
+    ShellFilterCommand {
+        command: String,
+    },
 }
