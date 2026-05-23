@@ -48,7 +48,7 @@ use floem::{
         scroll::{PropagatePointerWheel, VerticalScrollAsHorizontal, scroll},
         stack, svg, tab, text, tooltip, virtual_stack,
     },
-    window::{ResizeDirection, WindowConfig, WindowId},
+    window::{ResizeDirection, Theme, WindowConfig, WindowId},
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -74,8 +74,8 @@ use crate::{
         WindowCommand,
     },
     config::{
-        LapceConfig, color::LapceColor, icon::LapceIcons, ui::TabSeparatorHeight,
-        watcher::ConfigWatcher,
+        LapceConfig, color::LapceColor, detect_linux_system_theme, icon::LapceIcons,
+        set_system_theme, ui::TabSeparatorHeight, watcher::ConfigWatcher,
     },
     db::LapceDb,
     debug::RunDebugMode,
@@ -169,6 +169,7 @@ pub struct AppData {
     pub watcher: Arc<notify::RecommendedWatcher>,
     pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
+    pub os_theme: RwSignal<Option<floem::window::Theme>>,
     /// Paths to extra plugins to load
     pub plugin_paths: Arc<Vec<PathBuf>>,
 }
@@ -185,6 +186,13 @@ impl AppData {
         for (_, window) in windows {
             window.reload_config();
         }
+    }
+
+    pub fn handle_system_theme_change(&self, theme: Theme) {
+        tracing::info!("system theme changed: {:?}", theme);
+        set_system_theme(matches!(theme, Theme::Dark));
+        self.os_theme.set(Some(theme));
+        self.reload_config();
     }
 
     pub fn active_window_tab(&self) -> Option<Rc<WindowTabData>> {
@@ -501,6 +509,7 @@ impl AppData {
         let position = window_data.position;
         let window_scale = window_data.window_scale;
         let app_command = window_data.app_command;
+        let app_data = self.clone();
         let config = window_data.config;
         // The KeyDown and PointerDown event handlers both need ownership of a WindowData object.
         let key_down_window_data = window_data.clone();
@@ -644,6 +653,11 @@ impl AppData {
             .on_event_stop(EventListener::WindowMoved, move |event| {
                 if let Event::WindowMoved(point) = event {
                     position.set(*point);
+                }
+            })
+            .on_event_stop(EventListener::ThemeChanged, move |event| {
+                if let Event::ThemeChanged(theme) = event {
+                    app_data.handle_system_theme_change(*theme);
                 }
             })
             .on_event_stop(EventListener::WindowGotFocus, move |_| {
@@ -3864,12 +3878,20 @@ pub fn launch() {
     }
 
     let windows = scope.create_rw_signal(im::HashMap::new());
+
+    #[cfg(target_os = "linux")]
+    if let Some(dark) = detect_linux_system_theme() {
+        set_system_theme(dark);
+    }
+
     let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
 
     // Restore scale from config
     window_scale.set(config.ui.scale());
 
     let config = scope.create_rw_signal(Arc::new(config));
+    let os_theme = scope.create_rw_signal(None);
+
     let app_data = AppData {
         windows,
         active_window: scope.create_rw_signal(WindowId::from_raw(0)),
@@ -3880,6 +3902,7 @@ pub fn launch() {
         app_command,
         tracing_handle: reload_handle,
         config,
+        os_theme,
         plugin_paths,
     };
 
@@ -4011,6 +4034,40 @@ pub fn launch() {
         app_data.app_command.listen(move |command| {
             app_data.run_app_command(command);
         });
+    }
+
+    // Poll system theme as fallback for Wayland (Event::ThemeChanged doesn't fire there)
+    #[cfg(target_os = "linux")]
+    {
+        let (tx, rx) = sync_channel(1);
+        let signal = create_signal_from_channel(rx);
+        let app_data = app_data.clone();
+        create_effect(move |_| {
+            if let Some(dark) = signal.get() {
+                if !app_data.config.get_untracked().core.follow_system_theme {
+                    return;
+                }
+                let current = app_data.os_theme.get_untracked();
+                let want = if dark { Theme::Dark } else { Theme::Light };
+                if current != Some(want) {
+                    app_data.handle_system_theme_change(want);
+                }
+            }
+        });
+        std::thread::Builder::new()
+            .name("SystemThemePoller".to_owned())
+            .spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    let dark = detect_linux_system_theme();
+                    if let Some(dark) = dark {
+                        if tx.send(dark).is_err() {
+                            break;
+                        }
+                    }
+                }
+            })
+            .unwrap();
     }
 
     app.on_event(move |event| match event {

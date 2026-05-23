@@ -176,6 +176,18 @@
                 },
                 "custom-titlebar": {
                     "type": "boolean"
+                },
+                "follow-system-theme": {
+                    "type": "boolean",
+                    "description": "Automatically switch color theme based on system appearance"
+                },
+                "color-theme-dark": {
+                    "type": "string",
+                    "description": "Color theme to use in dark mode (when follow_system_theme is enabled)"
+                },
+                "color-theme-light": {
+                    "type": "string",
+                    "description": "Color theme to use in light mode (when follow_system_theme is enabled)"
                 }
             },
             "required": [],

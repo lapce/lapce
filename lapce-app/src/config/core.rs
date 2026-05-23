@@ -22,4 +22,16 @@ pub struct CoreConfig {
         desc = "Enable auto-reload for the plugin when its configuration changes."
     )]
     pub auto_reload_plugin: bool,
+    #[field_names(
+        desc = "Automatically switch color theme based on system appearance"
+    )]
+    pub follow_system_theme: bool,
+    #[field_names(
+        desc = "Color theme to use in dark mode (when follow_system_theme is enabled)"
+    )]
+    pub color_theme_dark: String,
+    #[field_names(
+        desc = "Color theme to use in light mode (when follow_system_theme is enabled)"
+    )]
+    pub color_theme_light: String,
 }
