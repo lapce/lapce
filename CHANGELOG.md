@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix panic when dragging the terminal panel to another dock area (<https://github.com/lapce/lapce/issues/3338>)
+
 ## 0.4.6
 
 ### Features/Changes
