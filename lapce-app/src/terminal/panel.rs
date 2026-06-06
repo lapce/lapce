@@ -224,39 +224,27 @@ impl TerminalPanelData {
     }
 
     pub fn close_tab(&self, terminal_tab_id: Option<TerminalTabId>) {
-        if let Some(close_tab) = self
+        let closed_tab = self
             .tab_info
             .try_update(|info| {
-                let mut close_tab = None;
-                if let Some(terminal_tab_id) = terminal_tab_id {
-                    if let Some(index) =
-                        info.tabs.iter().enumerate().find_map(|(index, (_, t))| {
-                            if t.terminal_tab_id == terminal_tab_id {
-                                Some(index)
-                            } else {
-                                None
-                            }
-                        })
-                    {
-                        close_tab = Some(
-                            info.tabs.remove(index).1.terminals.get_untracked(),
-                        );
-                    }
+                let closed_tab = if let Some(terminal_tab_id) = terminal_tab_id {
+                    info.tabs
+                        .iter()
+                        .position(|(_, t)| t.terminal_tab_id == terminal_tab_id)
+                        .map(|index| info.tabs.remove(index).1)
                 } else {
                     let active = info.active.min(info.tabs.len().saturating_sub(1));
-                    if !info.tabs.is_empty() {
-                        info.tabs.remove(active);
-                    }
-                }
-                let new_active = info.active.min(info.tabs.len().saturating_sub(1));
-                info.active = new_active;
-                close_tab
+                    (!info.tabs.is_empty()).then(|| info.tabs.remove(active).1)
+                };
+                info.active = info.active.min(info.tabs.len().saturating_sub(1));
+                closed_tab
             })
-            .flatten()
-        {
-            for (_, data) in close_tab {
+            .flatten();
+        if let Some(tab) = closed_tab {
+            for (_, data) in tab.terminals.get_untracked() {
                 data.stop();
             }
+            tab.scope.dispose();
         }
         self.update_debug_active_term();
     }
@@ -356,16 +344,17 @@ impl TerminalPanelData {
     pub fn close_terminal(&self, term_id: &TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(term_id) {
             let active = tab.active.get_untracked();
-            let len = tab
+            let (len, removed) = tab
                 .terminals
                 .try_update(|terminals| {
-                    terminals.remove(index);
-                    terminals.len()
+                    let removed = terminals.remove(index);
+                    (terminals.len(), removed)
                 })
                 .unwrap();
             if len == 0 {
                 self.close_tab(Some(tab.terminal_tab_id));
             } else {
+                removed.1.scope.dispose();
                 let new_active = active.min(len.saturating_sub(1));
                 if new_active != active {
                     tab.active.set(new_active);
