@@ -1666,6 +1666,12 @@ impl EditorData {
             });
         }
 
+        // Clone for AI fallback before move into LSP closure
+        let doc_ai = doc.clone();
+        let path_ai = path.clone();
+        let inline_comp_ai = inline_completion;
+        let scope_ai = self.scope;
+
         let path2 = path.clone();
         let send = create_ext_action(
             self.scope,
@@ -1683,7 +1689,7 @@ impl EditorData {
             },
         );
 
-        inline_completion.update(|c| c.status = InlineCompletionStatus::Started);
+                inline_completion.update(|c| c.status = InlineCompletionStatus::Started);
 
         self.common.proxy.get_inline_completions(
             path,
@@ -1705,6 +1711,103 @@ impl EditorData {
                 }
             },
         );
+
+        // ── DeepSeek Carp AI FIM fallback ──
+        // Delayed background completion via exec_after + std::thread::spawn.
+        // Only activates if LSP hasn't provided any inline completions within 300ms.
+        {
+            let doc_for_ai = doc_ai;
+            let path_for_ai = path_ai.clone();
+            let inline_comp_for_ai = inline_comp_ai;
+            let offset_for_ai = offset;
+            let scope_for_ai = scope_ai;
+            let path_for_ai2 = path_ai;
+
+            exec_after(Duration::from_millis(300), move |_timer| {
+                // Check if LSP already responded
+                let lsp_done = inline_comp_for_ai.with_untracked(|c| {
+                    c.status == InlineCompletionStatus::Active && !c.items.is_empty()
+                });
+                if lsp_done {
+                    return;
+                }
+
+                // Get prefix/suffix on UI thread
+                let (prefix, suffix) = doc_for_ai.buffer.with_untracked(|buffer| {
+                    let text = buffer.text();
+                    let prefix = text.slice_to_cow(..offset_for_ai).to_string();
+                    let suffix = text.slice_to_cow(offset_for_ai..).to_string();
+                    (prefix, suffix)
+                });
+                let lang = doc_for_ai.content.with_untracked(|c| {
+                    c.path().and_then(|p| {
+                        p.extension()
+                            .and_then(|e| e.to_str())
+                            .map(|s| s.to_string())
+                    })
+                });
+
+                // Send results back to UI via ext_action
+                let send_ai = create_ext_action(
+                    scope_for_ai,
+                    move |items: Vec<lsp_types::InlineCompletionItem>| {
+                        let items = doc_for_ai.buffer.with_untracked(|buffer| {
+                            items
+                                .into_iter()
+                                .map(|item| InlineCompletionItem::from_lsp(buffer, item))
+                                .collect()
+                        });
+                        inline_comp_for_ai.update(|c| {
+                            c.set_items(items, offset_for_ai, path_for_ai);
+                            c.update_doc(&doc_for_ai, offset_for_ai);
+                        });
+                    },
+                );
+
+                let p = path_for_ai2;
+                // Run AI on a separate thread (CompletionEngine is Arc → Send + Sync)
+                std::thread::spawn(move || {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_time()
+                        .build()
+                        .expect("tokio runtime");
+                    rt.block_on(async {
+                        if let Ok(Some(text)) = tokio::time::timeout(
+                            std::time::Duration::from_millis(400),
+                            crate::ai::low_latency_complete(&prefix, &suffix),
+                        ).await {
+                            send_ai(vec![lsp_types::InlineCompletionItem {
+                                insert_text: text,
+                                filter_text: None,
+                                range: None,
+                                command: None,
+                                insert_text_format: Some(lsp_types::InsertTextFormat::PLAIN_TEXT),
+                            }]);
+                            return;
+                        }
+                        let engine = crate::ai::completion_engine();
+                        let request = deepseek_carp::completion::FimRequest {
+                            prefix,
+                            suffix,
+                            file_path: p.to_str().map(|s| s.to_string()),
+                            language: lang,
+                            max_tokens: 64,
+                            temperature: 0.1,
+                        };
+
+                        if let Some(candidate) = engine.complete(&request).await {
+                            send_ai(vec![lsp_types::InlineCompletionItem {
+                                insert_text: candidate.text,
+                                filter_text: None,
+                                range: None,
+                                command: None,
+                                insert_text_format: Some(lsp_types::InsertTextFormat::PLAIN_TEXT),
+                            }]);
+                        }
+                    });
+                });
+            });
+        }
     }
 
     /// Check if there are inline completions that are being rendered
@@ -2313,7 +2416,26 @@ impl EditorData {
     }
 
     fn do_save(&self, after_action: impl FnOnce() + 'static) {
-        self.doc().save(after_action);
+        let doc = self.doc();
+        let saved_path = match &*doc.content.get_untracked() {
+            DocContent::File { path, .. } => Some(path.clone()),
+            _ => None,
+        };
+        let ws_root = self.common.workspace.path.clone();
+        self.doc().save(move || {
+            after_action();
+            if let (Some(file_path), Some(ws)) = (saved_path, ws_root) {
+                std::thread::spawn(move || {
+                    let target = file_path.to_string_lossy().to_string();
+                    let diags = crate::ai::push_diagnostics_from_ai(&target);
+                    if !diags.is_empty() {
+                        crate::carp_bridge::write_lsp_diags_file(
+                            &diags, &file_path, &ws,
+                        );
+                    }
+                });
+            }
+        });
     }
 
     pub fn save(
