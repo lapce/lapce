@@ -1,4 +1,4 @@
-﻿//!
+//!
 //! Based on Claude Code's LSP implementation, this module provides:
 //! - Multi-language server support
 //! - Diagnostic synchronization
@@ -969,7 +969,20 @@ impl LapceLspBridge {
 
     pub fn spawn_command(&self) -> anyhow::Result<std::process::Command> {
         match self.server_name.as_str() {
-            "rust-analyzer" => Ok(std::process::Command::new("rust-analyzer")),
+            "rust-analyzer" => {
+                let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
+                let ra_path = std::env::var("RUST_ANALYZER_PATH").ok().filter(|p| !p.is_empty())
+                    .unwrap_or_else(|| {
+                        let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap_or_default();
+                        let cand = format!("{home}\\.cargo\\bin\\rust-analyzer{exe_suffix}");
+                        if std::path::Path::new(&cand).exists() { cand } else { format!("rust-analyzer{exe_suffix}") }
+                    });
+                let mut cmd = std::process::Command::new(&ra_path);
+                if !self.workspace_root.as_os_str().is_empty() {
+                    cmd.current_dir(&self.workspace_root);
+                }
+                Ok(cmd)
+            }
             "tsserver" => {
                 let mut cmd = std::process::Command::new("typescript-language-server");
                 cmd.arg("--stdio");

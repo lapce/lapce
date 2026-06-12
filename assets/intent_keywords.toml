@@ -1,0 +1,27 @@
+# Intent keyword definitions — edit or extend without touching Rust code.
+# Each intent has a list of matching keywords (any case-insensitive substring hit
+# routes to that intent).  load() picks this up on startup.
+
+[review]
+keywords = ["review", "code review", "reviewer", "审查", "审阅", "检查", "review the"]
+tools = ["code_review", "security_scan", "find_smells"]
+
+[refactor]
+keywords = ["refactor", "重构", "优化结构", "extract function", "rename symbol", "重命名", "抽函数"]
+tools = ["refactor_plan", "extract_function", "rename_symbol"]
+
+[debug]
+keywords = ["debug", "bug", "fix", "issue", "error", "crash", "调试", "修复", "问题", "报错", "崩"]
+tools = ["diagnose", "stack_trace_explain", "find_broken_refs"]
+
+[complete]
+keywords = ["complete", "autocomplete", "补全", "完成", "finish this", "补全这个"]
+tools = ["completion_trigger", "signature_help", "hover_doc"]
+
+[build]
+keywords = ["build", "compile", "编译", "构建", "cargo build", "cargo check", "构建一下"]
+tools = ["build_check", "cargo_check", "compile_watch"]
+
+[test]
+keywords = ["test", "pytest", "cargo test", "测试", "跑测试", "单元测试"]
+tools = ["test_run", "test_coverage", "test_failing"]
