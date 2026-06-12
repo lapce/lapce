@@ -1030,6 +1030,7 @@ impl LapceLspBridge {
 
 /// Raw JSON-RPC envelope used by the bridge.
 #[derive(Debug, Clone, Default)]
+#[derive(serde::Serialize)]
 pub struct LspRpcMessage {
     pub id: Option<u64>,
     pub method: Option<String>,
@@ -1207,7 +1208,7 @@ pub struct LapceBridgeConn {
 
 impl LapceBridgeConn {
     pub async fn spawn(bridge: LapceLspBridge) -> anyhow::Result<Self> {
-        let mut cmd_shell = bridge.spawn_command()?;
+        let cmd_shell = bridge.spawn_command()?;
         let mut tokio_cmd = tokio::process::Command::new(cmd_shell.get_program());
         tokio_cmd.args(cmd_shell.get_args().collect::<Vec<_>>());
         tokio_cmd.stdout(std::process::Stdio::piped());
@@ -1232,6 +1233,16 @@ impl LapceBridgeConn {
             self.child.stdin = Some(stdin);
         }
         Ok(id)
+    }
+
+    pub async fn send_notification(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<()> {
+        let frame = encode_message(None, Some(method), Some(&params), None, None);
+        if let Some(mut stdin) = self.child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            stdin.write_all(frame.as_bytes()).await?;
+            self.child.stdin = Some(stdin);
+        }
+        Ok(())
     }
 
     pub async fn drain_to_end(&mut self) -> anyhow::Result<Vec<LspRpcMessage>> {
