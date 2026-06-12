@@ -139,6 +139,7 @@ fn relpath_for_render(entry_path: &Path, target_root: &Path) -> String {
 struct SectionBlock {
     name: String,
     body: String,
+    #[allow(dead_code)]
     source_relpath: String,
     source_idx: usize,
 }
