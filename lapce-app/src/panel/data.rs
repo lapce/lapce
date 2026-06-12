@@ -35,6 +35,7 @@ pub fn default_panel_order() -> PanelOrder {
         PanelPosition::BottomLeft,
         im::vector![
             PanelKind::Terminal,
+            PanelKind::Chat,
             PanelKind::Search,
             PanelKind::Problem,
             PanelKind::CallHierarchy,

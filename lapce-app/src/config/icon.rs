@@ -114,6 +114,7 @@ impl LapceIcons {
     pub const REFERENCES: &'static str = "references";
 
     pub const IMPLEMENTATION: &'static str = "implementation";
+    pub const CHAT: &'static str = "search.icon";
 
     pub const SYMBOL_KIND_ARRAY: &'static str = "symbol_kind.array";
     pub const SYMBOL_KIND_BOOLEAN: &'static str = "symbol_kind.boolean";

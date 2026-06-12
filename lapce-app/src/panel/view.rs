@@ -31,7 +31,9 @@ use crate::{
     config::{LapceConfig, color::LapceColor, icon::LapceIcons},
     file_explorer::view::file_explorer_panel,
     panel::{
-        call_hierarchy_view::show_hierarchy_panel, document_symbol::symbol_panel,
+        call_hierarchy_view::show_hierarchy_panel,
+        chat_view::chat_panel,
+        document_symbol::symbol_panel,
         implementation_view::implementation_panel,
         references_view::references_panel,
     },
@@ -493,6 +495,9 @@ fn panel_view(
                 PanelKind::Debug => {
                     debug_panel(window_tab_data.clone(), position).into_any()
                 }
+                PanelKind::Chat => {
+                    chat_panel(window_tab_data.clone(), position).into_any()
+                }
                 PanelKind::CallHierarchy => {
                     show_hierarchy_panel(window_tab_data.clone(), position)
                         .into_any()
@@ -559,6 +564,7 @@ fn panel_picker(
                 PanelKind::Search => "Search",
                 PanelKind::Problem => "Problems",
                 PanelKind::Debug => "Debug",
+                PanelKind::Chat => "DeepSeek Carp Chat",
                 PanelKind::CallHierarchy => "Call Hierarchy",
                 PanelKind::DocumentSymbol => "Document Symbol",
                 PanelKind::References => "References",

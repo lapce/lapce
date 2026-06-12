@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::PathBuf;
 
 use floem::{
     IntoView, View,
@@ -13,6 +14,151 @@ use super::position::PanelPosition;
 use crate::ai;
 use crate::localization::{self, Locale, t};
 use crate::window_tab::WindowTabData;
+
+/// ── Artifact extraction + preview ────────────────────────────────────────────
+
+#[derive(Clone, Debug)]
+struct ArtifactBlock {
+    kind: &'static str,
+    label: String,
+    code: String,
+}
+
+fn extract_artifacts(text: &str) -> Vec<ArtifactBlock> {
+    let mut out = Vec::new();
+    let mut cur = 0usize;
+    let bytes = text.as_bytes();
+    while cur < bytes.len() {
+        let hay = &text[cur..];
+        let fence = match hay.find("```") { Some(i) => i, None => break };
+        let after = cur + fence + 3;
+        let rest = &text[after..];
+        let line_end = rest.find(['\n', '\r']).unwrap_or(rest.len());
+        let lang = rest[..line_end].trim().to_lowercase();
+        let body_start = after + line_end;
+        // closing fence
+        let body = &text[body_start..];
+        let close = match body.find("```") { Some(i) => i, None => break };
+        let body_text = body[..close].to_string();
+        let kind = match lang.as_str() {
+            "mermaid" | "mmd" => "mermaid",
+            "openapi" | "openapi.json" | "swagger" => "openapi",
+            "html" | "prototype" => "html",
+            "json" if body_text.trim_start().starts_with('{') && body_text.contains("\"openapi\"") => "openapi",
+            _ => { cur = body_start + close + 3; continue; }
+        };
+        let label = match kind {
+            "mermaid"  => "Mermaid diagram",
+            "openapi"  => "OpenAPI schema",
+            "html"     => "HTML prototype",
+            _          => "Artifact",
+        }.to_string();
+        out.push(ArtifactBlock { kind, label, code: body_text.trim().to_string() });
+        cur = body_start + close + 3;
+    }
+    out
+}
+
+fn preview_artifact(block: &ArtifactBlock) -> std::io::Result<PathBuf> {
+    let mut dir = std::env::temp_dir();
+    dir.push("dscarp-artifacts");
+    std::fs::create_dir_all(&dir).ok();
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis();
+    let (ext, body) = match block.kind {
+        "mermaid" => {
+            let mut html = String::from("<!doctype html>\n<html><head><meta charset='utf-8'>\n");
+            html.push_str("<title>Mermaid preview</title>\n");
+            html.push_str("<style>body{background:#1e1e24;color:#ddd;padding:24px;font-family:system-ui;display:flex;justify-content:center} pre{white-space:pre-wrap;background:#25262b;padding:12px;border-radius:6px;overflow:auto;max-width:95%} svg{max-width:100%}</style>\n");
+            html.push_str("<script type='module'>\n");
+            html.push_str("import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';\n");
+            html.push_str("mermaid.initialize({startOnLoad:true,theme:'dark',securityLevel:'loose'});\n");
+            html.push_str("</script>\n");
+            html.push_str("</head><body>\n");
+            html.push_str("<div class='mermaid'>\n");
+            html.push_str(&block.code);
+            if !block.code.trim_start().starts_with("flowchart")
+                && !block.code.trim_start().starts_with("sequenceDiagram")
+                && !block.code.trim_start().starts_with("graph")
+                && !block.code.trim_start().starts_with("classDiagram")
+                && !block.code.trim_start().starts_with("stateDiagram-v2")
+            {
+                html.push_str("\nflowchart TD\n    A[diagram]\n");
+            }
+            html.push_str("\n</div>\n");
+            html.push_str("<details style='margin-top:24px;max-width:95%'><summary style='cursor:pointer;color:#9ac'>Source</summary>\n<pre style='color:#cfc'>");
+            html.push_str(&h(&block.code));
+            html.push_str("</pre></details>\n");
+            html.push_str("</body></html>\n");
+            ("html".into(), html)
+        }
+        "openapi" => {
+            let mut html = String::from("<!doctype html>\n<html><head><meta charset='utf-8'>\n");
+            html.push_str("<title>OpenAPI preview</title>\n");
+            html.push_str("<style>body{background:#1e1e24;color:#ddd;padding:24px;font-family:system-ui} pre{white-space:pre-wrap;background:#25262b;padding:12px;border-radius:6px;overflow:auto} .endpoint{border:1px solid #38394a;border-radius:6px;padding:8px;margin:6px 0} .method{display:inline-block;padding:2px 6px;border-radius:3px;color:#fff;font-weight:700;margin-right:6px} .get{background:#2a7de1} .post{background:#2f9e44} .put{background:#f08c00} .delete{background:#e03131}</style>\n");
+            html.push_str("</head><body>\n");
+            let v = serde_json::from_str::<serde_json::Value>(&block.code).ok();
+            if let Some(doc) = v {
+                html.push_str("<h2>");
+                html.push_str(&doc["info"]["title"].as_str().unwrap_or("API").to_string());
+                html.push_str("</h2>\n");
+                if let Some(p) = doc.get("paths").and_then(|o| o.as_object()) {
+                    for (path, methods) in p {
+                        if let Some(m) = methods.as_object() {
+                            for (verb, spec) in m {
+                                let cls = match verb.to_uppercase().as_str() {
+                                    "GET" => "get", "POST" => "post", "PUT" => "put", "DELETE" => "delete",
+                                    _ => "post",
+                                };
+                                let sum = spec.get("summary").and_then(|s| s.as_str()).unwrap_or("");
+                                html.push_str(&format!(
+                                    "<div class='endpoint'><span class='method {cls}'>{verb}</span><b>{path}</b> — {sum}</div>\n"));
+                            }
+                        }
+                    }
+                }
+                html.push_str("<details><summary style='cursor:pointer;color:#9ac'>Raw JSON</summary>\n<pre style='color:#cfc'>");
+                html.push_str(&h(&serde_json::to_string_pretty(&doc).unwrap_or_default()));
+                html.push_str("</pre></details>\n");
+            } else {
+                html.push_str("<p>Not valid JSON — raw source:</p>\n<pre style='color:#cfc'>");
+                html.push_str(&h(&block.code));
+                html.push_str("</pre>\n");
+            }
+            html.push_str("</body></html>\n");
+            ("html".into(), html)
+        }
+        _ => ("html".into(), block.code.clone()),
+    };
+    let name = format!("dscarp-artifact-{ts}.{ext}");
+    let path = dir.join(name);
+    std::fs::write(&path, body)?;
+    open_in_browser(&path)?;
+    Ok(path)
+}
+
+fn open_in_browser(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .arg("/C").arg("start").arg("").arg(path)
+            .spawn()?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(path).spawn()?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open").arg(path).spawn()?;
+    }
+    Ok(())
+}
+
+fn h(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
 
 #[derive(Clone)]
 struct CopilotMsg {
@@ -305,15 +451,56 @@ pub fn copilot_sidebar(
                             else { Color::from_rgb8(200, 200, 210) };
                         let align_items = if is_user { floem::reactive::style::AlignItems::FlexEnd } else { floem::reactive::style::AlignItems::FlexStart };
                         let max_width = if is_user { 85.0 } else { 95.0 };
-                        container(
-                            label(move || msg.content.clone())
-                                .style(move |s| s.font_size(13.0).padding(8.0).width_pct(max_width)
-                                    .color(text_color).line_height(1.5))
-                                .into_any()
-                        )
-                        .style(move |s| s.background(bg).border_radius(8.0)
-                            .align_items(align_items).margin_vert(2.0)
-                            .padding_horiz(if is_user { 12.0 } else { 8.0 }))
+                        let artifacts = if is_user || is_system || is_error {
+                            Vec::new()
+                        } else {
+                            extract_artifacts(&msg.content)
+                        };
+                        let preview_btn = if artifacts.is_empty() {
+                            View::empty().into_any()
+                        } else {
+                            let n = artifacts.len();
+                            let label_txt = if n == 1 {
+                                format!("📐 Preview {}", artifacts[0].label)
+                            } else {
+                                format!("📐 Preview {} artifacts", n)
+                            };
+                            let blocks = std::sync::Arc::new(artifacts.clone());
+                            container(
+                                label(move || label_txt.clone())
+                                    .style(|s| s.font_size(11.0).color(Color::from_rgb8(80, 200, 160))
+                                        .padding_horiz(10.0).padding_vert(3.0))
+                                    .into_any()
+                            )
+                            .style(|s| s.background(Color::from_rgb8(32, 70, 58))
+                                .border_radius(6.0).margin_top(4.0)
+                                .cursor(CursorStyle::Pointer))
+                            .on_click_stop(move |_| {
+                                let blocks = blocks.clone();
+                                for b in blocks.iter() {
+                                    match preview_artifact(b) {
+                                        Ok(p) => eprintln!("[dscarp] wrote preview: {:?}", p),
+                                        Err(e) => eprintln!("[dscarp] preview failed: {e}"),
+                                    }
+                                }
+                            })
+                            .into_any()
+                        };
+                        let content = msg.content.clone();
+                        stack((
+                            container(
+                                label(move || content.clone())
+                                    .style(move |s| s.font_size(13.0).padding(8.0).width_pct(max_width)
+                                        .color(text_color).line_height(1.5))
+                                    .into_any()
+                            )
+                            .style(move |s| s.background(bg).border_radius(8.0)
+                                .align_items(align_items).margin_vert(2.0)
+                                .padding_horiz(if is_user { 12.0 } else { 8.0 }))
+                                .into_any(),
+                            preview_btn,
+                        ))
+                        .style(|s| s.flex_col().width_pct(100.0))
                         .into_any()
                     },
                 ).style(|s| s.width_pct(100.0)),
