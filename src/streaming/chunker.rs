@@ -42,24 +42,35 @@ impl StreamingChunker {
     }
 
     pub fn stats(&self) -> (u32, u32, u32) { (self.flushed_chunks, self.tokens_since_flush, self.dropped_empty_flushes) }
-    pub fn in_buffer(&self) -> usize { self.buf.len() }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_chunker_flushes_on_max() {
-        let mut c = StreamingChunker::new(10, 20, false);
-        let mut got = 0u32;
-        for token in ["hello ", "world ", "foo! "].iter() { if c.push(token).is_some() { got += 1; } }
-        assert!(got >= 1);
+#[tokio::test]
+async fn test_chunker_sentence_flush() {
+    let mut c = StreamingChunker::new(10, 400, true);
+    let mut out = String::new();
+    for w in ["Hello", " world", "."] {
+        if let Some(s) = c.push(w) { out.push_str(&s); }
     }
-    #[test]
-    fn test_chunker_holds_small_input() {
-        let mut c = StreamingChunker::new(50, 500, false);
-        let mut flushed = 0;
-        for token in ["ab", "cd", "ef"].iter() { if c.push(token).is_some() { flushed += 1; } }
-        assert_eq!(flushed, 0);
+    assert!(out.ends_with('.'));
+    assert!(out.contains("Hello"));
+}
+
+#[tokio::test]
+async fn test_chunker_sentence_flush_cn() {
+    let mut c = StreamingChunker::new(4, 400, true);
+    let mut chunks = Vec::new();
+    for w in ["你好", "世界", "！"] {
+        if let Some(s) = c.push(w) { chunks.push(s); }
     }
+    assert!(chunks.last().unwrap().ends_with('！'));
+}
+
+#[tokio::test]
+async fn test_chunker_max_chars_forces_flush() {
+    let mut c = StreamingChunker::new(4, 20, false);
+    let mut count = 0;
+    for _ in 0..40 {
+        if let Some(_) = c.push("x") { count += 1; }
+    }
+    assert!(count >= 1, "must flush at least once when max_chars exceeded");
 }

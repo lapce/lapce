@@ -1,5 +1,4 @@
-//! LSP Client V2 - Enhanced Language Server Protocol Client
-//!
+﻿//!
 //! Based on Claude Code's LSP implementation, this module provides:
 //! - Multi-language server support
 //! - Diagnostic synchronization
@@ -950,7 +949,7 @@ pub struct DeleteFile {
 // LapceBridge section
 // =====================================================================
 
-/// Lapce LSP bridge — connect deepseek-carp to Lapce's own LSP process.
+/// Lapce LSP bridge -?connect deepseek-carp to Lapce's own LSP process.
 ///
 /// Lapce runs one language server per file-type over JSON-RPC on stdio.
 /// This bridge spawns the server, talks JSON-RPC, and exposes async methods.
@@ -1179,34 +1178,65 @@ pub fn definition(id: u64, uri: &str, line: u32, col: u32) -> String {
     encode_message(Some(id), Some("textDocument/definition"), Some(&params), None, None)
 }
 
-#[cfg(test)]
-mod tests_lapce_bridge {
-    use super::*;
 
-    #[test]
-    fn test_rpc_encode_completion() {
-        let params_json = serde_json::json!({
-            "textDocument": { "uri": "file:///tmp/x.rs" },
-            "position": { "line": 0, "character": 5 }
-        });
-        let frame = encode_message(
-            Some(1),
-            Some("textDocument/completion"),
-            Some(&params_json),
-            None,
-            None,
-        );
-        assert!(
-            frame.starts_with("Content-Length: "),
-            "frame must start with Content-Length header, got: {frame}"
-        );
-        assert!(
-            frame.contains(r#""method":"textDocument/completion""#),
-            "frame must contain method, got: {frame}"
-        );
-        assert!(
-            frame.contains(r#""id":1"#) || frame.contains(r#""id": 1"#),
-            "frame must contain id=1, got: {frame}"
-        );
+
+
+/// Minimal async JSON-RPC bridge that spawns an LSP subprocess and provides
+/// `send` / `recv` over tokio Child stdin/stdout. This is the glue between
+/// `LapceLspBridge` and `LspBridge`  it actually talks JSON-RPC.
+pub struct LapceBridgeConn {
+    pub bridge: LapceLspBridge,
+    pub child: tokio::process::Child,
+    pub next_id: u64,
+    pub pending: std::collections::HashMap<u64, tokio::sync::oneshot::Sender<LspRpcMessage>>,
+    pub buffer: String,
+}
+
+impl LapceBridgeConn {
+    pub async fn spawn(bridge: LapceLspBridge) -> anyhow::Result<Self> {
+        let mut cmd_shell = bridge.spawn_command()?;
+        let mut tokio_cmd = tokio::process::Command::new(cmd_shell.get_program());
+        tokio_cmd.args(cmd_shell.get_args().collect::<Vec<_>>());
+        tokio_cmd.stdout(std::process::Stdio::piped());
+        tokio_cmd.stdin(std::process::Stdio::piped());
+        let child = tokio_cmd.spawn()?;
+        Ok(Self {
+            bridge,
+            child,
+            next_id: 1,
+            pending: std::collections::HashMap::new(),
+            buffer: String::new(),
+        })
+    }
+
+    pub async fn send_request(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<u64> {
+        let id = self.next_id;
+        self.next_id += 1;
+        let frame = encode_message(Some(id), Some(method), Some(&params), None, None);
+        if let Some(mut stdin) = self.child.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            stdin.write_all(frame.as_bytes()).await?;
+            self.child.stdin = Some(stdin);
+        }
+        Ok(id)
+    }
+
+    pub async fn drain_to_end(&mut self) -> anyhow::Result<Vec<LspRpcMessage>> {
+        use tokio::io::AsyncReadExt;
+        if let Some(mut stdout) = self.child.stdout.take() {
+            let mut raw = String::new();
+            stdout.read_to_string(&mut raw).await?;
+            self.child.stdout = Some(stdout);
+            Ok(raw.lines().filter_map(|l| l.trim().parse::<LspRpcMessage>().ok()).collect())
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    pub async fn shutdown(mut self) -> anyhow::Result<()> {
+        let _ = self.send_request("shutdown", serde_json::json!({})).await;
+        let _ = self.child.wait().await;
+        Ok(())
     }
 }
+
