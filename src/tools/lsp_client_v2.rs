@@ -945,3 +945,268 @@ pub struct DeleteFile {
     pub kind: String,
     pub uri: String,
 }
+
+// =====================================================================
+// LapceBridge section
+// =====================================================================
+
+/// Lapce LSP bridge — connect deepseek-carp to Lapce's own LSP process.
+///
+/// Lapce runs one language server per file-type over JSON-RPC on stdio.
+/// This bridge spawns the server, talks JSON-RPC, and exposes async methods.
+#[derive(Debug, Clone)]
+pub struct LapceLspBridge {
+    pub server_name: String,
+    pub workspace_root: std::path::PathBuf,
+}
+
+impl LapceLspBridge {
+    pub fn new(server_name: &str, workspace_root: std::path::PathBuf) -> Self {
+        Self {
+            server_name: server_name.to_string(),
+            workspace_root,
+        }
+    }
+
+    pub fn spawn_command(&self) -> anyhow::Result<std::process::Command> {
+        match self.server_name.as_str() {
+            "rust-analyzer" => Ok(std::process::Command::new("rust-analyzer")),
+            "tsserver" => {
+                let mut cmd = std::process::Command::new("typescript-language-server");
+                cmd.arg("--stdio");
+                Ok(cmd)
+            }
+            "pyright" => {
+                let mut cmd = std::process::Command::new("pyright-langserver");
+                cmd.arg("--stdio");
+                Ok(cmd)
+            }
+            other => Err(anyhow::anyhow!(
+                "LapceBridge: no spawn rule for server '{other}'"
+            )),
+        }
+    }
+
+    /// Minimal detection: if project has Cargo.toml -> rust-analyzer;
+    /// has package.json -> tsserver; has pyproject.toml -> pyright; etc.
+    pub fn detect_for(root: &std::path::Path) -> String {
+        let cargo = root.join("Cargo.toml");
+        let package = root.join("package.json");
+        let pyproject = root.join("pyproject.toml");
+        let requirements = root.join("requirements.txt");
+        let go_mod = root.join("go.mod");
+        let build_gradle = root.join("build.gradle");
+        let cmake = root.join("CMakeLists.txt");
+
+        if cargo.exists() {
+            "rust-analyzer".to_string()
+        } else if package.exists() {
+            "tsserver".to_string()
+        } else if pyproject.exists() || requirements.exists() {
+            "pyright".to_string()
+        } else if go_mod.exists() {
+            "gopls".to_string()
+        } else if build_gradle.exists() {
+            "kotlin-language-server".to_string()
+        } else if cmake.exists() {
+            "clangd".to_string()
+        } else {
+            "".to_string()
+        }
+    }
+}
+
+/// Raw JSON-RPC envelope used by the bridge.
+#[derive(Debug, Clone, Default)]
+pub struct LspRpcMessage {
+    pub id: Option<u64>,
+    pub method: Option<String>,
+    pub result: Option<serde_json::Value>,
+    pub params: Option<serde_json::Value>,
+    pub error: Option<serde_json::Value>,
+}
+
+impl std::str::FromStr for LspRpcMessage {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = s.as_bytes();
+        // Find Content-Length header
+        let mut header_end = None;
+        for i in 0..bytes.len().saturating_sub(3) {
+            if bytes[i] == b'\r' && bytes[i + 1] == b'\n' && bytes[i + 2] == b'\r'
+                && i + 3 < bytes.len() && bytes[i + 3] == b'\n'
+            {
+                header_end = Some(i);
+                break;
+            }
+        }
+        let header_end = header_end.ok_or(())?;
+
+        let header_text = &s[..header_end];
+        let mut content_length = None;
+        for line in header_text.split("\r\n") {
+            if let Some(rest) = line.strip_prefix("Content-Length:")
+                .or_else(|| line.strip_prefix("content-length:"))
+            {
+                content_length = Some(rest.trim().parse::<usize>().map_err(|_| ())?);
+                break;
+            }
+        }
+        let content_length = content_length.ok_or(())?;
+
+        let body_start = header_end + 4;
+        let body_end = body_start + content_length;
+        if body_end > s.len() {
+            return Err(());
+        }
+        let body = &s[body_start..body_end];
+
+        let v: serde_json::Value = serde_json::from_str(body).map_err(|_| ())?;
+
+        let id = v.get("id").and_then(|x| {
+            if let Some(n) = x.as_u64() {
+                Some(n)
+            } else if let Some(s) = x.as_str() {
+                s.parse::<u64>().ok()
+            } else {
+                None
+            }
+        });
+        let method = v.get("method").and_then(|x| x.as_str().map(|s| s.to_string()));
+        let result = v.get("result").cloned();
+        let params = v.get("params").cloned();
+        let error = v.get("error").cloned();
+
+        Ok(LspRpcMessage {
+            id,
+            method,
+            result,
+            params,
+            error,
+        })
+    }
+}
+
+/// Encode a JSON-RPC message with Content-Length framing.
+pub fn encode_message(
+    id: Option<u64>,
+    method: Option<&str>,
+    params: Option<&serde_json::Value>,
+    result: Option<&serde_json::Value>,
+    error: Option<&serde_json::Value>,
+) -> String {
+    let mut map = serde_json::Map::new();
+    map.insert("jsonrpc".to_string(), serde_json::Value::String("2.0".to_string()));
+    if let Some(id) = id {
+        map.insert("id".to_string(), serde_json::Value::from(id));
+    }
+    if let Some(m) = method {
+        map.insert("method".to_string(), serde_json::Value::String(m.to_string()));
+    }
+    if let Some(p) = params {
+        map.insert("params".to_string(), p.clone());
+    }
+    if let Some(r) = result {
+        map.insert("result".to_string(), r.clone());
+    }
+    if let Some(e) = error {
+        map.insert("error".to_string(), e.clone());
+    }
+
+    let body = serde_json::Value::Object(map);
+    let body_str = serde_json::to_string(&body).unwrap_or_default();
+    let len = body_str.len();
+    format!("Content-Length: {}\r\n\r\n{}", len, body_str)
+}
+
+/// Try to decode a raw JSON-RPC frame (handles Content-Length header).
+pub fn try_parse_message(text: &str) -> Option<LspRpcMessage> {
+    text.parse::<LspRpcMessage>().ok()
+}
+
+// ---------------------------------------------------------------------
+// LSP notification / request builders (return the full wire text).
+// ---------------------------------------------------------------------
+
+pub fn did_open(uri: &str, lang: &str, content: &str, version: u32) -> String {
+    let params = serde_json::json!({
+        "textDocument": {
+            "uri": uri,
+            "languageId": lang,
+            "version": version,
+            "text": content,
+        }
+    });
+    encode_message(None, Some("textDocument/didOpen"), Some(&params), None, None)
+}
+
+pub fn did_change(uri: &str, version: u32, new_text: &str) -> String {
+    let params = serde_json::json!({
+        "textDocument": { "uri": uri, "version": version },
+        "contentChanges": [ { "text": new_text } ]
+    });
+    encode_message(None, Some("textDocument/didChange"), Some(&params), None, None)
+}
+
+pub fn did_save(uri: &str) -> String {
+    let params = serde_json::json!({
+        "textDocument": { "uri": uri }
+    });
+    encode_message(None, Some("textDocument/didSave"), Some(&params), None, None)
+}
+
+pub fn did_close(uri: &str) -> String {
+    let params = serde_json::json!({
+        "textDocument": { "uri": uri }
+    });
+    encode_message(None, Some("textDocument/didClose"), Some(&params), None, None)
+}
+
+pub fn completion(id: u64, uri: &str, line: u32, col: u32) -> String {
+    let params = serde_json::json!({
+        "textDocument": { "uri": uri },
+        "position": { "line": line, "character": col }
+    });
+    encode_message(Some(id), Some("textDocument/completion"), Some(&params), None, None)
+}
+
+pub fn definition(id: u64, uri: &str, line: u32, col: u32) -> String {
+    let params = serde_json::json!({
+        "textDocument": { "uri": uri },
+        "position": { "line": line, "character": col }
+    });
+    encode_message(Some(id), Some("textDocument/definition"), Some(&params), None, None)
+}
+
+#[cfg(test)]
+mod tests_lapce_bridge {
+    use super::*;
+
+    #[test]
+    fn test_rpc_encode_completion() {
+        let params_json = serde_json::json!({
+            "textDocument": { "uri": "file:///tmp/x.rs" },
+            "position": { "line": 0, "character": 5 }
+        });
+        let frame = encode_message(
+            Some(1),
+            Some("textDocument/completion"),
+            Some(&params_json),
+            None,
+            None,
+        );
+        assert!(
+            frame.starts_with("Content-Length: "),
+            "frame must start with Content-Length header, got: {frame}"
+        );
+        assert!(
+            frame.contains(r#""method":"textDocument/completion""#),
+            "frame must contain method, got: {frame}"
+        );
+        assert!(
+            frame.contains(r#""id":1"#) || frame.contains(r#""id": 1"#),
+            "frame must contain id=1, got: {frame}"
+        );
+    }
+}
