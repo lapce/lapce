@@ -60,7 +60,7 @@ use crate::{
         LapceWorkbenchCommand, WindowCommand,
     },
     completion::{CompletionData, CompletionStatus},
-    config::LapceConfig,
+    config::{editor::WrapStyle, LapceConfig},
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
@@ -926,6 +926,19 @@ impl WindowTabData {
                 self.main_split.export_theme();
             }
             ToggleInlayHints => {}
+            ToggleWordWrap => {
+                let wrap_style =
+                    self.common.config.get_untracked().editor.wrap_style;
+                let new_wrap_style = match wrap_style {
+                    WrapStyle::None => WrapStyle::EditorWidth,
+                    _ => WrapStyle::None,
+                };
+                LapceConfig::update_file(
+                    "editor",
+                    "wrap-style",
+                    toml_edit::Value::from(new_wrap_style.as_str()),
+                );
+            }
 
             // ==== Window ====
             ReloadWindow => {

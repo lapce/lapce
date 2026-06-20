@@ -4,6 +4,10 @@
 key = "F1"
 command = "palette.command"
 
+[[keymaps]]
+key = "alt+z"
+command = "toggle_word_wrap"
+
 # [[keymaps]]
 # key = "ctrl+q"
 # command = "quit"

@@ -544,6 +544,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Toggle Inlay Hints")]
     ToggleInlayHints,
 
+    #[strum(serialize = "toggle_word_wrap")]
+    #[strum(message = "Toggle Word Wrap")]
+    ToggleWordWrap,
+
     #[strum(serialize = "restart_to_update")]
     RestartToUpdate,
 
