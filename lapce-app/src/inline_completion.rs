@@ -179,14 +179,22 @@ impl InlineCompletionData {
         };
 
         let item = &self.items[active];
-        let text = item.insert_text.clone();
+        let text = doc.buffer.with_untracked(|buffer| buffer.text().clone());
+        let text = RopeTextRef::new(&text);
+        let completion = inline_completion_text(text, offset, offset, item, None);
 
-        // TODO: is range really meant to be used for this?
-        let offset = item.range.as_ref().map(|r| r.start).unwrap_or(offset);
-        let (line, col) = doc
-            .buffer
-            .with_untracked(|buffer| buffer.offset_to_line_col(offset));
-        doc.set_inline_completion(text, line, col);
+        match completion {
+            ICompletionRes::Set(text, shift) => {
+                let offset = offset + shift;
+                let (line, col) = doc
+                    .buffer
+                    .with_untracked(|buffer| buffer.offset_to_line_col(offset));
+                doc.set_inline_completion(text, line, col);
+            }
+            ICompletionRes::Hide | ICompletionRes::Unchanged => {
+                doc.clear_inline_completion();
+            }
+        }
     }
 
     pub fn update_inline_completion(
@@ -272,7 +280,8 @@ fn inline_completion_text(
         }
     };
 
-    let range = start_offset..rope_text.offset_line_end(start_offset, true);
+    let start_offset = item.range.as_ref().map(|r| r.start).unwrap_or(start_offset);
+    let range = start_offset..cursor_offset;
     let prefix = rope_text.slice_to_cow(range);
     // We strip the prefix of the current input from the label.
     // So that, for example `p` with a completion of `println` will show `rintln`.
