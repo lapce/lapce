@@ -184,8 +184,7 @@ impl InlineCompletionData {
         let completion = inline_completion_text(text, offset, offset, item, None);
 
         match completion {
-            ICompletionRes::Set(text, shift) => {
-                let offset = offset + shift;
+            ICompletionRes::Set(text, offset) => {
                 let (line, col) = doc
                     .buffer
                     .with_untracked(|buffer| buffer.offset_to_line_col(offset));
@@ -225,8 +224,7 @@ impl InlineCompletionData {
                 doc.clear_inline_completion();
             }
             ICompletionRes::Unchanged => {}
-            ICompletionRes::Set(new, shift) => {
-                let offset = self.start_offset + shift;
+            ICompletionRes::Set(new, offset) => {
                 let (line, col) = text.offset_to_line_col(offset);
                 doc.set_inline_completion(new, line, col);
             }
@@ -237,6 +235,8 @@ impl InlineCompletionData {
 enum ICompletionRes {
     Hide,
     Unchanged,
+    /// The ghost text to display, paired with the absolute buffer offset it
+    /// should render at (the cursor position).
     Set(String, usize),
 }
 
@@ -252,16 +252,16 @@ fn inline_completion_text(
         .insert_text_format
         .unwrap_or(InsertTextFormat::PLAIN_TEXT);
 
-    // TODO: is this check correct? I mostly copied it from completion lens
-    let cursor_prev_offset = rope_text.prev_code_boundary(cursor_offset);
-    if let Some(range) = &item.range {
-        let edit_start = range.start;
-
-        // If the start of the edit isn't where the cursor currently is, and is not at the start of
-        // the inline completion, then we ignore it.
-        if cursor_prev_offset != edit_start && start_offset != edit_start {
-            return ICompletionRes::Hide;
-        }
+    // The suggestion replaces `item.range` (or, when the server gives no range,
+    // starts where the completion was requested). Copilot returns a range whose
+    // start is before the cursor (its example starts at character 0 of the line),
+    // so the already typed text forms a prefix of the suggestion. We can only
+    // render ghost text when that start is at or before the cursor; the
+    // `strip_prefix` below is what actually decides whether the suggestion still
+    // applies to the current input.
+    let edit_start = item.range.as_ref().map(|r| r.start).unwrap_or(start_offset);
+    if edit_start > cursor_offset {
+        return ICompletionRes::Hide;
     }
 
     let text = match text_format {
@@ -280,8 +280,7 @@ fn inline_completion_text(
         }
     };
 
-    let start_offset = item.range.as_ref().map(|r| r.start).unwrap_or(start_offset);
-    let range = start_offset..cursor_offset;
+    let range = edit_start..cursor_offset;
     let prefix = rope_text.slice_to_cow(range);
     // We strip the prefix of the current input from the label.
     // So that, for example `p` with a completion of `println` will show `rintln`.
@@ -292,6 +291,8 @@ fn inline_completion_text(
     if Some(text) == current_completion {
         ICompletionRes::Unchanged
     } else {
-        ICompletionRes::Set(text.to_string(), prefix.len())
+        // Ghost text renders at the cursor, i.e. immediately after the prefix we
+        // just stripped, so report that absolute offset.
+        ICompletionRes::Set(text.to_string(), cursor_offset)
     }
 }
