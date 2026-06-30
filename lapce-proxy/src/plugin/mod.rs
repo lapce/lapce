@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod copilot;
 pub mod dap;
 pub mod lsp;
 pub mod psp;
@@ -149,6 +150,13 @@ pub enum PluginCatalogRpc {
         volt: VoltInfo,
         f: Box<dyn CloneableCallback<Value, RpcError>>,
     },
+    /// A custom Copilot request (`signIn` / `checkStatus` / `signOut`) routed
+    /// to the running Copilot language server.
+    Copilot {
+        method: Cow<'static, str>,
+        params: Value,
+        f: Box<dyn RpcCallback<Value, RpcError>>,
+    },
     Shutdown,
 }
 
@@ -211,6 +219,12 @@ pub enum PluginCatalogNotification {
         debugger_type: String,
         program: String,
         args: Option<Vec<String>>,
+    },
+    /// Start the built in Copilot language server, if it is not already
+    /// running.
+    CopilotStart {
+        server_path: String,
+        server_args: Vec<String>,
     },
     Shutdown,
 }
@@ -352,6 +366,9 @@ impl PluginCatalogRpcHandler {
                 }
                 PluginCatalogRpc::RemoveVolt { volt, f } => {
                     plugin.shutdown_volt(volt, f);
+                }
+                PluginCatalogRpc::Copilot { method, params, f } => {
+                    plugin.copilot_request(method, params, f);
                 }
             }
         }
@@ -1324,6 +1341,36 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::UpdatePluginConfigs(
             configs,
         ))
+    }
+
+    /// Start the built in Copilot language server, if not already running.
+    pub fn copilot_start(&self, server_path: String, server_args: Vec<String>) {
+        if let Err(err) =
+            self.catalog_notification(PluginCatalogNotification::CopilotStart {
+                server_path,
+                server_args,
+            })
+        {
+            tracing::error!("{:?}", err);
+        }
+    }
+
+    /// Send a custom Copilot request (`signIn` / `checkStatus` / `signOut`) to
+    /// the running Copilot language server.
+    pub fn copilot_request(
+        &self,
+        method: impl Into<Cow<'static, str>>,
+        params: Value,
+        f: impl RpcCallback<Value, RpcError> + 'static,
+    ) {
+        let rpc = PluginCatalogRpc::Copilot {
+            method: method.into(),
+            params,
+            f: Box::new(f),
+        };
+        if let Err(err) = self.plugin_tx.send(rpc) {
+            tracing::error!("{:?}", err);
+        }
     }
 
     pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {

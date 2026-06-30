@@ -45,8 +45,8 @@ use lsp_types::{
         GotoImplementation, GotoTypeDefinition, HoverRequest, Initialize,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
         RegisterCapability, Rename, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
-        WorkspaceSymbolRequest,
+        SemanticTokensFullRequest, ShowDocument, SignatureHelpRequest,
+        WorkDoneProgressCreate, WorkspaceConfiguration, WorkspaceSymbolRequest,
     },
 };
 use parking_lot::Mutex;
@@ -960,6 +960,26 @@ impl PluginHostHandler {
         match method.as_str() {
             WorkDoneProgressCreate::METHOD => {
                 resp.send_null();
+            }
+            WorkspaceConfiguration::METHOD => {
+                // Reply with one empty configuration object per requested item.
+                // Copilot reads its settings out of band, so empty defaults are
+                // sufficient and keep the server from blocking.
+                let len = serde_json::to_value(&params)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("items").and_then(|i| i.as_array()).map(|a| a.len())
+                    })
+                    .unwrap_or(1)
+                    .max(1);
+                let result = vec![Value::Object(serde_json::Map::new()); len];
+                resp.send(result);
+            }
+            ShowDocument::METHOD => {
+                // Copilot uses this to open the device flow URL in a browser.
+                // The editor drives the device flow from the sign in command, so
+                // acknowledge without opening anything here.
+                resp.send(lsp_types::ShowDocumentResult { success: true });
             }
             RegisterCapability::METHOD => {
                 let params: RegistrationParams =

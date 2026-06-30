@@ -22,4 +22,12 @@ pub struct CoreConfig {
         desc = "Enable auto-reload for the plugin when its configuration changes."
     )]
     pub auto_reload_plugin: bool,
+    #[field_names(
+        desc = "Enable GitHub Copilot inline completions (requires copilot-language-server and signing in)"
+    )]
+    pub enable_copilot: bool,
+    #[field_names(
+        desc = "Path or command used to launch the Copilot language server (copilot-language-server)"
+    )]
+    pub copilot_server_path: String,
 }

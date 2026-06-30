@@ -220,6 +220,13 @@ pub enum ProxyRequest {
     ReferencesResolve {
         items: Vec<Location>,
     },
+    /// Begin the GitHub Copilot device flow sign in. Returns the device code
+    /// payload (`userCode`, `verificationUri`, ...) untouched.
+    CopilotSignIn {},
+    /// Query the GitHub Copilot authentication status.
+    CopilotCheckStatus {},
+    /// Sign out of GitHub Copilot.
+    CopilotSignOut {},
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -351,6 +358,11 @@ pub enum ProxyNotification {
         path: PathBuf,
         breakpoints: Vec<SourceBreakpoint>,
     },
+    /// Start the built in GitHub Copilot language server, if enabled.
+    CopilotStart {
+        server_path: String,
+        server_args: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -467,6 +479,18 @@ pub enum ProxyResponse {
     SaveResponse {},
     ReferencesResolveResponse {
         items: Vec<FileLine>,
+    },
+    /// Raw response payload from a Copilot `signIn` request.
+    CopilotSignIn {
+        resp: serde_json::Value,
+    },
+    /// Raw response payload from a Copilot `checkStatus` request.
+    CopilotCheckStatus {
+        resp: serde_json::Value,
+    },
+    /// Raw response payload from a Copilot `signOut` request.
+    CopilotSignOut {
+        resp: serde_json::Value,
     },
 }
 
@@ -1088,6 +1112,25 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn copilot_start(&self, server_path: String, server_args: Vec<String>) {
+        self.notification(ProxyNotification::CopilotStart {
+            server_path,
+            server_args,
+        });
+    }
+
+    pub fn copilot_sign_in(&self, f: impl ProxyCallback + 'static) {
+        self.request_async(ProxyRequest::CopilotSignIn {}, f);
+    }
+
+    pub fn copilot_check_status(&self, f: impl ProxyCallback + 'static) {
+        self.request_async(ProxyRequest::CopilotCheckStatus {}, f);
+    }
+
+    pub fn copilot_sign_out(&self, f: impl ProxyCallback + 'static) {
+        self.request_async(ProxyRequest::CopilotSignOut {}, f);
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {

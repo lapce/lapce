@@ -7,6 +7,8 @@ icon-theme = "Lapce Codicons"
 custom-titlebar = true
 file-explorer-double-click = false
 auto-reload-plugin = false
+enable-copilot = false
+copilot-server-path = "copilot-language-server"
 
 [editor]
 font-family = "monospace"
