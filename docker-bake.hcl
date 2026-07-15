@@ -208,6 +208,7 @@ variable "APK_FAMILY_PACKAGES" {
     "libxcb-static",
     "libxkbcommon-static",
     "vulkan-loader-dev",
+    "llhttp-dev",
   ]
 }
 
