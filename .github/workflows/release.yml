@@ -15,6 +15,7 @@ on:
     paths:
       # trigger release workflow only if this file changed
       - .github/workflows/release.yml
+      - docker-bake.hcl
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
