@@ -1380,6 +1380,39 @@ pub struct DiffHunk {
     pub header: String,
 }
 
+/// The directory holding the `.git` entry, which is what git treats as the
+/// work tree.
+fn worktree_root(path: &Path) -> Option<&Path> {
+    path.ancestors().find(|dir| dir.join(".git").exists())
+}
+
+/// [`Repository::discover`], with the work tree corrected where libgit2
+/// guesses it wrong.
+///
+/// For a repository whose git dir lives elsewhere, git derives the work tree
+/// from where the `.git` file sits, while libgit2 relies on `core.worktree`
+/// and otherwise falls back to the parent of the git dir. That parent usually
+/// holds unrelated files, which then show up as untracked. Since
+/// `git init --separate-git-dir` does not write `core.worktree`, this is a
+/// state git itself produces.
+///
+/// The work tree is only corrected on the returned repository; nothing is
+/// written to the repository's configuration.
+fn discover_repo(workspace_path: &Path) -> Result<Repository, git2::Error> {
+    let repo = Repository::discover(workspace_path)?;
+    // A work tree that doesn't contain the directory we opened is the sign of
+    // the fallback described above; anything else is left alone.
+    let contains_workspace = repo
+        .workdir()
+        .is_some_and(|workdir| workspace_path.starts_with(workdir));
+    if !contains_workspace {
+        if let Some(root) = worktree_root(workspace_path) {
+            repo.set_workdir(root, false)?;
+        }
+    }
+    Ok(repo)
+}
+
 fn git_init(workspace_path: &Path) -> Result<()> {
     if Repository::discover(workspace_path).is_err() {
         Repository::init(workspace_path)?;
@@ -1392,7 +1425,7 @@ fn git_commit(
     message: &str,
     diffs: Vec<FileDiff>,
 ) -> Result<()> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
     let mut index = repo.index()?;
     for diff in diffs {
         match diff {
@@ -1443,7 +1476,7 @@ fn git_commit(
 }
 
 fn git_checkout(workspace_path: &Path, reference: &str) -> Result<()> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
     let (object, reference) = repo.revparse_ext(reference)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
@@ -1454,7 +1487,7 @@ fn git_discard_files_changes<'a>(
     workspace_path: &Path,
     files: impl Iterator<Item = &'a Path>,
 ) -> Result<()> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
 
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.update_only(false).force();
@@ -1481,7 +1514,7 @@ fn git_discard_files_changes<'a>(
 }
 
 fn git_discard_workspace_changes(workspace_path: &Path) -> Result<()> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.force();
 
@@ -1515,7 +1548,7 @@ fn git_delta_format(
 }
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
-    let repo = Repository::discover(workspace_path).ok()?;
+    let repo = discover_repo(workspace_path).ok()?;
     let name = match repo.head() {
         Ok(head) => head.shorthand()?.to_string(),
         _ => "(No branch)".to_owned(),
@@ -1617,7 +1650,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
 }
 
 fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
     let head = repo.head()?;
     let tree = head.peel_to_tree()?;
     let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
@@ -1630,7 +1663,7 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 }
 
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
-    let repo = Repository::discover(workspace_path)?;
+    let repo = discover_repo(workspace_path)?;
     let head = repo.head()?;
     let target_remote = repo.find_remote(
         repo.branch_upstream_remote(head.name().unwrap())?
