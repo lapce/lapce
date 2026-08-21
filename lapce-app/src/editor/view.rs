@@ -720,7 +720,7 @@ impl EditorView {
         is_local: bool,
         config: Arc<LapceConfig>,
     ) {
-        const BAR_WIDTH: f64 = 10.0;
+        let bar_width = config.ui.scroll_width() as f64;
 
         if is_local {
             return;
@@ -730,7 +730,7 @@ impl EditorView {
             &Rect::ZERO
                 .with_size(Size::new(1.0, viewport.height()))
                 .with_origin(Point::new(
-                    viewport.x0 + viewport.width() - BAR_WIDTH,
+                    viewport.x0 + viewport.width() - bar_width,
                     viewport.y0,
                 ))
                 .inflate(0.0, 10.0),
@@ -762,7 +762,7 @@ impl EditorView {
                 .max(3.0);
             let rect = Rect::ZERO.with_size(Size::new(3.0, height)).with_origin(
                 Point::new(
-                    viewport.x0 + total_width - BAR_WIDTH + 1.0,
+                    viewport.x0 + total_width - bar_width + 1.0,
                     y + viewport.y0,
                 ),
             );
@@ -2144,6 +2144,10 @@ fn editor_content(
             e_data.cancel_inline_completion();
         }
         current_scroll.set(rect);
+    })
+    .scroll_style(move |s| {
+        let width = config.get().ui.scroll_width() as f64;
+        s.handle_thickness(width).track_thickness(width)
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())

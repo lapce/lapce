@@ -141,4 +141,12 @@ impl UIConfig {
             self.palette_width.max(100)
         }
     }
+
+    pub fn scroll_width(&self) -> usize {
+        if self.scroll_width == 0 {
+            10
+        } else {
+            self.scroll_width.max(2)
+        }
+    }
 }
