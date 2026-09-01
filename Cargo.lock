@@ -1581,7 +1581,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2164,17 +2164,15 @@ dependencies = [
 
 [[package]]
 name = "git2"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2deb07a133b1520dc1a5690e9bd08950108873d7ed5de38dcc74d3b5ebffa110"
+checksum = "ddddbf932745a6be37109b6112d3ee09696106f848449069d3a57bba937ab82e"
 dependencies = [
  "bitflags 2.9.1",
  "libc",
  "libgit2-sys",
  "log",
- "openssl-probe",
  "openssl-sys",
- "url",
 ]
 
 [[package]]
@@ -3055,7 +3053,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.45.0",
+ "windows-sys 0.60.2",
  "zip",
  "zstd",
 ]
@@ -3193,13 +3191,12 @@ checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.18.1+1.9.0"
+version = "0.18.8+1.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1dcb20f84ffcdd825c7a311ae347cce604a6f084a767dec4a4929829645290e"
+checksum = "7f7c568b25d7489bc3fb2988ed69ab111d2944d2f5fec3d5c987fe545ea97b50"
 dependencies = [
  "cc",
  "libc",
- "libssh2-sys",
  "libz-sys",
  "openssl-sys",
  "pkg-config",
@@ -3230,20 +3227,6 @@ dependencies = [
  "bitflags 2.9.1",
  "libc",
  "redox_syscall 0.5.8",
-]
-
-[[package]]
-name = "libssh2-sys"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dc8a030b787e2119a731f1951d6a773e2280c660f8ec4b0f5e1505a386e71ee"
-dependencies = [
- "cc",
- "libc",
- "libz-sys",
- "openssl-sys",
- "pkg-config",
- "vcpkg",
 ]
 
 [[package]]
@@ -4774,7 +4757,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7067,7 +7050,7 @@ version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0978bf7171b3d90bac376700cb56d606feb40f251a475a5d6634613564460b22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
