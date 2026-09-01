@@ -245,7 +245,7 @@ impl EditorTabChild {
                     }
                     None => (
                         config.ui_svg(LapceIcons::FILE),
-                        Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                         "local".to_string(),
                         create_rw_signal(true),
                         true,
@@ -327,7 +327,7 @@ impl EditorTabChild {
                     }
                     [None, None] => (
                         config.ui_svg(LapceIcons::FILE),
-                        Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                         "local".to_string(),
                         true,
                     ),
@@ -345,7 +345,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SETTINGS),
-                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                     name: "Settings".to_string(),
                     path: None,
                     confirmed: None,
@@ -356,7 +356,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SYMBOL_COLOR),
-                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                     name: "Theme Colors".to_string(),
                     path: None,
                     confirmed: None,
@@ -367,7 +367,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::KEYBOARD),
-                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                     name: "Keyboard Shortcuts".to_string(),
                     path: None,
                     confirmed: None,
@@ -391,7 +391,7 @@ impl EditorTabChild {
                     .unwrap_or_else(|| id.name.clone());
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::EXTENSIONS),
-                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(&LapceColor::LAPCE_ICON_ACTIVE)),
                     name: display_name,
                     path: None,
                     confirmed: None,

@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Added `PANEL_BACKGROUND_SIDE` and `PANEL_BACKGROUND_BOTTOM` theme keys
+
 ### Bug Fixes
 
 ## 0.4.6

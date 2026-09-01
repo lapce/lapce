@@ -122,7 +122,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                         let size = config.ui.icon_size() as f32;
                                         s.size(size, size).color(
                                             config.color(
-                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                                &LapceColor::LAPCE_ICON_ACTIVE,
                                             ),
                                         )
                                     }),
@@ -152,14 +152,16 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .height(header_height.get() - 15.0)
                                     .border_right(1.0)
                                     .border_color(
-                                        config.get().color(LapceColor::LAPCE_BORDER),
+                                        config
+                                            .get()
+                                            .color(&LapceColor::LAPCE_BORDER),
                                     )
                                     .pointer_events_none()
                             }),
                         ))
                         .style(move |s| {
                             s.items_center().width(200.0).border_color(
-                                config.get().color(LapceColor::LAPCE_BORDER),
+                                config.get().color(&LapceColor::LAPCE_BORDER),
                             )
                         })
                     })
@@ -176,9 +178,9 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     if focus.get()
                                         == Focus::Panel(PanelKind::Terminal)
                                     {
-                                        LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
+                                        &LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
                                     } else {
-                                        LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
+                                        &LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
                                     },
                                 ))
                         })
@@ -261,7 +263,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         s.width_pct(100.0)
             .items_center()
             .border_bottom(1.0)
-            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .border_color(config.color(&LapceColor::LAPCE_BORDER))
     })
 }
 
@@ -335,7 +337,7 @@ fn terminal_tab_split(
                     index.get() > 0,
                     |s| {
                         s.border_left(1.0).border_color(
-                            config.get().color(LapceColor::LAPCE_BORDER),
+                            config.get().color(&LapceColor::LAPCE_BORDER),
                         )
                     },
                 )
