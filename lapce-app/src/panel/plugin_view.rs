@@ -154,7 +154,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                     ))
                     .style(|s| {
                         s.justify_between()
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                             .min_width(0.0)
                     }),
@@ -172,7 +172,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                 ))
                 .style(|s| s.width_pct(100.0).items_center()),
             ))
-            .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
+            .style(|s| {
+                s.flex_col()
+                    .flex_grow(1.0f32)
+                    .flex_basis(0.0)
+                    .min_width(0.0)
+            }),
         ))
         .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenVoltView {
@@ -207,7 +212,7 @@ fn installed_view(plugin: PluginData) -> impl View {
     .style(|s| {
         s.width_pct(100.0)
             .line_height(1.6)
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .flex_basis(0.0)
     })
 }
@@ -305,7 +310,7 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
                     label(move || info.author.clone()).style(|s| {
                         s.text_ellipsis()
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                             .selectable(false)
                     }),
@@ -313,7 +318,12 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
                 ))
                 .style(|s| s.width_pct(100.0).items_center()),
             ))
-            .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
+            .style(|s| {
+                s.flex_col()
+                    .flex_grow(1.0f32)
+                    .flex_basis(0.0)
+                    .min_width(0.0)
+            }),
         ))
         .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenVoltView {
@@ -400,7 +410,7 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
     .style(|s| {
         s.width_pct(100.0)
             .line_height(1.6)
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .flex_basis(0.0)
             .flex_col()
     })

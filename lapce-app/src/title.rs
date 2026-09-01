@@ -147,12 +147,12 @@ fn left(
                 })
         }),
         drag_window_area(empty())
-            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
+            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0f32)),
     ))
     .style(move |s| {
         s.height_pct(100.0)
             .flex_basis(0.0)
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .items_center()
     })
     .debug_name("Left Side of Top Bar")
@@ -221,13 +221,13 @@ fn middle(
     stack((
         stack((
             drag_window_area(empty())
-                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
+                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0f32)),
             jump_backward(),
             jump_forward(),
         ))
         .style(|s| {
             s.flex_basis(0)
-                .flex_grow(1.0)
+                .flex_grow(1.0f32)
                 .justify_content(Some(JustifyContent::FlexEnd))
         }),
         container(
@@ -263,7 +263,7 @@ fn middle(
         .style(move |s| {
             let config = config.get();
             s.flex_basis(0)
-                .flex_grow(10.0)
+                .flex_grow(10.0f32)
                 .min_width(200.0)
                 .max_width(500.0)
                 .height(26.0)
@@ -287,17 +287,17 @@ fn middle(
             )
             .style(move |s| s.margin_horiz(6.0)),
             drag_window_area(empty())
-                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
+                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0f32)),
         ))
         .style(move |s| {
             s.flex_basis(0)
-                .flex_grow(1.0)
+                .flex_grow(1.0f32)
                 .justify_content(Some(JustifyContent::FlexStart))
         }),
     ))
     .style(|s| {
         s.flex_basis(0)
-            .flex_grow(2.0)
+            .flex_grow(2.0f32)
             .align_items(Some(AlignItems::Center))
             .justify_content(Some(JustifyContent::Center))
     })
@@ -330,7 +330,7 @@ fn right(
 
     stack((
         drag_window_area(empty())
-            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
+            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0f32)),
         stack((
             not_clickable_icon(
                 || LapceIcons::SETTINGS,
@@ -411,7 +411,7 @@ fn right(
     ))
     .style(|s| {
         s.flex_basis(0)
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .justify_content(Some(JustifyContent::FlexEnd))
     })
     .debug_name("Right of top bar")

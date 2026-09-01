@@ -182,7 +182,7 @@ fn exclusive_popup<V: View + 'static>(
                 .on_event_stop(EventListener::PointerDown, move |_| {}),
         )
         .style(move |s| {
-            s.flex_grow(1.0)
+            s.flex_grow(1.0f32)
                 .flex_row()
                 .items_center()
                 .hover(move |s| s.cursor(CursorStyle::Default))

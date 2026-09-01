@@ -852,7 +852,7 @@ fn editor_tab_header(
                     .padding_horiz(6.)
                     .gap(6.)
                     .grid()
-                    .grid_template_columns(vec![auto(), fr(1.), auto()])
+                    .grid_template_columns(vec![auto(), fr(1_f32), auto()])
                     .apply_if(
                         config.get().ui.tab_separator_height
                             == TabSeparatorHeight::Full,
@@ -936,7 +936,9 @@ fn editor_tab_header(
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
-                .style(|s| s.align_items(Some(AlignItems::Center)).flex_grow(1.0)),
+                .style(|s| {
+                    s.align_items(Some(AlignItems::Center)).flex_grow(1.0f32)
+                }),
             empty()
                 .style(move |s| {
                     s.size_full()
@@ -1097,7 +1099,7 @@ fn editor_tab_header(
                 .style(move |s| s.items_center()),
             )
         })
-        .style(|s| s.flex_shrink(0.)),
+        .style(|s| s.flex_shrink(0f32)),
         container(
             scroll({
                 dyn_stack(items, key, view_fn)
@@ -1126,7 +1128,12 @@ fn editor_tab_header(
                     .size_full()
             }),
         )
-        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.).min_width(10.))
+        .style(|s| {
+            s.height_full()
+                .flex_grow(1.0f32)
+                .flex_basis(0.)
+                .min_width(10.)
+        })
         .debug_name("Tab scroll"),
         stack({
             let size = create_rw_signal(Size::ZERO);
@@ -1200,7 +1207,7 @@ fn editor_tab_header(
             let content_size = content_size.get();
             let scroll_offset = scroll_offset.get();
             s.height_full()
-                .flex_shrink(0.)
+                .flex_shrink(0f32)
                 .margin_left(PxPctAuto::Auto)
                 .apply_if(scroll_offset.x1 < content_size.width, |s| {
                     s.margin_left(0.)
@@ -1356,7 +1363,7 @@ fn editor_tab_content(
                         })
                         .style(move |s| {
                             s.height_full()
-                                .flex_grow(1.0)
+                                .flex_grow(1.0f32)
                                 .flex_basis(0.0)
                                 .border_right(1.0)
                                 .border_color(
@@ -1382,7 +1389,9 @@ fn editor_tab_content(
                         .on_event_cont(EventListener::PointerDown, move |_| {
                             focus_right.set(true);
                         })
-                        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.0)),
+                        .style(|s| {
+                            s.height_full().flex_grow(1.0f32).flex_basis(0.0)
+                        }),
                         diff_show_more_section_view(
                             &diff_editor_data.left,
                             &diff_editor_data.right,
@@ -2049,7 +2058,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
             .background(config.color(LapceColor::EDITOR_BACKGROUND))
             .apply_if(is_hidden, |s| s.display(Display::None))
             .width_full()
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .flex_basis(0.0)
     })
     .debug_name("Main Split")
@@ -2201,7 +2210,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                     main_split_width.set(width);
                 }
             })
-            .style(|s| s.flex_col().flex_grow(1.0))
+            .style(|s| s.flex_col().flex_grow(1.0f32))
         },
         panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
@@ -2290,7 +2299,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2357,7 +2366,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2434,7 +2443,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2503,7 +2512,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2533,7 +2542,7 @@ fn palette_item(
                     )
                     .style(|s| {
                         s.flex_row()
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .align_items(Some(AlignItems::Center))
                     }),
                     stack((dyn_stack(
@@ -2780,7 +2789,7 @@ fn palette_preview(window_tab_data: Rc<WindowTabData>) -> impl View {
         } else {
             Display::None
         })
-        .flex_grow(1.0)
+        .flex_grow(1.0f32)
     })
 }
 
@@ -2872,7 +2881,10 @@ fn window_message_view(
                     }),
                 ))
                 .style(move |s| {
-                    s.flex_col().min_width(0.0).flex_basis(0.0).flex_grow(1.0)
+                    s.flex_col()
+                        .min_width(0.0)
+                        .flex_basis(0.0)
+                        .flex_grow(1.0f32)
                 }),
                 clickable_icon(
                     || LapceIcons::CLOSE,
@@ -3422,7 +3434,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             s.margin_left(10.0)
                                 .min_width(0.0)
                                 .flex_basis(0.0)
-                                .flex_grow(1.0)
+                                .flex_grow(1.0f32)
                                 .selectable(false)
                                 .text_ellipsis()
                         }),
@@ -3613,7 +3625,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 .items_center()
         }),
         drag_window_area(empty())
-            .style(|s| s.height_full().flex_basis(0.0).flex_grow(1.0)),
+            .style(|s| s.height_full().flex_basis(0.0).flex_grow(1.0f32)),
         window_controls_view(
             window_command,
             false,

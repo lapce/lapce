@@ -1344,7 +1344,7 @@ pub fn editor_container_view(
             )
             .debug_name("find view"),
         ))
-        .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
+        .style(|s| s.width_full().flex_basis(0).flex_grow(1.0f32)),
     ))
     .on_cleanup(move || {
         let editor = editor.get_untracked();

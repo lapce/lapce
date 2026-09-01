@@ -116,10 +116,10 @@ impl PanelBuilder {
                 if let Some(height) = height {
                     s.height(height)
                 } else {
-                    s.flex_grow(1.0).flex_basis(0.0)
+                    s.flex_grow(1.0f32).flex_basis(0.0)
                 }
             } else if position.is_bottom() {
-                s.flex_grow(0.3).flex_basis(0.0)
+                s.flex_grow(0.3f32).flex_basis(0.0)
             } else {
                 s
             };
@@ -429,7 +429,7 @@ pub fn panel_container_view(
                     .apply_if(!is_maximized, |s| {
                         s.border_top(1.0).height(size as f32)
                     })
-                    .apply_if(is_maximized, |s| s.flex_grow(1.0))
+                    .apply_if(is_maximized, |s| s.flex_grow(1.0f32))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
                 s.border_right(1.0)
