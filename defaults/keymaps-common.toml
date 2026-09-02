@@ -24,6 +24,7 @@ mode = "i"
 key = "Delete"
 command = "delete_forward"
 mode = "i"
+when = "!file_explorer_focus"
 
 [[keymaps]]
 key = "backspace"
@@ -83,6 +84,7 @@ command = "previous_editor_tab"
 [[keymaps]]
 key = "F2"
 command = "rename_symbol"
+when = "!file_explorer_focus"
 
 [[keymaps]]
 key = "F12"
@@ -118,6 +120,18 @@ mode = "i"
 [[keymaps]]
 key = "Ctrl+`"
 command = "toggle_terminal_focus"
+
+# ------------------------------------ File Explorer ---------------------------------
+
+[[keymaps]]
+key = "F2"
+command = "file_explorer.rename"
+when = "file_explorer_focus"
+
+[[keymaps]]
+key = "Delete"
+command = "file_explorer.trash"
+when = "file_explorer_focus"
 
 # ------------------------------------ ------------ -------------------------------------
 
