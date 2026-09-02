@@ -140,6 +140,7 @@ impl CompletionData {
             return;
         }
         self.status = CompletionStatus::Inactive;
+        self.request_id += 1;
         self.input_id = 0;
         self.latest_editor_id = None;
         self.active.set(0);
