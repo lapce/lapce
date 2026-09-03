@@ -121,6 +121,7 @@ impl Terminal {
 
         let timeout = Some(Duration::from_secs(6));
         let mut exit_code = None;
+        let mut should_exit = false;
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -128,6 +129,10 @@ impl Terminal {
                     ErrorKind::Interrupted => continue,
                     _ => panic!("EventLoop polling error: {err:?}"),
                 }
+            }
+
+            if should_exit && events.is_empty() {
+                break;
             }
 
             // Handle channel events, if there are any.
@@ -145,7 +150,7 @@ impl Terminal {
                                 tracing::error!("{:?}", err);
                             }
                             exit_code = exited_code;
-                            break 'event_loop;
+                            should_exit = true;
                         }
                     }
 
@@ -156,22 +161,30 @@ impl Terminal {
                         }
 
                         if event.readable {
-                            if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
-                                // On Linux, a `read` on the master side of a PTY can fail
-                                // with `EIO` if the client side hangs up.  In that case,
-                                // just loop back round for the inevitable `Exited` event.
-                                // This sucks, but checking the process is either racy or
-                                // blocking.
-                                #[cfg(target_os = "linux")]
-                                if err.raw_os_error() == Some(libc::EIO) {
-                                    continue;
-                                }
+                            match self.pty_read(&core_rpc, &mut buf) {
+                                Err(err) => {
+                                    // On Linux, a `read` on the master side of a PTY can fail
+                                    // with `EIO` if the client side hangs up.  In that case,
+                                    // just loop back round for the inevitable `Exited` event.
+                                    // This sucks, but checking the process is either racy or
+                                    // blocking.
+                                    #[cfg(target_os = "linux")]
+                                    if err.raw_os_error() == Some(libc::EIO) {
+                                        continue;
+                                    }
 
-                                tracing::error!(
-                                    "Error reading from PTY in event loop: {}",
-                                    err
-                                );
-                                break 'event_loop;
+                                    tracing::error!(
+                                        "Error reading from PTY in event loop: {}",
+                                        err
+                                    );
+                                    println!("pty read error {err:?}");
+                                    break 'event_loop;
+                                }
+                                Ok(n) => {
+                                    if n == 0 && should_exit {
+                                        break 'event_loop;
+                                    }
+                                }
                             }
                         }
 
@@ -226,11 +239,15 @@ impl Terminal {
         &mut self,
         core_rpc: &CoreRpcHandler,
         buf: &mut [u8],
-    ) -> io::Result<()> {
+    ) -> io::Result<usize> {
+        let mut total = 0;
         loop {
             match self.pty.reader().read(buf) {
-                Ok(0) => break,
+                Ok(0) => {
+                    break;
+                }
                 Ok(n) => {
+                    total += n;
                     core_rpc.update_terminal(self.term_id, buf[..n].to_vec());
                 }
                 Err(err) => match err.kind() {
@@ -241,7 +258,7 @@ impl Terminal {
                 },
             }
         }
-        Ok(())
+        Ok(total)
     }
 
     #[inline]
