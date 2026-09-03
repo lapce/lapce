@@ -309,6 +309,13 @@ impl PluginData {
             installed.swap_remove(&id);
         });
 
+        // Reset the installing state in the available list
+        self.available.volts.update(|volts| {
+            if let Some(volt_data) = volts.get_mut(&id) {
+                volt_data.installing.set(false);
+            }
+        });
+
         if self.disabled.with_untracked(|d| d.contains(&id)) {
             self.disabled.update(|d| {
                 d.remove(&id);
