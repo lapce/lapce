@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- Implement file/folder dragging support in file explorer
+
 ### Bug Fixes
 
 ## 0.4.6

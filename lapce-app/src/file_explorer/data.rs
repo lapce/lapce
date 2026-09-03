@@ -678,4 +678,25 @@ impl FileExplorerData {
             EventPropagation::Stop
         }
     }
+
+    pub fn move_path(&self, from: &Path, to: &Path) {
+        let to = if self.is_dir(to) {
+            to.join(from.file_name().unwrap_or_default())
+        } else if let Some(parent) = to.parent() {
+            if parent.is_dir() {
+                parent.join(from.file_name().unwrap())
+            } else {
+                to.to_path_buf()
+            }
+        } else {
+            to.to_path_buf()
+        };
+
+        self.common
+            .internal_command
+            .send(InternalCommand::FinishRenamePath {
+                current_path: from.to_path_buf(),
+                new_path: to,
+            });
+    }
 }
