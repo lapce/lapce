@@ -156,6 +156,7 @@ jobs:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
     permissions:
       contents: read
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -192,6 +193,7 @@ jobs:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
     permissions:
       contents: read
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
