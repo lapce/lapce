@@ -1517,7 +1517,7 @@ fn git_delta_format(
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let repo = Repository::discover(workspace_path).ok()?;
     let name = match repo.head() {
-        Ok(head) => head.shorthand()?.to_string(),
+        Ok(head) => head.shorthand().ok()?.to_string(),
         _ => "(No branch)".to_owned(),
     };
 
@@ -1529,6 +1529,9 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let mut tags = Vec::new();
     if let Ok(git_tags) = repo.tag_names(None) {
         for tag in git_tags.into_iter().flatten() {
+            let Some(tag) = tag else {
+                continue;
+            };
             tags.push(tag.to_owned());
         }
     }
@@ -1553,7 +1556,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
 
     let oid = match repo.revparse_single("HEAD^{tree}") {
         Ok(obj) => obj.id(),
-        _ => Oid::zero(),
+        _ => Oid::ZERO_SHA1,
     };
 
     let cached_diff = repo
@@ -1641,7 +1644,7 @@ fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String>
     // Grab URL part of remote
     let remote = target_remote
         .url()
-        .ok_or(anyhow!("Failed to convert remote to str"))?;
+        .map_err(|e| anyhow!("Failed to convert remote to str: {e}"))?;
 
     let remote_url = match Url::parse(remote) {
         Ok(url) => url,
