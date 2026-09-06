@@ -25,14 +25,18 @@ use floem::{
         WriteSignal, use_context,
     },
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
-    views::editor::core::buffer::rope_text::RopeText,
+    views::editor::{core::buffer::rope_text::RopeText, text::SystemClipboard},
 };
 use im::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
-    mode::Mode, register::Register,
+    command::FocusCommand,
+    cursor::CursorAffinity,
+    directory::Directory,
+    meta,
+    mode::Mode,
+    register::{Clipboard, Register},
 };
 use lapce_rpc::{
     RpcError,
@@ -1574,6 +1578,16 @@ impl WindowTabData {
                 }
             }
 
+            CopilotSignIn => {
+                self.copilot_sign_in();
+            }
+            CopilotSignOut => {
+                self.copilot_sign_out();
+            }
+            CopilotStatus => {
+                self.copilot_check_status();
+            }
+
         }
     }
 
@@ -2078,6 +2092,15 @@ impl WindowTabData {
         match rpc {
             CoreNotification::ProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status.to_owned()));
+                if matches!(status, ProxyStatus::Connected) {
+                    let config = self.common.config.get_untracked();
+                    if config.core.enable_copilot {
+                        self.common.proxy.copilot_start(
+                            config.core.copilot_server_path.clone(),
+                            Vec::new(),
+                        );
+                    }
+                }
             }
             CoreNotification::DiffInfo { diff } => {
                 self.source_control.branch.set(diff.head.clone());
@@ -2850,6 +2873,142 @@ impl WindowTabData {
         self.alert_data.active.set(true);
     }
 
+    /// Begin the GitHub Copilot device flow sign in. The device code is shown
+    /// in an alert and copied to the clipboard; the user finishes the flow in
+    /// their browser. We intentionally do not auto-complete the flow.
+    fn copilot_sign_in(&self) {
+        let alert_data = self.alert_data.clone();
+        let send = create_ext_action(
+            self.scope,
+            move |result: Result<ProxyResponse, RpcError>| match result {
+                Ok(ProxyResponse::CopilotSignIn { resp }) => {
+                    if let Some(status) = resp.get("status").and_then(|v| v.as_str())
+                    {
+                        if matches!(status, "AlreadySignedIn" | "OK") {
+                            let user = resp
+                                .get("user")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            let msg = if user.is_empty() {
+                                "You are already signed in to GitHub Copilot."
+                                    .to_string()
+                            } else {
+                                format!(
+                                    "You are already signed in to GitHub Copilot as {user}."
+                                )
+                            };
+                            set_alert(&alert_data, "GitHub Copilot", &msg, vec![]);
+                            return;
+                        }
+                    }
+                    let user_code = resp
+                        .get("userCode")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let verification_uri = resp
+                        .get("verificationUri")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("https://github.com/login/device")
+                        .to_string();
+                    if user_code.is_empty() {
+                        set_alert(
+                            &alert_data,
+                            "GitHub Copilot",
+                            &format!("Unexpected sign in response: {resp}"),
+                            vec![],
+                        );
+                        return;
+                    }
+                    let mut clipboard = SystemClipboard::new();
+                    clipboard.put_string(&user_code);
+
+                    let active = alert_data.active;
+                    let uri = verification_uri.clone();
+                    let open_button = AlertButton {
+                        text: format!("Open {verification_uri}"),
+                        action: Rc::new(move || {
+                            if let Err(err) = open::that(&uri) {
+                                tracing::error!("{:?}", err);
+                            }
+                            active.set(false);
+                        }),
+                    };
+                    let msg = format!(
+                        "1. Your one-time code is {user_code} (copied to clipboard).\n\
+                         2. Open {verification_uri} and enter the code.\n\
+                         3. Authorize Lapce, then run 'Copilot: Check Status'."
+                    );
+                    set_alert(
+                        &alert_data,
+                        "Sign in to GitHub Copilot",
+                        &msg,
+                        vec![open_button],
+                    );
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    set_alert(
+                        &alert_data,
+                        "GitHub Copilot",
+                        &format!("Sign in failed: {}", err.message),
+                        vec![],
+                    );
+                }
+            },
+        );
+        self.common.proxy.copilot_sign_in(send);
+    }
+
+    /// Report the current GitHub Copilot authentication status in an alert.
+    fn copilot_check_status(&self) {
+        let alert_data = self.alert_data.clone();
+        let send = create_ext_action(
+            self.scope,
+            move |result: Result<ProxyResponse, RpcError>| {
+                let msg = match result {
+                    Ok(ProxyResponse::CopilotCheckStatus { resp }) => {
+                        let status = resp
+                            .get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown");
+                        match resp.get("user").and_then(|v| v.as_str()) {
+                            Some(user) if !user.is_empty() => {
+                                format!("GitHub Copilot status: {status} ({user})")
+                            }
+                            _ => format!("GitHub Copilot status: {status}"),
+                        }
+                    }
+                    Ok(_) => "Unexpected response".to_string(),
+                    Err(err) => {
+                        format!("Could not get status: {}", err.message)
+                    }
+                };
+                set_alert(&alert_data, "GitHub Copilot", &msg, vec![]);
+            },
+        );
+        self.common.proxy.copilot_check_status(send);
+    }
+
+    /// Sign out of GitHub Copilot.
+    fn copilot_sign_out(&self) {
+        let alert_data = self.alert_data.clone();
+        let send = create_ext_action(
+            self.scope,
+            move |result: Result<ProxyResponse, RpcError>| {
+                let msg = match result {
+                    Ok(ProxyResponse::CopilotSignOut { .. }) => {
+                        "Signed out of GitHub Copilot.".to_string()
+                    }
+                    Ok(_) => "Unexpected response".to_string(),
+                    Err(err) => format!("Sign out failed: {}", err.message),
+                };
+                set_alert(&alert_data, "GitHub Copilot", &msg, vec![]);
+            },
+        );
+        self.common.proxy.copilot_sign_out(send);
+    }
+
     fn update_progress(&self, progress: &ProgressParams) {
         let token = progress.token.clone();
         match &progress.value {
@@ -2986,4 +3145,17 @@ fn open_uri(path: &Path) {
             error!("failed to open active file: {path:?}, error: {e}");
         }
     }
+}
+
+/// Populate and show the shared alert box.
+fn set_alert(
+    alert_data: &AlertBoxData,
+    title: &str,
+    msg: &str,
+    buttons: Vec<AlertButton>,
+) {
+    alert_data.title.set(title.to_string());
+    alert_data.msg.set(msg.to_string());
+    alert_data.buttons.set(buttons);
+    alert_data.active.set(true);
 }

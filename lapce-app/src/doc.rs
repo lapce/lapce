@@ -1447,7 +1447,7 @@ impl Doc {
             return;
         };
 
-        let (line, col) = self.completion_pos.get_untracked();
+        let (line, col) = self.inline_completion_pos.get_untracked();
         let offset = self
             .buffer
             .with_untracked(|b| b.offset_of_line_col(line, col));

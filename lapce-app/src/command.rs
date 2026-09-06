@@ -600,6 +600,18 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "add_run_debug_config")]
     #[strum(message = "Add Run Debug Config")]
     AddRunDebugConfig,
+
+    #[strum(serialize = "copilot_sign_in")]
+    #[strum(message = "Copilot: Sign In")]
+    CopilotSignIn,
+
+    #[strum(serialize = "copilot_sign_out")]
+    #[strum(message = "Copilot: Sign Out")]
+    CopilotSignOut,
+
+    #[strum(serialize = "copilot_status")]
+    #[strum(message = "Copilot: Check Status")]
+    CopilotStatus,
 }
 
 #[derive(Clone, Debug)]

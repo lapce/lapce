@@ -182,6 +182,12 @@ impl ProxyHandler for Dispatcher {
                     tracing::error!("{:?}", err);
                 }
             }
+            CopilotStart {
+                server_path,
+                server_args,
+            } => {
+                self.catalog_rpc.copilot_start(server_path, server_args);
+            }
             NewTerminal { term_id, profile } => {
                 let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
                     Ok(terminal) => terminal,
@@ -639,6 +645,42 @@ impl ProxyHandler for Dispatcher {
                         let result = result.map(|completions| {
                             ProxyResponse::GetInlineCompletions { completions }
                         });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CopilotSignIn {} => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.copilot_request(
+                    crate::plugin::copilot::SIGN_IN,
+                    serde_json::json!({}),
+                    move |result: Result<serde_json::Value, RpcError>| {
+                        let result =
+                            result.map(|resp| ProxyResponse::CopilotSignIn { resp });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CopilotCheckStatus {} => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.copilot_request(
+                    crate::plugin::copilot::CHECK_STATUS,
+                    serde_json::json!({ "localChecksOnly": false }),
+                    move |result: Result<serde_json::Value, RpcError>| {
+                        let result = result
+                            .map(|resp| ProxyResponse::CopilotCheckStatus { resp });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CopilotSignOut {} => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.copilot_request(
+                    crate::plugin::copilot::SIGN_OUT,
+                    serde_json::json!({}),
+                    move |result: Result<serde_json::Value, RpcError>| {
+                        let result = result
+                            .map(|resp| ProxyResponse::CopilotSignOut { resp });
                         proxy_rpc.handle_response(id, result);
                     },
                 );

@@ -27,7 +27,7 @@ use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
-    PluginCatalogNotification, PluginCatalogRpcHandler,
+    PluginCatalogNotification, PluginCatalogRpcHandler, copilot,
     dap::{DapClient, DapRpcHandler, DebuggerData},
     psp::{CloneableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
@@ -375,6 +375,40 @@ impl PluginCatalog {
             f.call(Err(RpcError {
                 code: 0,
                 message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
+    /// Find the running Copilot language server amongst the loaded plugins.
+    fn copilot_plugin(&self) -> Option<&PluginServerRpcHandler> {
+        let copilot_id = copilot::copilot_volt_id();
+        self.plugins
+            .values()
+            .find(|plugin| plugin.volt_id == copilot_id)
+    }
+
+    /// Route a custom Copilot request to the Copilot language server. The
+    /// request is sent directly (no capability/document checks) since these are
+    /// Copilot specific methods.
+    pub fn copilot_request(
+        &self,
+        method: Cow<'static, str>,
+        params: Value,
+        f: Box<dyn RpcCallback<Value, RpcError>>,
+    ) {
+        if let Some(plugin) = self.copilot_plugin() {
+            plugin.server_request_async(
+                method,
+                params,
+                None,
+                None,
+                false,
+                move |result| f.call(result),
+            );
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "Copilot is not running. Enable it in settings (core.enable-copilot).".to_string(),
             }));
         }
     }
@@ -745,6 +779,27 @@ impl PluginCatalog {
                         args,
                     },
                 );
+            }
+            CopilotStart {
+                server_path,
+                server_args,
+            } => {
+                if self.copilot_plugin().is_some() {
+                    // already running
+                    return;
+                }
+                let workspace = self.workspace.clone();
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    if let Err(err) = copilot::start(
+                        plugin_rpc,
+                        workspace,
+                        server_path,
+                        server_args,
+                    ) {
+                        tracing::error!("{:?}", err);
+                    }
+                });
             }
             Shutdown => {
                 for (_, plugin) in self.plugins.iter() {

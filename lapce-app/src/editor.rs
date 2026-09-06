@@ -1667,9 +1667,16 @@ impl EditorData {
         }
 
         let path2 = path.clone();
+        let cursor = self.cursor();
         let send = create_ext_action(
             self.scope,
             move |items: Vec<lsp_types::InlineCompletionItem>| {
+                // The completion request is async, so re-read the cursor when the
+                // response arrives. If the user kept typing, the items are stored
+                // and the ghost text is positioned against where the cursor is now
+                // rather than where it was when the request was sent; the prefix
+                // stripping then matches the text typed so far.
+                let offset = cursor.with_untracked(|c| c.offset());
                 let items = doc.buffer.with_untracked(|buffer| {
                     items
                         .into_iter()
