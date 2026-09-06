@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix the `ui.scroll-width` setting being ignored, so the scroll bar can be widened again
+
 ## 0.4.6
 
 ### Features/Changes
