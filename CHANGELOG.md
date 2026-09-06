@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix source control listing the contents of the git directory as changes for repositories that keep their git directory outside the work tree
+
 ## 0.4.6
 
 ### Features/Changes
