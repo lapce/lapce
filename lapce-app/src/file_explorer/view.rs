@@ -65,7 +65,6 @@ pub fn file_explorer_panel(
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let data = window_tab_data.file_explorer.clone();
     let source_control = window_tab_data.source_control.clone();
     PanelBuilder::new(config, position)
         .add_height_style(
@@ -78,7 +77,7 @@ pub fn file_explorer_panel(
         )
         .add(
             "File Explorer",
-            container(file_explorer_view(data, source_control))
+            container(file_explorer_view(window_tab_data.clone(), source_control))
                 .style(|s| s.size_full()),
             window_tab_data
                 .panel
@@ -305,9 +304,10 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
 }
 
 fn file_explorer_view(
-    data: FileExplorerData,
+    window_tab_data: Rc<WindowTabData>,
     source_control: SourceControlData,
 ) -> impl View {
+    let data = window_tab_data.file_explorer.clone();
     let root = data.root;
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
@@ -316,6 +316,7 @@ fn file_explorer_view(
     let select = data.select;
     let secondary_click_data = data.clone();
     let scroll_rect = create_rw_signal(Rect::ZERO);
+    let focus = window_tab_data.common.focus;
 
     scroll(
         virtual_stack(
@@ -448,7 +449,7 @@ fn file_explorer_view(
                     .on_secondary_click_stop(move |_| {
                         secondary_click_data.secondary_click(&secondary_click_path);
                     })
-                    .on_event_stop(
+                    .on_event_cont(
                         EventListener::PointerDown,
                         move |event| {
                             if let Event::PointerDown(pointer_event) = event {
@@ -468,6 +469,7 @@ fn file_explorer_view(
     )
     .style(|s| s.absolute().size_full().line_height(1.8))
     .on_secondary_click_stop(move |_| {
+        println!("on_secondary_click_stop");
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
                 secondary_click_data.secondary_click(path);
@@ -489,6 +491,11 @@ fn file_explorer_view(
             )
         } else {
             None
+        }
+    })
+    .on_event_stop(EventListener::PointerDown, move |_| {
+        if focus.get_untracked() != Focus::Panel(PanelKind::FileExplorer) {
+            focus.set(Focus::Panel(PanelKind::FileExplorer));
         }
     })
 }
