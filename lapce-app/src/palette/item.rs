@@ -28,6 +28,14 @@ pub enum PaletteItemContent {
         path: PathBuf,
         full_path: PathBuf,
     },
+    FileChooserEntry {
+        path: PathBuf,
+        full_path: PathBuf,
+        is_dir: bool,
+    },
+    ConfirmFileChooserEntry {
+        full_path: PathBuf,
+    },
     Line {
         line: usize,
         content: String,

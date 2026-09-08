@@ -27,7 +27,7 @@ use lapce_rpc::{
         Duplicating, FileNodeItem, FileNodeViewKind, Naming, NamingState, NewNode,
         Renaming,
     },
-    proxy::ProxyResponse,
+    proxy::{PathRequest, ProxyResponse},
 };
 
 use crate::{
@@ -195,7 +195,8 @@ impl FileExplorerData {
         let send = {
             let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
-                let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
+                let Ok(ProxyResponse::ReadDirResponse { mut items, .. }) = result
+                else {
                     done(false);
                     return;
                 };
@@ -250,7 +251,9 @@ impl FileExplorerData {
         };
 
         // Ask the proxy for the directory information
-        self.common.proxy.read_dir(path.to_path_buf(), send);
+        self.common
+            .proxy
+            .read_dir(PathRequest::Path(path.to_path_buf()), send);
     }
 
     /// Returns `true` if `path` exists in the file explorer tree and is a directory, `false`
