@@ -1,7 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
+    io::Write as _,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -1204,6 +1206,21 @@ impl ProxyHandler for Dispatcher {
                 let resp = ProxyResponse::ReferencesResolveResponse { items };
                 self.proxy_rpc.handle_response(id, Ok(resp));
             }
+            FilterThroughShell {
+                command,
+                stdin_content,
+                timeout_secs,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                thread::spawn(move || {
+                    let result = run_shell_filter(
+                        &command,
+                        &stdin_content,
+                        timeout_secs,
+                    );
+                    proxy_rpc.handle_response(id, result);
+                });
+            }
         }
     }
 }
@@ -1761,4 +1778,75 @@ fn search_in_path(
     }
 
     Ok(ProxyResponse::GlobalSearchResponse { matches })
+}
+
+fn run_shell_filter(
+    command: &str,
+    stdin_content: &str,
+    timeout_secs: u64,
+) -> Result<ProxyResponse, RpcError> {
+    #[cfg(not(windows))]
+    let mut child = std::process::Command::new("sh")
+        .args(["-c", command])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| RpcError {
+            code: 0,
+            message: format!("Failed to spawn shell: {e}"),
+        })?;
+
+    #[cfg(windows)]
+    let mut child = std::process::Command::new("cmd")
+        .args(["/C", command])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| RpcError {
+            code: 0,
+            message: format!("Failed to spawn shell: {e}"),
+        })?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(stdin_content.as_bytes());
+    }
+
+    let timeout = Duration::from_secs(timeout_secs);
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let output = child.wait_with_output().map_err(|e| RpcError {
+                    code: 0,
+                    message: format!("Failed to read output: {e}"),
+                })?;
+                let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+                return Ok(ProxyResponse::FilterThroughShellResponse {
+                    stdout,
+                    success: status.success(),
+                });
+            }
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(RpcError {
+                        code: 0,
+                        message: format!(
+                            "Command timed out after {timeout_secs} seconds"
+                        ),
+                    });
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => {
+                return Err(RpcError {
+                    code: 0,
+                    message: format!("Error waiting for process: {e}"),
+                });
+            }
+        }
+    }
 }

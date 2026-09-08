@@ -97,6 +97,7 @@ use crate::{
     palette::{
         PaletteStatus,
         item::{PaletteItem, PaletteItemContent},
+        kind::PaletteKind,
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
     plugin::{PluginData, plugin_info_view},
@@ -2574,7 +2575,8 @@ fn palette_item(
         | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::SCMReference { .. }
         | PaletteItemContent::TerminalProfile { .. }
-        | PaletteItemContent::IconTheme { .. } => {
+        | PaletteItemContent::IconTheme { .. }
+        | PaletteItemContent::ShellFilterCommand { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container(
@@ -2793,6 +2795,81 @@ fn palette_preview(window_tab_data: Rc<WindowTabData>) -> impl View {
     })
 }
 
+fn palette_shell_filter_options(
+    window_tab_data: Rc<WindowTabData>,
+) -> impl View {
+    let palette_data = window_tab_data.palette.clone();
+    let kind = palette_data.kind;
+    let config = palette_data.common.config;
+
+    let new_doc = palette_data.shell_filter_new_doc;
+    let timeout = palette_data.shell_filter_timeout;
+
+    container(
+        stack((
+            label(move || {
+                if new_doc.get() {
+                    "[x] New document".to_string()
+                } else {
+                    "[ ] New document".to_string()
+                }
+            })
+            .on_click_stop(move |_| {
+                new_doc.update(|v| *v = !*v);
+            })
+            .style(move |s| {
+                let config = config.get();
+                s.padding_horiz(6.0)
+                    .padding_vert(2.0)
+                    .border_radius(3.0)
+                    .cursor(CursorStyle::Pointer)
+                    .color(if new_doc.get() {
+                        config.color(LapceColor::EDITOR_FOCUS)
+                    } else {
+                        config.color(LapceColor::EDITOR_DIM)
+                    })
+            }),
+            label(move || format!("Timeout: {}s", timeout.get()))
+                .on_click_stop(move |_| {
+                    timeout.update(|v| {
+                        *v = match *v {
+                            5 => 10,
+                            10 => 30,
+                            30 => 60,
+                            _ => 5,
+                        };
+                    });
+                })
+                .style(move |s| {
+                    let config = config.get();
+                    s.padding_horiz(6.0)
+                        .padding_vert(2.0)
+                        .border_radius(3.0)
+                        .cursor(CursorStyle::Pointer)
+                        .color(config.color(LapceColor::EDITOR_DIM))
+                }),
+        ))
+        .style(|s| {
+            s.flex_row()
+                .gap(4.0)
+                .items_center()
+                .padding_horiz(10.0)
+                .padding_vert(4.0)
+        }),
+    )
+    .style(move |s| {
+        let config = config.get();
+        s.width_full()
+            .border_bottom(1.0)
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .display(if kind.get() == PaletteKind::ShellFilter {
+                Display::Flex
+            } else {
+                Display::None
+            })
+    })
+}
+
 fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
     let layout_rect = window_tab_data.layout_rect.read_only();
     let palette_data = window_tab_data.palette.clone();
@@ -2802,6 +2879,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
     container(
         stack((
             palette_input(window_tab_data.clone()),
+            palette_shell_filter_options(window_tab_data.clone()),
             palette_content(window_tab_data.clone(), layout_rect),
             palette_preview(window_tab_data.clone()),
         ))

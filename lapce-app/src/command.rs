@@ -600,6 +600,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "add_run_debug_config")]
     #[strum(message = "Add Run Debug Config")]
     AddRunDebugConfig,
+
+    #[strum(serialize = "filter_through_shell")]
+    #[strum(message = "Filter Through Shell Command")]
+    FilterThroughShell,
 }
 
 #[derive(Clone, Debug)]
@@ -796,6 +800,17 @@ pub enum InternalCommand {
     },
     RestartTerminal {
         term_id: TermId,
+    },
+    FilterThroughShell {
+        command: String,
+        new_document: bool,
+        timeout_secs: u64,
+    },
+    FilterThroughShellResult {
+        output: String,
+        new_document: bool,
+        selection_start: usize,
+        selection_end: usize,
     },
 }
 

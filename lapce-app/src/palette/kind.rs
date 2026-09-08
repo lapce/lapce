@@ -24,6 +24,7 @@ pub enum PaletteKind {
     TerminalProfile,
     DiffFiles,
     HelpAndFile,
+    ShellFilter,
 }
 
 impl PaletteKind {
@@ -48,7 +49,8 @@ impl PaletteKind {
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
             | PaletteKind::HelpAndFile
-            | PaletteKind::DiffFiles => "",
+            | PaletteKind::DiffFiles
+            | PaletteKind::ShellFilter => "",
             #[cfg(windows)]
             PaletteKind::WslHost => "",
         }
@@ -103,6 +105,9 @@ impl PaletteKind {
             }
             PaletteKind::TerminalProfile => None, // InternalCommand::NewTerminal
             PaletteKind::DiffFiles => Some(LapceWorkbenchCommand::DiffFiles),
+            PaletteKind::ShellFilter => {
+                Some(LapceWorkbenchCommand::FilterThroughShell)
+            }
         }
     }
 
@@ -130,7 +135,8 @@ impl PaletteKind {
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences | PaletteKind::HelpAndFile
-            | PaletteKind::DiffFiles => input,
+            | PaletteKind::DiffFiles
+            | PaletteKind::ShellFilter => input,
             PaletteKind::PaletteHelp
             | PaletteKind::Command
             | PaletteKind::Workspace
