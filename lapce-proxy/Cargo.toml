@@ -56,7 +56,7 @@ grep-matcher  = "0.1"
 grep-regex    = "0.1"
 
 # wasm
-wasmtime      = "14.0.0"
+wasmtime      = "14.0.4"
 wasmtime-wasi = "14.0.0"
 wasi-common   = "14.0.0"
 
