@@ -813,8 +813,25 @@ impl WindowTabData {
             SaveAll => {
                 self.main_split.editors.with_editors_untracked(|editors| {
                     let mut paths = HashSet::new();
-                    for (_, editor_data) in editors.iter() {
-                        let doc = editor_data.doc();
+                    for (editor_id, editor_data) in editors.iter() {
+                        // Defensive safeguard: `floem`'s `Editor::doc()` panics if the reactive scope was
+                        // already destroyed. This catches "ghost" editors (like closed Settings or Plugin tabs)
+                        // that leaked into the map, preventing "Save All" from crashing the entire app.
+                        let doc_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            editor_data.doc()
+                        }));
+
+                        let doc = match doc_result {
+                            Ok(document) => document,
+                            Err(_) => {
+                                tracing::warn!(
+                                    "Ghost editor caught and bypassed during Save All. View ID: {:?}",
+                                    editor_id
+                                );
+                                continue;
+                            }
+                        };
+
                         let should_save = if let DocContent::File { path, .. } =
                             doc.content.get_untracked()
                         {
@@ -822,7 +839,6 @@ impl WindowTabData {
                                 false
                             } else {
                                 paths.insert(path.clone());
-
                                 true
                             }
                         } else {

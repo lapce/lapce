@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
+
 ## 0.4.6
 
 ### Features/Changes
