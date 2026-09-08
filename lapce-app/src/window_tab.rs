@@ -64,7 +64,10 @@ use crate::{
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
-    editor::location::{EditorLocation, EditorPosition},
+    editor::{
+        InlineFindDirection,
+        location::{EditorLocation, EditorPosition},
+    },
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -1574,6 +1577,20 @@ impl WindowTabData {
                 }
             }
 
+            JumpHighlightNext => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Right);
+                }
+            }
+            JumpHighlightPrev => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Left);
+                }
+            }
         }
     }
 

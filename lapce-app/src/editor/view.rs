@@ -219,6 +219,20 @@ pub fn editor_view(
         rev
     });
 
+    create_effect({
+        let editor_cursor = e_data.cursor();
+        move |_| {
+            let offset = editor_cursor.get().offset();
+            doc.with(|doc| doc.update_highlights(offset));
+        }
+    });
+
+    create_effect(move |_| {
+        let highlights = doc.with(|doc| doc.highlights);
+        highlights.track();
+        id.request_paint();
+    });
+
     let ed1 = e_data.editor.clone();
     let ed2 = ed1.clone();
     let ed3 = ed1.clone();
@@ -536,6 +550,40 @@ impl EditorView {
                         line_height,
                     );
                 }
+            }
+        });
+    }
+
+    fn paint_document_highlights(
+        &self,
+        cx: &mut PaintCx,
+        screen_lines: &ScreenLines,
+    ) {
+        let (color, line_height) =
+            self.editor.common.config.with_untracked(|config| {
+                (
+                    // config.color(LapceColor::EDITOR_FOREGROUND);
+                    config.color(LapceColor::ERROR_LENS_OTHER_FOREGROUND),
+                    config.editor.line_height() as f64,
+                )
+            });
+
+        let ed = &self.editor.editor;
+        let doc = self.editor.doc();
+
+        doc.highlights.with_untracked(move |highlights| {
+            let Some(highlights) = highlights else {
+                return;
+            };
+            for highlight in highlights {
+                self.paint_find_region(
+                    cx,
+                    ed,
+                    &highlight.into(),
+                    color,
+                    screen_lines,
+                    line_height,
+                );
             }
         });
     }
@@ -1144,6 +1192,8 @@ impl View for EditorView {
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
+        let screen_lines = ed.screen_lines.get_untracked();
+        self.paint_document_highlights(cx, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
