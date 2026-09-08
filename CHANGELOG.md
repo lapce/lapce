@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Preserve pending settings edits when closing the Settings tab before they are saved.
+
 ## 0.4.6
 
 ### Features/Changes
