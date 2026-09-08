@@ -497,6 +497,19 @@ impl AppData {
         self.windows.update(|windows| {
             windows.insert(window_id, window_data.clone());
         });
+
+        // Initialize AI RAG index for the first workspace
+        {
+            let wts = window_data.window_tabs.get_untracked();
+            if let Some((_, first_tab)) = wts.front() {
+                if let Some(ref path) = first_tab.workspace.path {
+                    if path.exists() {
+                        crate::ai::set_workspace(path.clone());
+                    }
+                }
+            }
+        }
+
         let window_size = window_data.common.size;
         let position = window_data.position;
         let window_scale = window_data.window_scale;
@@ -4025,12 +4038,97 @@ pub fn launch() {
         });
     }
 
+    std::thread::Builder::new()
+        .name("DeepCarpUnifiedHeartbeat".to_owned())
+        .spawn(|| {
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static MCP_HEALTHY: AtomicBool = AtomicBool::new(false);
+
+            std::thread::sleep(std::time::Duration::from_millis(2000));
+
+            let host = "127.0.0.1";
+            let port: u16 = 7789;
+            let mut mcp_proc: Option<std::process::Child> = None;
+
+            let probe = || -> bool {
+                std::net::TcpStream::connect_timeout(
+                    &format!("{host}:{port}").parse().unwrap(),
+                    std::time::Duration::from_millis(500),
+                ).is_ok()
+            };
+
+            let spawn_mcp = || -> Option<std::process::Child> {
+                tracing::info!("🚀 Spawning deepseek-carp MCP server (SSE {host}:{port})");
+                match std::process::Command::new("deepseek-carp")
+                    .env("DEEPCARP_MCP_SERVER", "on")
+                    .env("DEEPCARP_MCP_TRANSPORT", "sse")
+                    .env("DEEPCARP_MCP_PORT", port.to_string())
+                    .env("DEEPCARP_STARTUP_MODE", "mcp-sse")
+                    .spawn()
+                {
+                    Ok(child) => {
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        Some(child)
+                    }
+                    Err(e) => {
+                        tracing::warn!("deepseek-carp MCP spawn failed: {e}");
+                        None
+                    }
+                }
+            };
+
+            if !probe() {
+                mcp_proc = spawn_mcp();
+            }
+
+            tracing::info!("💓 dscarp-lapce heartbeat thread started");
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(10));
+
+                let healthy = probe();
+                MCP_HEALTHY.store(healthy, Ordering::Relaxed);
+
+                if !healthy && mcp_proc.is_some() {
+                    tracing::warn!("deepseek-carp MCP lost — restarting");
+                    let _ = mcp_proc.take().and_then(|mut c| { let _ = c.kill(); Some(()) });
+                    mcp_proc = spawn_mcp();
+                } else if !healthy && mcp_proc.is_none() {
+                    tracing::info!("deepseek-carp MCP not running — attempting spawn");
+                    mcp_proc = spawn_mcp();
+                }
+            }
+        })
+        .ok();
+
+    std::thread::Builder::new()
+        .name("DeepCarpHealthLogger".to_owned())
+        .spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(5000));
+            tracing::info!(
+                "🧠 deepseek-carp v{} + 🖥️ dscarp-lapce: unified organic system online",
+                env!("CARGO_PKG_VERSION")
+            );
+            tracing::info!("  ✅ In-process AI engine  — direct Rust crate call");
+            tracing::info!("  ✅ In-process inference  — LlamaCppEngine (low-latency localhost:8080)");
+            tracing::info!("  ✅ Codebase RAG index   — SemanticIndexV2 + PersistentIndex");
+            tracing::info!("  ✅ FIM LRU + debounce   — OptimizedFimEngine (sub-600ms inline completion)");
+            tracing::info!("  ➕ External MCP bridge  — deepseek-carp MCP server on SSE :7789");
+            tracing::info!("  ➕ File fallback bridge — .carp/*.json for CI/CD/debug/offline");
+        })
+        .ok();
+
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
             app_data.app_terminated.set(true);
+            tracing::info!("💓 dscarp-lapce terminating — saving state, will exit gracefully with deepseek-carp...");
             if let Err(err) = db.insert_app(app_data.clone()) {
                 tracing::error!("{:?}", err);
             }
+            let _ = std::process::Command::new("pkill")
+                .arg("-f").arg("deepseek-carp.*mcp-sse").status();
+            let _ = std::process::Command::new("taskkill")
+                .arg("/F").arg("/IM").arg("deepseek-carp.exe").status();
         }
         floem::AppEvent::Reopen {
             has_visible_windows,

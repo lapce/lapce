@@ -1,4 +1,6 @@
 pub mod call_hierarchy_view;
+pub mod chat_view;
+pub mod copilot_sidebar;
 pub mod data;
 pub mod debug_view;
 pub mod document_symbol;

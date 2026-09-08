@@ -9,10 +9,12 @@ rust-version = { workspace = true }
 [dependencies]
 alacritty_terminal = { workspace = true }
 anyhow             = { workspace = true }
+tokio              = { workspace = true }
 backtrace          = { workspace = true }
 chrono             = { workspace = true }
 clap               = { workspace = true }
 crossbeam-channel  = { workspace = true }
+deepseek-carp      = { path = "../../deepseek-carp" }
 flate2             = { workspace = true }
 globset            = { workspace = true }
 im                 = { workspace = true }

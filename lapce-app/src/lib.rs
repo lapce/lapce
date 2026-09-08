@@ -1,6 +1,8 @@
 pub mod about;
+pub mod ai;
 pub mod alert;
 pub mod app;
+pub mod carp_bridge;
 pub mod code_action;
 pub mod code_lens;
 pub mod command;
@@ -23,6 +25,7 @@ pub mod keymap;
 pub mod keypress;
 pub mod listener;
 pub mod lsp;
+pub mod localization;
 pub mod main_split;
 pub mod markdown;
 pub mod palette;

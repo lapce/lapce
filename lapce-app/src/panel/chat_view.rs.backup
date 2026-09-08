@@ -1,0 +1,607 @@
+//! DeepSeek Carp — AI Chat Panel for Lapce (multi-session, streaming, SDK-integrated).
+//!
+//! ## Capabilities
+//! - **Streaming**: real-time token display via QueryEngine::stream_submit()
+//! - **Agent fallback**: full tool-calling loop when streaming unavailable
+//! - **Multi-session**: each chat has a unique session_id; Agent persists across messages
+//! - **Memory**: auto-save conversation via MemoryManager
+//! - **Plan mode**: `/plan <task>` — draft execution plan
+//! - **Swarm mode**: `/swarm <task>` — decompose into parallel sub-tasks
+//! - **RAG enrichment**: auto-index workspace, inject relevant code into prompts
+//! - **Apply-to-Editor**: parse AI code blocks → inline diff preview → Accept/Reject
+//! - **MCP**: `/mcp` status + connect external tool servers
+//!
+//! ## Cross-thread: sync_channel (tx→bg, rx→UI poll) + RwSignal on UI thread
+
+use std::rc::Rc;
+
+use floem::{
+    IntoView, View,
+    reactive::{RwSignal, SignalGet, SignalUpdate, SignalWith},
+    style::{CursorStyle, Display},
+    views::{container, dyn_stack, label, scroll, stack, text_input, Decorators},
+};
+use floem::peniko::Color;
+use deepseek_carp::agent::Agent;
+use deepseek_carp::tools::{DiffEngine, FileEdit};
+
+use super::position::PanelPosition;
+use crate::ai;
+use crate::window_tab::WindowTabData;
+
+// ── Types ──────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct ChatMsg {
+    role: String,
+    content: String,
+    footer: String,
+    /// Parsed file edits from this message (for Accept/Reject).
+    edits: Vec<FileEdit>,
+}
+
+/// Cross-thread messages from bg AI thread → UI.
+#[derive(Clone)]
+enum ChatResult {
+    /// Streaming chunk (incremental)
+    Stream { text: String, done: bool, provider: String },
+    /// Final result from Agent loop
+    Response { content: String, footer: String },
+    /// Diff edits parsed from response for Apply-to-Editor
+    Diff { edits: Vec<FileEdit> },
+    Error(String),
+}
+
+static SESSION_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+fn next_session_id() -> String {
+    let n = SESSION_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    format!("lapce-chat-{}", n)
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+
+/// Generate a diff preview text for a FileEdit (for message display).
+fn format_diff_text(edit: &FileEdit) -> String {
+    let hunks = DiffEngine::generate(&edit.original, &edit.modified);
+    let mut s = format!("📝 {}\n", edit.file_path.display());
+    if let Some(ref desc) = edit.description {
+        s.push_str(&format!("    {}\n", desc));
+    }
+    s.push_str("──────────────────────────────\n");
+    if hunks.is_empty() {
+        s.push_str("  (no changes detected)\n");
+    } else {
+        for hunk in &hunks {
+            s.push_str(&hunk.text);
+        }
+    }
+    s.push_str("──────────────────────────────\n");
+    s
+}
+
+// ── Panel ──────────────────────────────────────────────────────
+
+pub fn chat_panel(
+    _window_tab_data: Rc<WindowTabData>,
+    _position: PanelPosition,
+) -> impl View {
+    let session_id = next_session_id();
+
+    let messages: RwSignal<Vec<ChatMsg>> = RwSignal::new(vec![ChatMsg {
+        role: "system".into(),
+        content: format!("dscarp — AI Coding Assistant\nSession: {}\n\n/plan /execute /swarm /swarm-run /swarm-status /list-plans /compile /metrics /apply /mcp /clear /stats", session_id),
+        footer: String::new(),
+        edits: Vec::new(),
+    }]);
+    let input_text = RwSignal::new(String::new());
+    let sending = RwSignal::new(false);
+    let stream_buf: RwSignal<String> = RwSignal::new(String::new());
+    let agent_signal: RwSignal<Option<Agent>> = RwSignal::new(None);
+
+    // ── Cross-thread channel ──
+    let (tx, rx) = std::sync::mpsc::sync_channel::<ChatResult>(8);
+    let rx = std::sync::Arc::new(std::sync::Mutex::new(rx));
+
+    // ── Clones ──
+    let rx_for_render = rx.clone();
+    let input_for_send = input_text.clone();
+    let messages_for_response = messages.clone();
+    let sending_for_response = sending.clone();
+    let agent_for_async = agent_signal.clone();
+    let sid_for_async = session_id.clone();
+
+    stack((
+        // ── Message list ──
+        scroll({
+            let id = std::sync::atomic::AtomicU64::new(0);
+            let rx = rx_for_render.clone();
+            dyn_stack(
+                move || {
+                    // ── Poll cross-thread channel on every UI frame ──
+                    if let Ok(lock) = rx.lock() {
+                            let mut msgs = messages.get();
+                            let mut changed = false;
+                            while let Ok(result) = lock.try_recv() {
+                                changed = true;
+                                match result {
+                                    ChatResult::Stream { text, done: true, provider } => {
+                                        stream_buf.set(String::new());
+                                        // Parse code edits from the final response
+                                        let edits = ai::parse_edits(&text);
+                                        if !edits.is_empty() {
+                                            let diff_text = edits.iter()
+                                                .map(|e| format_diff_text(e))
+                                                .collect::<Vec<_>>()
+                                                .join("\n");
+                                            let full_content = format!("{}\n\n## Code Changes\n{}", text, diff_text);
+                                            msgs.push(ChatMsg {
+                                                role: "assistant".into(),
+                                                content: full_content,
+                                                footer: format!("stream • {}", provider),
+                                                edits,
+                                            });
+                                        } else {
+                                            msgs.push(ChatMsg {
+                                                role: "assistant".into(),
+                                                content: text,
+                                                footer: format!("stream • {}", provider),
+                                                edits: Vec::new(),
+                                            });
+                                        }
+                                        sending.set(false);
+                                    }
+                                    ChatResult::Stream { text, .. } => {
+                                        stream_buf.set(text);
+                                    }
+                                    ChatResult::Response { content, footer } => {
+                                        stream_buf.set(String::new());
+                                        let edits = ai::parse_edits(&content);
+                                        if !edits.is_empty() {
+                                            let diff_text = edits.iter()
+                                                .map(|e| format_diff_text(e))
+                                                .collect::<Vec<_>>()
+                                                .join("\n");
+                                            let full = format!("{}\n\n## Code Changes\n{}", content, diff_text);
+                                            msgs.push(ChatMsg {
+                                                role: "assistant".into(),
+                                                content: full,
+                                                footer,
+                                                edits,
+                                            });
+                                        } else {
+                                            msgs.push(ChatMsg {
+                                                role: "assistant".into(),
+                                                content,
+                                                footer,
+                                                edits: Vec::new(),
+                                            });
+                                        }
+                                        sending.set(false);
+                                    }
+                                    ChatResult::Diff { edits } => {
+                                        // Standalone diff (e.g. from /apply)
+                                        let summary = edits.iter()
+                                            .map(|e| format!(
+                                                "{}: {}→{} lines",
+                                                e.file_path.display(),
+                                                e.original.lines().count(),
+                                                e.modified.lines().count(),
+                                            ))
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        msgs.push(ChatMsg {
+                                            role: "diff".into(),
+                                            content: format!("Applied {} edit(s): {}", edits.len(), summary),
+                                            footer: String::new(),
+                                            edits,
+                                        });
+                                    }
+                                    ChatResult::Error(err) => {
+                                        stream_buf.set(String::new());
+                                        msgs.push(ChatMsg {
+                                            role: "error".into(),
+                                            content: err,
+                                            footer: String::new(),
+                                            edits: Vec::new(),
+                                        });
+                                        sending.set(false);
+                                    }
+                                }
+                            }
+                            if changed {
+                                messages.set(msgs);
+                            }
+                        }
+                        messages.get().into_iter().enumerate()
+                    },
+                    move |(i, _)| { let n = *i as u64; id.store(n, std::sync::atomic::Ordering::Relaxed); n },
+                    move |(_, msg)| {
+                        let role_color = match msg.role.as_str() {
+                            "user" => Color::from_rgb8(100, 180, 255),
+                            "error" => Color::from_rgb8(255, 80, 80),
+                            "system" => Color::from_rgb8(100, 200, 100),
+                            "plan" => Color::from_rgb8(200, 180, 100),
+                            "diff" => Color::from_rgb8(180, 200, 100),
+                            _ => Color::from_rgb8(200, 200, 200),
+                        };
+                        let mut content = msg.content.clone();
+                        if !msg.footer.is_empty() {
+                            content.push_str(&format!("\n\n— {}", msg.footer));
+                        }
+                        // Show Accept/Reject buttons if there are pending edits
+                        let has_edits = !msg.edits.is_empty();
+                        stack((
+                            label(move || content.clone())
+                                .style(move |s| s.font_size(14.0).padding(4.0).width_pct(100.0).color(role_color))
+                                .into(),
+                            container(
+                                stack((
+                                    container(
+                                        label(|| "Accept".to_string())
+                                            .style(|s| s.font_size(12.0).color(Color::from_rgb8(100, 255, 100)))
+                                            .into()
+                                    )
+                                    .style(|s| s.padding_horiz(10.0).padding_vert(4.0)
+                                        .background(Color::from_rgb8(30, 80, 30))
+                                        .border_radius(4.0).cursor(CursorStyle::Pointer))
+                                    .on_click_stop({
+                                        let edits = msg.edits.clone();
+                                        move |_| {
+                                            for edit in &edits {
+                                                let result = ai::apply_edit(edit);
+                                                tracing::info!(?result, "Edit applied");
+                                            }
+                                        }
+                                    }),
+                                    container(
+                                        label(|| "Reject".to_string())
+                                            .style(|s| s.font_size(12.0).color(Color::from_rgb8(255, 100, 100)))
+                                            .into()
+                                    )
+                                    .style(|s| s.padding_horiz(10.0).padding_vert(4.0)
+                                        .background(Color::from_rgb8(80, 30, 30))
+                                        .border_radius(4.0).margin_left(6.0).cursor(CursorStyle::Pointer)),
+                                ))
+                                .style(|s| s.flex_row().padding(4.0).gap(4.0)),
+                            )
+                            .style(move |s| {
+                                if has_edits {
+                                    s.width_pct(100.0).flex_col()
+                                } else {
+                                    s.width_pct(100.0).flex_col().display(Display::None)
+                                }
+                            }),
+                        ))
+                        .style(|s| s.width_pct(100.0).flex_col())
+                        .into()
+                    },
+                ),
+                // Streaming indicator
+                container(
+                    label(move || {
+                        if !sending.get() { return String::new(); }
+                        let buf = stream_buf.get();
+                        if buf.is_empty() { "Thinking...".into() }
+                        else { format!("{}▌", buf) }
+                    })
+                    .style(|s| s.font_size(14.0).padding(4.0).width_pct(100.0).color(Color::from_rgb8(150,150,150)))
+                    .into()
+                ).style(|s| s.width_pct(100.0)),
+            ))
+            .style(|s| s.flex_col().width_pct(100.0).flex_grow(1.0))
+        })
+        .style(|s| s.flex_col().width_pct(100.0).flex_grow(1.0)),
+
+        // ── Input bar ──
+        stack((
+            text_input(input_text)
+                .placeholder("Ask or /plan /execute /swarm /swarm-run /swarm-status /list-plans /compile /metrics /apply /mcp /clear /stats... (Enter)")
+                .style(|s| s.width_pct(83.0).min_height(36.0).padding(6.0).border(1.0).border_color(Color::from_rgb8(60,100,180)))
+                .on_event(floem::event::EventListener::KeyUp, {
+                    let input_text = input_for_send.clone();
+                    let messages = messages_for_response.clone();
+                    let sending = sending_for_response.clone();
+                    let stream_buf = stream_buf.clone();
+                    let agent_sig = agent_for_async.clone();
+                    let sid = sid_for_async.clone();
+                    let tx = tx.clone();
+                    move |ev| {
+                        if let floem::event::Event::KeyUp(ke) = ev {
+                            if ke.key.logical_key == floem::keyboard::Key::Named(floem::keyboard::NamedKey::Enter)
+                                && !ke.modifiers.contains(floem::keyboard::Modifiers::SHIFT)
+                            {
+                                let text = input_text.get().trim().to_string();
+                                if text.is_empty() || sending.get() {
+                                    return floem::event::EventPropagation::Continue;
+                                }
+                                input_text.set(String::new());
+                                sending.set(true);
+                                stream_buf.set(String::new());
+
+                                // ── /clear ──
+                                if text == "/clear" {
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: "Session cleared.".into(), footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    agent_sig.set(None);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /stats ──
+                                if text == "/stats" {
+                                    let rag_info = {
+                                        let h = ai::hub();
+                                        let rag = h.rag.read().unwrap();
+                                        rag.as_ref().map(|r| format!(", RAG chunks: {}", r.code_index().chunk_count())).unwrap_or_default()
+                                    };
+                                    let stats = format!("Session: {}\nAgent: {}\nMsgs: {}{}",
+                                        sid, agent_sig.with_untracked(|a| a.is_some()), messages.with_untracked(|m| m.len()), rag_info);
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: stats, footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /plan ──
+                                if text.starts_with("/plan ") {
+                                    let task = text.strip_prefix("/plan ").unwrap_or(&text).to_string();
+                                    let hub = ai::hub();
+                                    let prompt = ai::plan_mode_prompt(&task);
+                                    match hub.plan.create(&task, &prompt) {
+                                        Ok(plan) => {
+                                            let tasks = hub.plan.extract_tasks(&plan.content);
+                                            let tl: String = tasks.iter().enumerate().map(|(i,t)| format!("  {}. {}", i+1, t)).collect::<Vec<_>>().join("\n");
+                                            let mut msgs = messages.get();
+                                            msgs.push(ChatMsg { role: "plan".into(), content: format!("\u{1F4CB} Plan: {}\n{}\n\nSteps:\n{}", plan.title, plan.content, tl), footer: format!("slug: {}", plan.slug), edits: Vec::new() });
+                                            messages.set(msgs);
+                                        }
+                                        Err(e) => { let mut msgs = messages.get(); msgs.push(ChatMsg { role: "error".into(), content: format!("Plan: {}", e), footer: String::new(), edits: Vec::new() }); messages.set(msgs); }
+                                    }
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /swarm ──
+                                if text.starts_with("/swarm ") {
+                                    let task = text.strip_prefix("/swarm ").unwrap_or(&text).to_string();
+                                    let hub = ai::hub();
+                                    let st = hub.swarm.decompose(&task, &["backend","frontend","reviewer","tester"]);
+                                    let tl: String = st.iter().map(|t| format!("  \u{2022} [{}] {} (c:{})", t.required_role.as_deref().unwrap_or("any"), t.description, t.complexity)).collect::<Vec<_>>().join("\n");
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: format!("\u{1F41D} {} sub-tasks:\n{}\n\nUse /swarm-run to execute.", st.len(), tl), footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /swarm-run <task> ──
+                                if text.starts_with("/swarm-run ") {
+                                    let task = text.strip_prefix("/swarm-run ").unwrap_or(&text).trim().to_string();
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: format!("Running swarm on: {}", task), footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+
+                                    let tx2 = tx.clone();
+                                    std::thread::spawn(move || {
+                                        let rt = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time().build().expect("tokio");
+                                        rt.block_on(async {
+                                            match ai::swarm_execute(&task).await {
+                                                Ok(report) => {
+                                                    let _ = tx2.send(ChatResult::Response {
+                                                        content: report,
+                                                        footer: "swarm execution".into(),
+                                                    });
+                                                }
+                                                Err(e) => {
+                                                    let _ = tx2.send(ChatResult::Error(format!("Swarm: {}", e)));
+                                                }
+                                            }
+                                        });
+                                    });
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /swarm-status ──
+                                if text == "/swarm-status" {
+                                    let status = ai::swarm_status();
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: status, footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /metrics ──
+                                if text == "/metrics" {
+                                    let report = ai::metrics_report();
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: report, footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /mcp ──
+                                if text == "/mcp" {
+                                    let status = ai::mcp_status();
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: status, footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /apply ──
+                                if text == "/apply" {
+                                    // Find the last assistant message with edits and apply all
+                                    let msgs = messages.get();
+                                    let tx2 = tx.clone();
+                                    if let Some(last) = msgs.iter().rev().find(|m| m.role == "assistant" && !m.edits.is_empty()) {
+                                        let edits = last.edits.clone();
+                                        std::thread::spawn(move || {
+                                            for edit in &edits {
+                                                let result = ai::apply_edit(edit);
+                                                tracing::info!(?result, "Edit applied via /apply");
+                                            }
+                                            let _ = tx2.send(ChatResult::Diff { edits });
+                                        });
+                                        sending.set(false);
+                                    } else {
+                                        let mut msgs = messages.get();
+                                        msgs.push(ChatMsg { role: "system".into(), content: "No pending edits to apply.".into(), footer: String::new(), edits: Vec::new() });
+                                        messages.set(msgs);
+                                        sending.set(false);
+                                    }
+                                    return floem::event::EventPropagation::Stop;
+                                }
+
+                                // ── /execute <slug> ──
+                                if text.starts_with("/execute ") {
+                                    let slug = text.strip_prefix("/execute ").unwrap_or(&text).trim().to_string();
+                                    if slug.is_empty() {
+                                        let mut msgs = messages.get();
+                                        msgs.push(ChatMsg { role: "system".into(), content: "Usage: /execute <plan-slug>".into(), footer: String::new(), edits: Vec::new() });
+                                        messages.set(msgs);
+                                        sending.set(false);
+                                        return floem::event::EventPropagation::Stop;
+                                    }
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: format!("Executing plan '{}'...", slug), footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+
+                                    let sid2 = sid.to_string();
+                                    let tx2 = tx.clone();
+                                    let slug2 = slug.clone();
+                                    std::thread::spawn(move || {
+                                        let rt = tokio::runtime::Builder::new_current_thread()
+                                            .enable_time().build().expect("tokio");
+                                        rt.block_on(async {
+                                            match ai::execute_plan_by_slug(&slug2, &sid2).await {
+                                                Ok(report) => {
+                                                    let _ = tx2.send(ChatResult::Response {
+                                                        content: report,
+                                                        footer: format!("plan: {}", slug2),
+                                                    });
+                                                }
+                                                Err(e) => {
+                                                    let _ = tx2.send(ChatResult::Error(format!("Execute: {}", e)));
+                                                }
+                                            }
+                                        });
+                                    });
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /list-plans ──
+                                if text == "/list-plans" {
+                                    let plans = ai::list_plans();
+                                    let content = if plans.is_empty() {
+                                        "No saved plans. Use /plan <task> to create one.".into()
+                                    } else {
+                                        format!("Saved plans:\n{}", plans.iter().map(|s| format!("  • {}", s)).collect::<Vec<_>>().join("\n"))
+                                    };
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content, footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+                                    sending.set(false);
+                                    return floem::event::EventPropagation::Stop;
+                                }
+                                // ── /compile ──
+                                if text == "/compile" {
+                                    let mut msgs = messages.get();
+                                    msgs.push(ChatMsg { role: "system".into(), content: "Running cargo check...".into(), footer: String::new(), edits: Vec::new() });
+                                    messages.set(msgs);
+
+                                    let tx2 = tx.clone();
+                                    std::thread::spawn(move || {
+                                        let result = ai::cargo_check();
+                                        if result.success {
+                                            let _ = tx2.send(ChatResult::Response {
+                                                content: format!("Compilation passed ({} warnings).", result.warnings),
+                                                footer: String::new(),
+                                            });
+                                        } else {
+                                            let mut content = format!("{} errors, {} warnings:\n", result.errors.len(), result.warnings);
+                                            for err in &result.errors {
+                                                content.push_str(&format!("  {}:{} - {}\n", err.file, err.line, err.message));
+                                            }
+                                            let _ = tx2.send(ChatResult::Error(content));
+                                        }
+                                    });
+                                    return floem::event::EventPropagation::Stop;
+                                }
+
+                                // ── Normal message (RAG-enriched) ──
+                                let mut msgs = messages.get();
+                                msgs.push(ChatMsg { role: "user".into(), content: text.clone(), footer: String::new(), edits: Vec::new() });
+                                messages.set(msgs);
+
+                                // Enrich prompt with RAG context
+                                let prompt = ai::enrich_prompt(&text);
+                                let sid2 = sid.to_string();
+                                let needs_init = agent_sig.with_untracked(|a| a.is_none());
+                                let tx2 = tx.clone();
+
+                                std::thread::spawn(move || {
+                                    let rt = tokio::runtime::Builder::new_current_thread()
+                                        .enable_time().build().expect("tokio");
+                                    rt.block_on(async {
+                                        // ── Phase 1: try streaming ──
+                                        let hub = ai::hub();
+                                        match hub.query.stream_submit(&prompt).await {
+                                            Ok(mut rx) => {
+                                                let mut full = String::new();
+                                                let mut provider = String::from("?");
+                                                while let Some(chunk) = rx.recv().await {
+                                                    full.push_str(&chunk.content);
+                                                    if !chunk.provider.is_empty() {
+                                                        provider = chunk.provider.clone();
+                                                    }
+                                                    let done = chunk.is_done;
+                                                    let _ = tx2.send(ChatResult::Stream {
+                                                        text: full.clone(),
+                                                        done,
+                                                        provider: provider.clone(),
+                                                    });
+                                                    if done { return; }
+                                                }
+                                                // Stream empty → fall through to agent
+                                            }
+                                            Err(_e) => {
+                                                // Stream not available — fall through to agent
+                                            }
+                                        }
+
+                                        // ── Phase 2: agent fallback ──
+                                        if needs_init {
+                                            if let Err(e) = ai::spawn_session(&sid2).await {
+                                                let _ = tx2.send(ChatResult::Error(format!("Init: {}", e)));
+                                                return;
+                                            }
+                                        }
+                                        let hub = ai::hub();
+                                        match hub.coordinator.spawn_agent(Default::default(), Some(&sid2)).await {
+                                            Ok(mut agent) => match agent.process(&prompt).await {
+                                                Ok(r) => {
+                                                    let mut footer = format!("{} • {} tokens", r.provider, r.total_tokens);
+                                                    if !r.tools_used.is_empty() {
+                                                        footer.push_str(&format!(" • [{}]", r.tools_used.join(", ")));
+                                                    }
+                                                    ai::save_session(&sid2, agent.history());
+                                                    let _ = tx2.send(ChatResult::Response { content: r.content, footer });
+                                                }
+                                                Err(e) => { let _ = tx2.send(ChatResult::Error(format!("Agent: {}", e))); }
+                                            },
+                                            Err(e) => { let _ = tx2.send(ChatResult::Error(format!("Session: {}", e))); }
+                                        }
+                                    });
+                                });
+                                return floem::event::EventPropagation::Stop;
+                            }
+                        }
+                        floem::event::EventPropagation::Continue
+                    }
+                }),
+            container(label(move || if sending.get() { "..." } else { "Send" }).style(|s| s.color(Color::WHITE).font_size(14.0)))
+                .style(|s| s.width_pct(15.0).min_height(36.0).items_center().justify_center()
+                    .background(Color::from_rgb8(30,100,200)).border_radius(4.0).margin_left(6.0).cursor(CursorStyle::Pointer)),
+        ))
+        .style(|s| s.flex_row().width_pct(100.0).padding(8.0).items_center().border_top(1.0).border_color(Color::from_rgb8(60,60,60))),
+    ))
+    .style(|s| s.size_pct(100.0, 100.0).flex_col())
+    .debug_name(format!("dscarp chat {}", session_id))
+}

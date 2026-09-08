@@ -7,7 +7,7 @@ use std::{
         Arc,
         mpsc::{Sender, channel},
     },
-    time::Instant,
+    time::{Instant, SystemTime},
 };
 
 use alacritty_terminal::vte::ansi::Handler;
@@ -50,6 +50,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use tracing::{Level, debug, error, event};
+use url::Url;
 
 use crate::{
     about::AboutData,
@@ -193,6 +194,8 @@ pub struct WindowTabData {
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
+    /// Carp diagnostics bridge — polls `.carp/diagnostics/diags.json`.
+    pub carp_bridge: std::cell::RefCell<crate::carp_bridge::CarpBridge>,
 }
 
 impl std::fmt::Debug for WindowTabData {
@@ -392,6 +395,9 @@ impl WindowTabData {
         });
 
         let main_split = MainSplitData::new(cx, common.clone());
+        let carp_bridge = std::cell::RefCell::new(
+            crate::carp_bridge::CarpBridge::new(workspace.clone()),
+        );
         let code_action =
             cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
         let source_control =
@@ -573,6 +579,7 @@ impl WindowTabData {
             update_in_progress: cx.create_rw_signal(false),
             progresses: cx.create_rw_signal(IndexMap::new()),
             messages: cx.create_rw_signal(Vec::new()),
+            carp_bridge,
             common,
         };
 
@@ -621,6 +628,89 @@ impl WindowTabData {
                 notification.with(|rpc| {
                     if let Some(rpc) = rpc.as_ref() {
                         window_tab_data.handle_core_notification(rpc);
+                    }
+                });
+            });
+        }
+
+        // Carp bridge — poll .carp/diagnostics/diags.json in background
+        {
+            let main_split = window_tab_data.main_split.clone();
+            let (carp_tx, carp_rx) = crossbeam_channel::unbounded();
+            let bridge = window_tab_data.carp_bridge.borrow_mut();
+            // Move the CarpBridge out of RefCell to start poller
+            let owned_bridge = std::mem::replace(
+                &mut *bridge,
+                crate::carp_bridge::CarpBridge::new(window_tab_data.workspace.clone()),
+            );
+            owned_bridge.start_poller(carp_tx, None);
+            drop(bridge); // Release RefCell borrow
+
+            let carp_signal = create_signal_from_channel(carp_rx);
+            cx.create_effect(move |_| {
+                carp_signal.with(|diags| {
+                    if let Some(diags) = diags.as_ref() {
+                        for (path, lsp_diags) in diags.iter() {
+                            let diag_data = main_split.get_diagnostic_data(path);
+                            let im_vec: im::Vector<Diagnostic> =
+                                lsp_diags.clone().into();
+                            diag_data.diagnostics.set(im_vec);
+                        }
+                    }
+                });
+            });
+        }
+
+        // AI diagnostics poller — reads .carp/diagnostics/lsp_diags.json
+        {
+            let main_split = window_tab_data.main_split.clone();
+            let workspace = window_tab_data.workspace.clone();
+            let (lsp_tx, lsp_rx) = crossbeam_channel::unbounded();
+
+            std::thread::Builder::new()
+                .name("carp-lsp-poller".to_owned())
+                .spawn(move || {
+                    let mut last_mtime: Option<SystemTime> = None;
+                    loop {
+                        if let Some(ws_path) = workspace.path.as_ref() {
+                            let diags_path = ws_path
+                                .join(".carp")
+                                .join("diagnostics")
+                                .join("lsp_diags.json");
+                            if diags_path.exists() {
+                                let mtime = std::fs::metadata(&diags_path)
+                                    .and_then(|m| m.modified())
+                                    .ok();
+                                if mtime.is_some() && mtime != last_mtime {
+                                    last_mtime = mtime;
+                                    if let Some(diags) =
+                                        crate::carp_bridge::read_lsp_diags_file(ws_path)
+                                    {
+                                        if lsp_tx.send(diags).is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                })
+                .expect("Failed to spawn AI LSP diagnostics poller");
+
+            let lsp_signal = create_signal_from_channel(lsp_rx);
+            cx.create_effect(move |_| {
+                lsp_signal.with(|diags| {
+                    if let Some(diags) = diags.as_ref() {
+                        for (uri_str, lsp_diags) in diags.iter() {
+                            if let Ok(url) = Url::parse(uri_str) {
+                                let path = path_from_url(&url);
+                                let diag_data = main_split.get_diagnostic_data(&path);
+                                let im_vec: im::Vector<Diagnostic> =
+                                    lsp_diags.clone().into();
+                                diag_data.diagnostics.set(im_vec);
+                            }
+                        }
                     }
                 });
             });
@@ -2630,7 +2720,8 @@ impl WindowTabData {
             | PanelKind::CallHierarchy
             | PanelKind::DocumentSymbol
             | PanelKind::References
-            | PanelKind::Implementation => {
+            | PanelKind::Implementation
+            | PanelKind::Chat => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
