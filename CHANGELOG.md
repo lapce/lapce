@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Preserve pending settings edits when closing the Settings tab before they are saved (<https://github.com/lapce/lapce/pull/3937>)
+
 ## 0.4.6
 
 ### Features/Changes

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
+use std::{cell::Cell, collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
     IntoView, View,
@@ -20,7 +20,10 @@ use floem::{
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
-use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
+use lapce_core::{
+    buffer::{Buffer, rope_text::RopeText},
+    mode::Mode,
+};
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
@@ -544,6 +547,73 @@ pub fn settings_view(
     .debug_name("Settings")
 }
 
+fn watch_settings_input(
+    buffer: RwSignal<Buffer>,
+    item_value: SettingsValue,
+    save: impl Fn(toml_edit::Value) + 'static,
+    schedule: impl Fn(Duration, Box<dyn FnOnce(TimerToken)>) -> TimerToken + 'static,
+) {
+    // Pending saves must outlive the Settings view and its reactive signals.
+    let timer = Rc::new(Cell::new(TimerToken::INVALID));
+    let save = Rc::new(save);
+    create_effect(move |last| {
+        let rev = buffer.with(|b| b.rev());
+        if last.is_none() {
+            return rev;
+        }
+        if last == Some(rev) {
+            return rev;
+        }
+        let item_value = item_value.clone();
+        let save = save.clone();
+        let pending_timer = timer.clone();
+        let value = buffer.with_untracked(|b| b.to_string());
+        let token = schedule(
+            Duration::from_millis(500),
+            Box::new(move |token| {
+                if pending_timer.get() != token {
+                    return;
+                }
+
+                // FIXME: Figure out how to block certain keys in inputs and not hate myself
+                let value = value.trim();
+                let value = match &item_value {
+                    SettingsValue::Float(_) => {
+                        value.parse::<f64>().ok().and_then(|v| {
+                            serde::Serialize::serialize(
+                                &v,
+                                toml_edit::ser::ValueSerializer::new(),
+                            )
+                            .ok()
+                        })
+                    }
+                    SettingsValue::Integer(_) => {
+                        value.parse::<i64>().ok().and_then(|v| {
+                            serde::Serialize::serialize(
+                                &v,
+                                toml_edit::ser::ValueSerializer::new(),
+                            )
+                            .ok()
+                        })
+                    }
+                    _ => serde::Serialize::serialize(
+                        &value,
+                        toml_edit::ser::ValueSerializer::new(),
+                    )
+                    .ok(),
+                };
+
+                if let Some(value) = value {
+                    save(value);
+                }
+            }),
+        );
+        timer.set(token);
+
+        rev
+    });
+}
+
 fn settings_item_view(
     editors: Editors,
     settings_data: SettingsData,
@@ -556,8 +626,6 @@ fn settings_item_view(
     } else {
         None
     };
-
-    let timer = create_rw_signal(TimerToken::INVALID);
 
     let editor_value = match &item.value {
         SettingsValue::Float(n) => Some(n.to_string()),
@@ -581,66 +649,14 @@ fn settings_item_view(
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
-                let item_value = item.value.clone();
-                create_effect(move |last| {
-                    let doc = doc.get_untracked();
-                    let rev = doc.buffer.with(|b| b.rev());
-                    if last.is_none() {
-                        return rev;
-                    }
-                    if last == Some(rev) {
-                        return rev;
-                    }
-                    let kind = kind.clone();
-                    let field = field.clone();
-                    let buffer = doc.buffer;
-                    let item_value = item_value.clone();
-                    let token =
-                        exec_after(Duration::from_millis(500), move |token| {
-                            let Some(timer) = timer.try_get_untracked() else {
-                                return;
-                            };
-                            if timer != token {
-                                return;
-                            }
-
-                            let value = buffer.with_untracked(|b| b.to_string());
-                            // FIXME: Figure out how to block certain keys in inputs and not hate myself
-                            let value = value.trim();
-                            let value = match &item_value {
-                                SettingsValue::Float(_) => {
-                                    value.parse::<f64>().ok().and_then(|v| {
-                                        serde::Serialize::serialize(
-                                            &v,
-                                            toml_edit::ser::ValueSerializer::new(),
-                                        )
-                                        .ok()
-                                    })
-                                }
-                                SettingsValue::Integer(_) => {
-                                    value.parse::<i64>().ok().and_then(|v| {
-                                        serde::Serialize::serialize(
-                                            &v,
-                                            toml_edit::ser::ValueSerializer::new(),
-                                        )
-                                        .ok()
-                                    })
-                                }
-                                _ => serde::Serialize::serialize(
-                                    &value,
-                                    toml_edit::ser::ValueSerializer::new(),
-                                )
-                                .ok(),
-                            };
-
-                            if let Some(value) = value {
-                                LapceConfig::update_file(&kind, &field, value);
-                            }
-                        });
-                    timer.set(token);
-
-                    rev
-                });
+                watch_settings_input(
+                    doc.get_untracked().buffer,
+                    item.value.clone(),
+                    move |value| {
+                        LapceConfig::update_file(&kind, &field, value);
+                    },
+                    exec_after,
+                );
 
                 text_input_view
                     .keyboard_navigable()
@@ -1397,4 +1413,152 @@ fn dropdown_scroll(
             .inset_left(x)
             .inset_top(y)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use floem::reactive::with_scope;
+
+    use super::*;
+
+    type PendingCallback = (TimerToken, Box<dyn FnOnce(TimerToken)>);
+
+    struct SettingsInputTest {
+        scope: Scope,
+        buffer: RwSignal<Buffer>,
+        callbacks: Rc<RefCell<Vec<PendingCallback>>>,
+        saved: Rc<RefCell<Vec<toml_edit::Value>>>,
+    }
+
+    impl SettingsInputTest {
+        fn new(value: SettingsValue) -> Self {
+            let scope = Scope::new();
+            let buffer = scope.create_rw_signal(Buffer::new("original"));
+            let callbacks = Rc::new(RefCell::new(Vec::new()));
+            let saved = Rc::new(RefCell::new(Vec::new()));
+            with_scope(scope, {
+                let callbacks = callbacks.clone();
+                let saved = saved.clone();
+                move || {
+                    watch_settings_input(
+                        buffer,
+                        value,
+                        move |value| saved.borrow_mut().push(value),
+                        move |delay, callback| {
+                            assert_eq!(delay, Duration::from_millis(500));
+                            let token = TimerToken::next();
+                            callbacks.borrow_mut().push((token, callback));
+                            token
+                        },
+                    )
+                }
+            });
+            assert!(callbacks.borrow().is_empty());
+            Self {
+                scope,
+                buffer,
+                callbacks,
+                saved,
+            }
+        }
+
+        fn edit(&self, value: &str) {
+            self.buffer.update(|buffer| {
+                buffer.reload(Rope::from(value), false);
+            });
+        }
+
+        fn finish_timers(&self) {
+            let callbacks = std::mem::take(&mut *self.callbacks.borrow_mut());
+            for (token, callback) in callbacks {
+                callback(token);
+            }
+        }
+    }
+
+    impl Drop for SettingsInputTest {
+        fn drop(&mut self) {
+            self.scope.dispose();
+        }
+    }
+
+    #[test]
+    fn settings_input_saves_after_scope_disposal() {
+        for (value, input, expected) in [
+            (
+                SettingsValue::Integer(13),
+                "19",
+                toml_edit::Value::from(19_i64),
+            ),
+            (
+                SettingsValue::Float(1.0),
+                "1.5",
+                toml_edit::Value::from(1.5),
+            ),
+            (
+                SettingsValue::String(String::new()),
+                " monospace\n",
+                toml_edit::Value::from("monospace"),
+            ),
+        ] {
+            let test = SettingsInputTest::new(value);
+            test.edit(input);
+            assert!(test.saved.borrow().is_empty());
+            assert_eq!(test.callbacks.borrow().len(), 1);
+
+            // Closing Settings disposes its input signals before the debounce expires.
+            test.scope.dispose();
+            test.finish_timers();
+            let saved = test.saved.borrow();
+            assert_eq!(saved.len(), 1);
+            assert_eq!(saved[0].to_string(), expected.to_string());
+        }
+    }
+
+    #[test]
+    fn settings_input_debounces_edits_while_open() {
+        let test = SettingsInputTest::new(SettingsValue::Integer(13));
+        test.edit("1");
+        test.edit("19");
+        // Cursor updates can notify the buffer without changing its revision.
+        test.buffer.update(|_| {});
+        assert_eq!(test.callbacks.borrow().len(), 2);
+        assert!(test.saved.borrow().is_empty());
+        test.finish_timers();
+        assert_eq!(test.saved.borrow().len(), 1);
+        assert_eq!(test.saved.borrow()[0].as_integer(), Some(19));
+
+        test.edit("20");
+        test.scope.dispose();
+        test.finish_timers();
+        assert_eq!(test.saved.borrow().len(), 2);
+        assert_eq!(test.saved.borrow()[1].as_integer(), Some(20));
+    }
+
+    #[test]
+    fn settings_input_discards_superseded_edits_after_closing() {
+        let test = SettingsInputTest::new(SettingsValue::String(String::new()));
+        test.edit("first");
+        test.edit("latest");
+        test.scope.dispose();
+        test.finish_timers();
+        assert_eq!(test.saved.borrow().len(), 1);
+        assert_eq!(test.saved.borrow()[0].as_str(), Some("latest"));
+    }
+
+    #[test]
+    fn settings_input_does_not_save_invalid_numbers() {
+        for value in [SettingsValue::Integer(13), SettingsValue::Float(1.0)] {
+            for invalid in ["", "invalid"] {
+                let test = SettingsInputTest::new(value.clone());
+                test.edit("19");
+                test.edit(invalid);
+                test.scope.dispose();
+                test.finish_timers();
+                assert!(test.saved.borrow().is_empty());
+            }
+        }
+    }
 }
