@@ -1,10 +1,10 @@
 use std::{sync::Arc, time::SystemTime};
 
 use alacritty_terminal::{
-    grid::Dimensions,
+    grid::{Dimensions, Scroll},
     index::Side,
     selection::{Selection, SelectionType},
-    term::{RenderableContent, cell::Flags, test::TermSize},
+    term::{RenderableContent, TermMode, cell::Flags, test::TermSize},
 };
 use floem::{
     Renderer, View, ViewId,
@@ -148,6 +148,28 @@ pub fn terminal_view(
 }
 
 impl TerminalView {
+    fn paste_clipboard(&self) {
+        if self.mode.get_untracked() != Mode::Terminal {
+            return;
+        }
+
+        let mut clipboard = SystemClipboard::new();
+        let Some(content) = clipboard.get_string() else {
+            return;
+        };
+
+        let bracketed = {
+            let mut raw = self.raw.write();
+            raw.term.selection = None;
+            raw.term.mode().contains(TermMode::BRACKETED_PASTE)
+        };
+        self.proxy.terminal_write(
+            self.term_id,
+            clipboard_paste_content(content, bracketed),
+        );
+        self.raw.write().term.scroll_display(Scroll::Bottom);
+    }
+
     fn char_size(&self) -> Size {
         let config = self.config.get_untracked();
         let font_family = config.terminal_font_family();
@@ -562,8 +584,11 @@ impl View for TerminalView {
                                     clipboard.put_string(content);
                                 }
                             }
-                            clear_selection = true;
+                        } else if self.mode.get_untracked() == Mode::Terminal {
+                            drop(raw);
+                            self.paste_clipboard();
                         }
+                        clear_selection = true;
                     }
                     _ => {
                         clear_selection = true;
@@ -765,6 +790,32 @@ impl View for TerminalView {
         //         }
         //     }
         // }
+    }
+}
+
+fn clipboard_paste_content(content: String, bracketed: bool) -> String {
+    if bracketed {
+        format!("\x1b[200~{}\x1b[201~", content.replace('\x1b', ""))
+    } else {
+        content
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clipboard_paste_content;
+
+    #[test]
+    fn plain_clipboard_paste_preserves_content() {
+        assert_eq!(clipboard_paste_content("hello\n".into(), false), "hello\n");
+    }
+
+    #[test]
+    fn bracketed_clipboard_paste_wraps_and_strips_escape_sequences() {
+        assert_eq!(
+            clipboard_paste_content("hello\x1b[31m".into(), true),
+            "\x1b[200~hello[31m\x1b[201~"
+        );
     }
 }
 

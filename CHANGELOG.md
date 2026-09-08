@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Paste terminal clipboard contents with right-click when no text is selected (<https://github.com/lapce/lapce/issues/3928>)
+
 ## 0.4.6
 
 ### Features/Changes
