@@ -399,7 +399,9 @@ impl KeyPressData {
                         self.match_keymap(&[keypress], focus)
                     {
                         if let Some(cmd) = self.commands.get(&command) {
-                            if let CommandKind::Move(_) = cmd.kind {
+                            if let CommandKind::Move(_) | CommandKind::Scroll(_) =
+                                cmd.kind
+                            {
                                 let handled = focus.run_command(cmd, None, mods)
                                     == CommandExecuted::Yes;
                                 return KeyPressHandle {

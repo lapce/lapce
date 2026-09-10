@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Fix `Shift+PageUp`/`Shift+PageDown` not extending the selection (<https://github.com/lapce/lapce/issues/2208>)
+
 ## 0.4.6
 
 ### Features/Changes
