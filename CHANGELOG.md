@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+- Preserve plugin server-path input while settings reload after saving.
+
 ## 0.4.6
 
 ### Features/Changes

@@ -20,7 +20,10 @@ use floem::{
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
-use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
+use lapce_core::{
+    buffer::{Buffer, rope_text::RopeText},
+    mode::Mode,
+};
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
@@ -76,10 +79,30 @@ struct SettingsItem {
     filter_text: String,
     value: SettingsValue,
     serde_value: Value,
+    plugin: bool,
     pos: RwSignal<Point>,
     size: RwSignal<Size>,
     // this is only the header that give an visual separation between different type of settings
     header: bool,
+}
+
+impl SettingsItem {
+    fn key(&self) -> impl Eq + std::hash::Hash + use<> {
+        let value = if self.plugin && matches!(self.value, SettingsValue::String(_))
+        {
+            Value::Null
+        } else {
+            self.serde_value.clone()
+        };
+        (
+            self.kind.clone(),
+            self.name.clone(),
+            self.field.clone(),
+            self.description.clone(),
+            std::mem::discriminant(&self.value),
+            value,
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -89,7 +112,6 @@ struct SettingsData {
     plugin_items: RwSignal<im::Vector<SettingsItem>>,
     plugin_kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
     filtered_items: RwSignal<im::Vector<SettingsItem>>,
-    common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for SettingsData {
@@ -133,7 +155,7 @@ impl SettingsData {
     pub fn new(
         cx: Scope,
         installed_plugin: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
-        common: Rc<CommonData>,
+        config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         fn into_settings_map(
             data: &impl Serialize,
@@ -144,7 +166,6 @@ impl SettingsData {
             }
         }
 
-        let config = common.config;
         let plugin_items = cx.create_rw_signal(im::Vector::new());
         let plugin_kinds = cx.create_rw_signal(im::Vector::new());
         let filtered_items = cx.create_rw_signal(im::Vector::new());
@@ -191,6 +212,7 @@ impl SettingsData {
                     description: "".to_string(),
                     value: SettingsValue::Empty,
                     serde_value: Value::Null,
+                    plugin: false,
                     pos,
                     size: cx.create_rw_signal(Size::ZERO),
                     header: true,
@@ -230,14 +252,12 @@ impl SettingsData {
                         pos: cx.create_rw_signal(Point::ZERO),
                         size: cx.create_rw_signal(Size::ZERO),
                         serde_value,
+                        plugin: false,
                         header: false,
                     });
                     item_height_accum += 50.0;
                 }
             }
-
-            filtered_items.set(data_items.clone());
-            items.set(data_items);
 
             let plugins = installed_plugin.get();
             let mut setting_items = im::Vector::new();
@@ -247,8 +267,18 @@ impl SettingsData {
                 let kind = meta.name;
                 let plugin_config = config.plugins.get(&kind);
                 if let Some(config) = meta.config {
-                    let pos =
-                        cx.create_rw_signal(Point::new(0.0, item_height_accum));
+                    let pos = plugin_kinds
+                        .with_untracked(
+                            |kinds: &im::Vector<(String, RwSignal<Point>)>| {
+                                kinds
+                                    .iter()
+                                    .find(|(name, _)| name == &meta.display_name)
+                                    .map(|(_, pos)| *pos)
+                            },
+                        )
+                        .unwrap_or_else(|| {
+                            cx.create_rw_signal(Point::new(0.0, item_height_accum))
+                        });
                     setting_items.push_back(SettingsItem {
                         kind: meta.display_name.clone(),
                         name: "".to_string(),
@@ -257,6 +287,7 @@ impl SettingsData {
                         description: "".to_string(),
                         value: SettingsValue::Empty,
                         serde_value: Value::Null,
+                        plugin: true,
                         pos,
                         size: cx.create_rw_signal(Size::ZERO),
                         header: true,
@@ -284,6 +315,7 @@ impl SettingsData {
                             let value = plugin_config
                                 .and_then(|config| config.get(&field).cloned())
                                 .unwrap_or(config.default);
+                            let serde_value = value.clone();
                             let value = SettingsValue::from(value);
 
                             let item = SettingsItem {
@@ -295,7 +327,8 @@ impl SettingsData {
                                 value,
                                 pos: cx.create_rw_signal(Point::ZERO),
                                 size: cx.create_rw_signal(Size::ZERO),
-                                serde_value: Value::Null,
+                                serde_value,
+                                plugin: true,
                                 header: false,
                             };
                             local_items.push(item);
@@ -306,6 +339,8 @@ impl SettingsData {
                     }
                 }
             }
+            // Read all dependencies before publishing updates to nested effects.
+            items.set(data_items);
             plugin_items.set(setting_items);
             plugin_kinds.set(plugin_kinds_tmp);
             kinds.set(data_kinds);
@@ -317,8 +352,35 @@ impl SettingsData {
             plugin_kinds,
             items,
             kinds,
-            common,
         }
+    }
+    fn watch_search(&self, pattern: impl Fn() -> String + 'static) {
+        let items = self.items;
+        let plugin_items = self.plugin_items;
+        let filtered_items_signal = self.filtered_items;
+        create_effect(move |_| {
+            let pattern = pattern().to_lowercase();
+            let plugin_items = plugin_items.get();
+            let mut items = items.get();
+            if pattern.is_empty() {
+                items.extend(plugin_items);
+                filtered_items_signal.set(items);
+                return;
+            }
+
+            let mut filtered_items = im::Vector::new();
+            for item in &items {
+                if item.header || item.filter_text.contains(&pattern) {
+                    filtered_items.push_back(item.clone());
+                }
+            }
+            for item in plugin_items {
+                if item.header || item.filter_text.contains(&pattern) {
+                    filtered_items.push_back(item);
+                }
+            }
+            filtered_items_signal.set(filtered_items);
+        });
     }
 }
 
@@ -330,40 +392,16 @@ pub fn settings_view(
     let config = common.config;
 
     let cx = Scope::current();
-    let settings_data = SettingsData::new(cx, installed_plugins, common.clone());
+    let settings_data = SettingsData::new(cx, installed_plugins, config);
     let view_settings_data = settings_data.clone();
     let plugin_kinds = settings_data.plugin_kinds;
 
-    let search_editor = editors.make_local(cx, common);
+    let search_editor = editors.make_local(cx, common.clone());
     let doc = search_editor.doc_signal();
 
-    let items = settings_data.items;
     let kinds = settings_data.kinds;
     let filtered_items_signal = settings_data.filtered_items;
-    create_effect(move |_| {
-        let doc = doc.get();
-        let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
-        let plugin_items = settings_data.plugin_items.get();
-        let mut items = items.get();
-        if pattern.is_empty() {
-            items.extend(plugin_items);
-            filtered_items_signal.set(items);
-            return;
-        }
-
-        let mut filtered_items = im::Vector::new();
-        for item in &items {
-            if item.header || item.filter_text.contains(&pattern) {
-                filtered_items.push_back(item.clone());
-            }
-        }
-        for item in plugin_items {
-            if item.header || item.filter_text.contains(&pattern) {
-                filtered_items.push_back(item);
-            }
-        }
-        filtered_items_signal.set(filtered_items);
-    });
+    settings_data.watch_search(move || doc.get().buffer.with(|b| b.to_string()));
 
     let ensure_visible = create_rw_signal(Rect::ZERO);
     let settings_content_size = create_rw_signal(Size::ZERO);
@@ -505,17 +543,12 @@ pub fn settings_view(
                 scroll({
                     dyn_stack(
                         move || filtered_items_signal.get(),
-                        |item| {
-                            (
-                                item.kind.clone(),
-                                item.name.clone(),
-                                item.serde_value.clone(),
-                            )
-                        },
+                        SettingsItem::key,
                         move |item| {
                             settings_item_view(
                                 editors,
                                 view_settings_data.clone(),
+                                common.clone(),
                                 item,
                             )
                         },
@@ -544,12 +577,45 @@ pub fn settings_view(
     .debug_name("Settings")
 }
 
+fn settings_text_matches(text: &str, configured: &str) -> bool {
+    text == configured || text.trim() == configured
+}
+
+fn sync_settings_input(
+    buffer: RwSignal<Buffer>,
+    configured: Memo<Option<String>>,
+    reload: impl Fn(String) + 'static,
+) {
+    create_effect(move |previous: Option<Option<String>>| {
+        let value = configured.get();
+        if let Some(value) = &value {
+            let text = buffer.with_untracked(|b| b.to_string());
+            if previous.is_none() {
+                // A queued row can hold a snapshot from before the latest reload.
+                if text != *value {
+                    reload(value.clone());
+                }
+            } else if let Some(Some(previous)) = &previous {
+                // A config reload may acknowledge an earlier save while typing continues.
+                if value != previous
+                    && settings_text_matches(&text, previous)
+                    && !settings_text_matches(&text, value)
+                {
+                    reload(value.clone());
+                }
+            }
+        }
+        value
+    });
+}
+
 fn settings_item_view(
     editors: Editors,
     settings_data: SettingsData,
+    common: Rc<CommonData>,
     item: SettingsItem,
 ) -> impl View + use<> {
-    let config = settings_data.common.config;
+    let config = common.config;
 
     let is_ticked = if let SettingsValue::Bool(is_ticked) = &item.value {
         Some(*is_ticked)
@@ -575,9 +641,40 @@ fn settings_item_view(
             if let Some(editor_value) = editor_value {
                 let text_input_view = TextInputBuilder::new()
                     .value(editor_value)
-                    .build(cx, editors, settings_data.common);
+                    .build(cx, editors, common);
 
                 let doc = text_input_view.doc_signal();
+
+                let plugin_value = if item.plugin {
+                    if let SettingsValue::String(_) = &item.value {
+                        let items = settings_data.plugin_items;
+                        let kind = item.kind.clone();
+                        let field = item.field.clone();
+                        let value = create_memo(move |_| {
+                            items.with(|items| {
+                                items.iter().find_map(|item| {
+                                    if item.kind == kind
+                                        && item.field == field
+                                        && let SettingsValue::String(value) =
+                                            &item.value
+                                    {
+                                        return Some(value.clone());
+                                    }
+                                    None
+                                })
+                            })
+                        });
+                        let document = doc.get_untracked();
+                        sync_settings_input(document.buffer, value, move |value| {
+                            document.reload(Rope::from(value), true);
+                        });
+                        Some(value)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
@@ -589,6 +686,16 @@ fn settings_item_view(
                         return rev;
                     }
                     if last == Some(rev) {
+                        return rev;
+                    }
+                    if plugin_value.is_some_and(|configured| {
+                        configured.get_untracked().is_some_and(|value| {
+                            doc.buffer.with_untracked(|b| {
+                                settings_text_matches(&b.to_string(), &value)
+                            })
+                        })
+                    }) {
+                        timer.set(TimerToken::INVALID);
                         return rev;
                     }
                     let kind = kind.clone();
@@ -605,6 +712,15 @@ fn settings_item_view(
                             }
 
                             let value = buffer.with_untracked(|b| b.to_string());
+                            if plugin_value.is_some_and(|configured| {
+                                configured.try_get_untracked().flatten().is_some_and(
+                                    |configured| {
+                                        settings_text_matches(&value, &configured)
+                                    },
+                                )
+                            }) {
+                                return;
+                            }
                             // FIXME: Figure out how to block certain keys in inputs and not hate myself
                             let value = value.trim();
                             let value = match &item_value {
@@ -665,7 +781,7 @@ fn settings_item_view(
                     current_value,
                     dropdown,
                     expanded,
-                    settings_data.common.window_common.size,
+                    common.window_common.size,
                     config,
                 )
                 .into_any()
@@ -1397,4 +1513,234 @@ fn dropdown_scroll(
             .inset_left(x)
             .inset_top(y)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use floem::reactive::with_scope;
+    use lapce_rpc::plugin::VoltMetadata;
+    use std::cell::RefCell;
+
+    fn plugin(cx: Scope) -> InstalledVoltData {
+        let meta: VoltMetadata = serde_json::from_value(serde_json::json!({
+            "name": "typing-probe", "version": "0.1.0", "display-name": "Typing Probe",
+            "author": "local-test", "description": "Settings regression fixture",
+            "config": {"server-path": {"default": "", "description": "Language server path"}}
+        })).unwrap();
+        InstalledVoltData {
+            latest: cx.create_rw_signal(meta.info()),
+            meta: cx.create_rw_signal(meta),
+            icon: cx.create_rw_signal(None),
+        }
+    }
+
+    #[test]
+    fn settings_reload_keeps_plugin_input_in_every_visible_list() {
+        for pattern in ["", "serverpath"] {
+            let cx = Scope::new();
+            with_scope(cx, || {
+                let (config, set_config) =
+                    cx.create_signal(Arc::new(LapceConfig::default()));
+                let volt = plugin(cx);
+                let installed = cx.create_rw_signal(IndexMap::from([(
+                    volt.meta.get().id(),
+                    volt,
+                )]));
+                let data = SettingsData::new(cx, installed, config);
+                data.watch_search(move || pattern.to_string());
+                let observed = Rc::new(RefCell::new(Vec::new()));
+                let filtered = data.filtered_items;
+                create_effect({
+                    let observed = observed.clone();
+                    move |_| observed.borrow_mut().push(filtered.get())
+                });
+                observed.borrow_mut().clear();
+                let mut next = (*config.get_untracked()).clone();
+                next.plugins.insert(
+                    "typing-probe".into(),
+                    [("server-path".into(), Value::from("rust"))].into(),
+                );
+                set_config.set(Arc::new(next));
+                assert!(!observed.borrow().is_empty());
+                for rows in observed.borrow().iter() {
+                    assert!(
+                        rows.iter()
+                            .any(|i| i.kind == "typing-probe"
+                                && i.field == "server-path"),
+                        "config reload removed the active plugin input (search: {pattern:?})"
+                    );
+                    assert!(
+                        rows.iter().all(|i| pattern.is_empty()
+                            || i.header
+                            || i.filter_text.contains(pattern)),
+                        "config reload bypassed the search filter"
+                    );
+                }
+                installed.set(IndexMap::new());
+                assert!(
+                    !filtered
+                        .get_untracked()
+                        .iter()
+                        .any(|i| i.kind == "typing-probe")
+                );
+            });
+            cx.dispose();
+        }
+    }
+
+    #[test]
+    fn settings_reload_preserves_header_position_and_refreshes_metadata() {
+        let cx = Scope::new();
+        with_scope(cx, || {
+            let (config, set_config) =
+                cx.create_signal(Arc::new(LapceConfig::default()));
+            let volt = plugin(cx);
+            let meta = volt.meta;
+            let installed =
+                cx.create_rw_signal(IndexMap::from([(meta.get().id(), volt)]));
+            let data = SettingsData::new(cx, installed, config);
+            data.watch_search(String::new);
+            let input = || {
+                data.plugin_items
+                    .get_untracked()
+                    .iter()
+                    .find(|i| !i.header)
+                    .unwrap()
+                    .clone()
+            };
+            let initial = input();
+            let position = data.plugin_kinds.get_untracked()[0].1;
+            position.set(Point::new(0.0, 1234.0));
+            let mut next = (*config.get_untracked()).clone();
+            next.plugins.insert(
+                "typing-probe".into(),
+                [("server-path".into(), Value::from("rust"))].into(),
+            );
+            set_config.set(Arc::new(next));
+            assert!(initial.key() == input().key());
+            assert_eq!(data.plugin_kinds.get_untracked()[0].1, position);
+            assert_eq!(data.plugin_items.get_untracked()[0].pos, position);
+            assert_eq!(position.get_untracked().y, 1234.0);
+
+            meta.update(|meta| {
+                meta.config
+                    .as_mut()
+                    .unwrap()
+                    .get_mut("server-path")
+                    .unwrap()
+                    .description = "Updated description".into();
+            });
+            let updated = input();
+            assert_eq!(updated.description, "Updated description");
+            assert!(initial.key() != updated.key());
+
+            let mut next = (*config.get_untracked()).clone();
+            next.plugins
+                .get_mut("typing-probe")
+                .unwrap()
+                .insert("server-path".into(), Value::from(true));
+            set_config.set(Arc::new(next));
+            let checked = input();
+            assert!(updated.key() != checked.key());
+            let mut next = (*config.get_untracked()).clone();
+            next.plugins
+                .get_mut("typing-probe")
+                .unwrap()
+                .insert("server-path".into(), Value::from(false));
+            set_config.set(Arc::new(next));
+            assert!(checked.key() != input().key());
+        });
+        cx.dispose();
+    }
+
+    #[test]
+    fn settings_input_sync_preserves_drafts_and_acknowledges_saves() {
+        let cx = Scope::new();
+        with_scope(cx, || {
+            let configured = create_rw_signal(Some(String::new()));
+            let value = create_memo(move |_| configured.get());
+            let buffer = create_rw_signal(Buffer::new(""));
+            let reloads = Rc::new(RefCell::new(Vec::new()));
+            sync_settings_input(buffer, value, {
+                let reloads = reloads.clone();
+                move |value| {
+                    reloads.borrow_mut().push(value.clone());
+                    buffer.update(|b| {
+                        b.reload(Rope::from(value), true);
+                    });
+                }
+            });
+            // Continue typing after a prefix was saved but before its reload arrives.
+            buffer.update(|b| {
+                b.reload(Rope::from("rust-analyzer"), false);
+            });
+            configured.set(Some("rust".into()));
+            assert_eq!(buffer.with_untracked(|b| b.to_string()), "rust-analyzer");
+            assert!(reloads.borrow().is_empty());
+            configured.set(Some("rust-analyzer".into()));
+            assert!(reloads.borrow().is_empty());
+            configured.set(Some("/external/server".into()));
+            assert_eq!(buffer.with_untracked(|b| b.to_string()), "/external/server");
+            assert_eq!(reloads.borrow().len(), 1);
+            configured.set(Some("/external/server".into()));
+            assert_eq!(reloads.borrow().len(), 1);
+        });
+        cx.dispose();
+    }
+
+    #[test]
+    fn settings_input_sync_initializes_queued_rows_from_current_config() {
+        let cx = Scope::new();
+        with_scope(cx, || {
+            let configured = create_rw_signal(Some(" /current/server ".to_string()));
+            let value = create_memo(move |_| configured.get());
+            let buffer = create_rw_signal(Buffer::new("old snapshot"));
+            sync_settings_input(buffer, value, move |value| {
+                buffer.update(|b| {
+                    b.reload(Rope::from(value), true);
+                });
+            });
+            assert_eq!(
+                buffer.with_untracked(|b| b.to_string()),
+                " /current/server "
+            );
+            configured.set(Some("next-server".into()));
+            assert_eq!(buffer.with_untracked(|b| b.to_string()), "next-server");
+        });
+        cx.dispose();
+    }
+
+    #[test]
+    fn settings_input_sync_handles_whitespace_and_save_acknowledgement() {
+        let cx = Scope::new();
+        with_scope(cx, || {
+            let configured =
+                create_rw_signal(Some(" /original/server ".to_string()));
+            let value = create_memo(move |_| configured.get());
+            let buffer = create_rw_signal(Buffer::new(" /original/server "));
+            sync_settings_input(buffer, value, move |value| {
+                buffer.update(|b| {
+                    b.reload(Rope::from(value), true);
+                });
+            });
+            configured.set(Some(" /external/server ".into()));
+            assert_eq!(
+                buffer.with_untracked(|b| b.to_string()),
+                " /external/server "
+            );
+            assert!(buffer.with_untracked(|b| settings_text_matches(
+                &b.to_string(),
+                &configured.get_untracked().unwrap()
+            )));
+            buffer.update(|b| {
+                b.reload(Rope::from(" rust-analyzer\n"), false);
+            });
+            configured.set(Some("rust-analyzer".into()));
+            assert_eq!(buffer.with_untracked(|b| b.to_string()), " rust-analyzer\n");
+            configured.set(Some("new-server".into()));
+            assert_eq!(buffer.with_untracked(|b| b.to_string()), "new-server");
+        });
+        cx.dispose();
+    }
 }
