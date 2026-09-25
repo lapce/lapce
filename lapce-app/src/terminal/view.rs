@@ -1,10 +1,10 @@
 use std::{sync::Arc, time::SystemTime};
 
 use alacritty_terminal::{
-    grid::Dimensions,
+    grid::{Dimensions, Scroll},
     index::Side,
     selection::{Selection, SelectionType},
-    term::{RenderableContent, cell::Flags, test::TermSize},
+    term::{RenderableContent, TermMode, cell::Flags, test::TermSize},
 };
 use floem::{
     Renderer, View, ViewId,
@@ -546,7 +546,7 @@ impl View for TerminalView {
                     MouseAction::RightOnce { pos } => {
                         let position = self.get_terminal_point(pos);
                         let raw = self.raw.read();
-                        if let Some(selection) = &raw
+                        let should_paste = if let Some(selection) = &raw
                             .term
                             .selection
                             .as_ref()
@@ -561,7 +561,46 @@ impl View for TerminalView {
                                 if !content.is_empty() {
                                     clipboard.put_string(content);
                                 }
+                                false
+                            } else {
+                                true
                             }
+                        } else {
+                            true
+                        };
+                        drop(raw);
+                        if should_paste {
+                            let mut clipboard = SystemClipboard::new();
+                            if let Some(s) = clipboard.get_string() {
+                                let raw = self.raw.read();
+                                let bracketed = raw
+                                    .term
+                                    .mode()
+                                    .contains(TermMode::BRACKETED_PASTE);
+                                drop(raw);
+                                if bracketed {
+                                    self.proxy.terminal_write(
+                                        self.term_id,
+                                        "\x1b[200~".to_string(),
+                                    );
+                                    self.proxy.terminal_write(
+                                        self.term_id,
+                                        s.replace('\x1b', ""),
+                                    );
+                                    self.proxy.terminal_write(
+                                        self.term_id,
+                                        "\x1b[201~".to_string(),
+                                    );
+                                } else {
+                                    self.proxy.terminal_write(self.term_id, s);
+                                }
+                                self.raw.write().term.scroll_display(
+                                    alacritty_terminal::grid::Scroll::Bottom,
+                                );
+                                _cx.app_state_mut().request_paint(self.id);
+                            }
+                            clear_selection = false;
+                        } else {
                             clear_selection = true;
                         }
                     }
