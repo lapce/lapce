@@ -4,6 +4,7 @@
 
 ### Features/Changes
 - Added document highlight for LSPs which support this feature
+- (Un)confirmed state of the editor is properly (re)stored
 
 ### Bug Fixes
 
