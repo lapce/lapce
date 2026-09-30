@@ -1634,7 +1634,7 @@ impl Doc {
                             // This is a kind of debouncing - if cursor moves before we got response from LSP,
                             // check if cursor is still in the region.
                             // In case cursor moved too far we may want to issue LSP request again, for new offset
-                            // but it is easily recoverable by the user - just move cursor a bit to update highligts.
+                            // but it is easily recoverable by the user - just move cursor a bit to update highlights.
                             DocumentHighlight::find_for_offset(&result, offset)
                                 .map(|_| result)
                         });
