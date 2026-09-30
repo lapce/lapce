@@ -335,6 +335,7 @@ pub fn settings_view(
     let plugin_kinds = settings_data.plugin_kinds;
 
     let search_editor = editors.make_local(cx, common);
+    let search_editor_id = search_editor.id();
     let doc = search_editor.doc_signal();
 
     let items = settings_data.items;
@@ -542,6 +543,9 @@ pub fn settings_view(
     ))
     .style(|s| s.absolute().size_pct(100.0, 100.0))
     .debug_name("Settings")
+    .on_cleanup(move || {
+        editors.remove(search_editor_id);
+    })
 }
 
 fn settings_item_view(
@@ -1082,6 +1086,7 @@ pub fn theme_color_settings_view(
 
     let cx = Scope::current();
     let search_editor = editors.make_local(cx, common.clone());
+    let search_editor_id = search_editor.id();
     let buffer = search_editor.doc_signal().get_untracked().buffer;
 
     scroll(
@@ -1180,6 +1185,9 @@ pub fn theme_color_settings_view(
     )
     .style(|s| s.absolute().size_full())
     .debug_name("Theme Color Settings")
+    .on_cleanup(move || {
+        editors.remove(search_editor_id);
+    })
 }
 
 fn dropdown_view(
