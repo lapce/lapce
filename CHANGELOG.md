@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- Added document highlight for LSPs which support this feature
 
 ### Bug Fixes
 
