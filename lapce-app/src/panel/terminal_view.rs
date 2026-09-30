@@ -289,6 +289,7 @@ fn terminal_tab_split(
         move |(index, terminal)| {
             let terminal_panel_data = terminal_panel_data.clone();
             let terminal_scope = terminal.scope;
+            let hovering_link = terminal_scope.create_rw_signal(false);
             container({
                 let terminal_view = terminal_view(
                     terminal.term_id,
@@ -299,6 +300,7 @@ fn terminal_tab_split(
                     terminal.launch_error,
                     internal_command,
                     workspace.clone(),
+                    hovering_link,
                 );
                 let view_id = terminal_view.id();
                 let have_task = terminal.run_debug.get_untracked().is_some();
@@ -328,7 +330,11 @@ fn terminal_tab_split(
                     .on_cleanup(move || {
                         terminal_scope.dispose();
                     })
-                    .style(|s| s.size_pct(100.0, 100.0))
+                    .style(move |s| {
+                        s.size_pct(100.0, 100.0).apply_if(hovering_link.get(), |s| {
+                            s.cursor(CursorStyle::Pointer)
+                        })
+                    })
             })
             .style(move |s| {
                 s.size_pct(100.0, 100.0).padding_horiz(10.0).apply_if(

@@ -475,11 +475,49 @@ impl KeyPressData {
         keypresses: &[KeyPress],
         check: &T,
     ) -> KeymapMatch {
-        let keypresses: Vec<KeyMapPress> =
+        Self::resolve_keymap(&self.keymaps, keypresses, check)
+    }
+
+    /// Resolves a sequence of keypresses against `keymaps`. Takes the map
+    /// explicitly (rather than reading `self.keymaps`) so it can be
+    /// exercised directly in tests without constructing a full
+    /// `KeyPressData` (which needs a reactive `Scope`).
+    fn resolve_keymap<T: KeyPressFocus + ?Sized>(
+        keymaps: &IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
+        keypresses: &[KeyPress],
+        check: &T,
+    ) -> KeymapMatch {
+        let primary: Vec<KeyMapPress> =
             keypresses.iter().filter_map(|k| k.keymap_press()).collect();
-        let matches: Vec<_> = self
-            .keymaps
-            .get(&keypresses)
+        let keymatch = Self::match_keymap_presses(keymaps, &primary, check);
+        if !matches!(keymatch, KeymapMatch::None) {
+            return keymatch;
+        }
+
+        // Fall back to the pre-existing key_without_modifiers-based
+        // representation, but only for a single keypress: no shipped or
+        // known custom keymap uses a symbol/digit key inside a multi-key
+        // chord, and extending the fallback to chords would multiply the
+        // number of candidate sequences to look up for no known benefit.
+        if let [keypress] = keypresses {
+            if let Some(legacy) = keypress.legacy_keymap_press() {
+                let legacy = vec![legacy];
+                if legacy != primary {
+                    return Self::match_keymap_presses(keymaps, &legacy, check);
+                }
+            }
+        }
+
+        KeymapMatch::None
+    }
+
+    fn match_keymap_presses<T: KeyPressFocus + ?Sized>(
+        keymaps: &IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
+        keypresses: &[KeyMapPress],
+        check: &T,
+    ) -> KeymapMatch {
+        let matches: Vec<_> = keymaps
+            .get(keypresses)
             .map(|keymaps| {
                 keymaps
                     .iter()
@@ -508,10 +546,10 @@ impl KeyPressData {
 
         if matches.is_empty() {
             KeymapMatch::None
-        } else if matches.len() == 1 && matches[0].key == keypresses {
+        } else if matches.len() == 1 && matches[0].key.as_slice() == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
         } else if matches.len() > 1
-            && matches.iter().filter(|m| m.key != keypresses).count() == 0
+            && matches.iter().filter(|m| m.key.as_slice() != keypresses).count() == 0
         {
             KeymapMatch::Multiple(
                 matches.iter().rev().map(|m| m.command.clone()).collect(),
@@ -698,4 +736,126 @@ fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
         .and_then(|v| v.as_str())
         .map(Modes::parse)
         .unwrap_or_else(Modes::empty)
+}
+
+#[cfg(test)]
+mod resolve_keymap_tests {
+    use floem::keyboard::{Key, KeyCode, KeyLocation, PhysicalKey};
+
+    use super::*;
+    use crate::keypress::{condition::Condition, key::KeyInput};
+
+    #[derive(Debug)]
+    struct TestFocus;
+
+    impl KeyPressFocus for TestFocus {
+        fn get_mode(&self) -> Mode {
+            Mode::Normal
+        }
+
+        fn check_condition(&self, _condition: Condition) -> bool {
+            false
+        }
+
+        fn run_command(
+            &self,
+            _command: &LapceCommand,
+            _count: Option<usize>,
+            _mods: Modifiers,
+        ) -> CommandExecuted {
+            CommandExecuted::Yes
+        }
+
+        fn receive_char(&self, _c: &str) {}
+    }
+
+    fn char_press(
+        key_without_modifiers: &str,
+        logical: &str,
+        mods: Modifiers,
+    ) -> KeyPress {
+        KeyPress {
+            key: KeyInput::Keyboard {
+                physical: PhysicalKey::Code(KeyCode::Digit7),
+                logical: Key::Character(logical.into()),
+                location: KeyLocation::Standard,
+                key_without_modifiers: Key::Character(key_without_modifiers.into()),
+                repeat: false,
+            },
+            mods,
+        }
+    }
+
+    fn insert_keymap(
+        keymaps: &mut IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
+        key: &str,
+        command: &str,
+    ) {
+        let key_presses = KeyMapPress::parse(key);
+        keymaps.insert(
+            key_presses.clone(),
+            vec![KeyMap {
+                key: key_presses,
+                modes: Modes::empty(),
+                when: None,
+                command: command.to_string(),
+            }],
+        );
+    }
+
+    #[test]
+    fn new_style_binding_matches_shifted_layout_event() {
+        let mut keymaps = IndexMap::new();
+        insert_keymap(&mut keymaps, "/", "search");
+        // Italian layout: "/" is produced by Shift+7.
+        let press = char_press("7", "/", Modifiers::SHIFT);
+
+        let result = KeyPressData::resolve_keymap(&keymaps, &[press], &TestFocus);
+        assert_eq!(result, KeymapMatch::Full("search".to_string()));
+    }
+
+    #[test]
+    fn old_style_binding_still_matches_via_legacy_fallback() {
+        let mut keymaps = IndexMap::new();
+        insert_keymap(&mut keymaps, "shift+4", "line_end");
+        // US layout event for Shift+4 ("$"), shaped like what the old
+        // "shift+4" convention expects.
+        let press = char_press("4", "$", Modifiers::SHIFT);
+
+        let result = KeyPressData::resolve_keymap(&keymaps, &[press], &TestFocus);
+        assert_eq!(result, KeymapMatch::Full("line_end".to_string()));
+    }
+
+    #[test]
+    fn new_style_binding_takes_precedence_when_both_would_match() {
+        let mut keymaps = IndexMap::new();
+        insert_keymap(&mut keymaps, "$", "line_end");
+        insert_keymap(&mut keymaps, "shift+4", "some_other_command");
+        let press = char_press("4", "$", Modifiers::SHIFT);
+
+        let result = KeyPressData::resolve_keymap(&keymaps, &[press], &TestFocus);
+        assert_eq!(result, KeymapMatch::Full("line_end".to_string()));
+    }
+
+    #[test]
+    fn ctrl_symbol_shortcut_requires_ctrl_modifier() {
+        let mut keymaps = IndexMap::new();
+        insert_keymap(&mut keymaps, "ctrl+/", "toggle_line_comment");
+        // Plain "/" (no ctrl) must not trigger the ctrl+/ binding.
+        let press = char_press("/", "/", Modifiers::empty());
+
+        let result = KeyPressData::resolve_keymap(&keymaps, &[press], &TestFocus);
+        assert_eq!(result, KeymapMatch::None);
+    }
+
+    #[test]
+    fn ctrl_symbol_shortcut_matches_on_shifted_layout() {
+        let mut keymaps = IndexMap::new();
+        insert_keymap(&mut keymaps, "ctrl+/", "toggle_line_comment");
+        // Italian layout: ctrl+/ is physically Ctrl+Shift+7.
+        let press = char_press("7", "/", Modifiers::CONTROL | Modifiers::SHIFT);
+
+        let result = KeyPressData::resolve_keymap(&keymaps, &[press], &TestFocus);
+        assert_eq!(result, KeymapMatch::Full("toggle_line_comment".to_string()));
+    }
 }

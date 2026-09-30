@@ -199,7 +199,7 @@ mode = "n"
 
 [[keymaps]]
 key = "/"
-command = "palette.line"
+command = "search"
 mode = "n"
 
 [[keymaps]]
@@ -347,7 +347,7 @@ mode = "niv"
 when = "!search_focus && !search_active"
 
 [[keymaps]]
-key = "shift+;"
+key = ":"
 command = "palette.command"
 mode = "n"
 
@@ -507,12 +507,12 @@ command = "line_start"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+6"
+key = "^"
 command = "line_start_non_blank"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+4"
+key = "$"
 command = "line_end"
 mode = "nv"
 
@@ -607,12 +607,12 @@ command = "motion_mode_delete"
 mode = "n"
 
 [[keymaps]]
-key = "shift+."
+key = ">"
 command = "motion_mode_indent"
 mode = "n"
 
 [[keymaps]]
-key = "shift+,"
+key = "<"
 command = "motion_mode_outdent"
 mode = "n"
 
@@ -622,7 +622,7 @@ command = "motion_mode_yank"
 mode = "n"
 
 [[keymaps]]
-key = "shift+8"
+key = "*"
 command = "search_whole_word_forward"
 mode = "nv"
 
@@ -637,7 +637,7 @@ command = "search_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+5"
+key = "%"
 command = "match_pairs"
 mode = "nv"
 
@@ -722,12 +722,12 @@ command = "toggle_code_glance"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+."
+key = ">"
 command = "indent_line"
 mode = "v"
 
 [[keymaps]]
-key = "shift+,"
+key = "<"
 command = "outdent_line"
 mode = "v"
 

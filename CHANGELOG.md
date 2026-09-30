@@ -6,6 +6,9 @@
 - Added document highlight for LSPs which support this feature
 - (Un)confirmed state of the editor is properly (re)stored
 
+- In modal (Vim) mode, bind `/` to open the search bar (was previously bound to go-to-line)
+- Fix vim-mode symbol keybindings (`/`, `^`, `$`, `%`, `*`, `<`, `>`, `:`) and `ctrl+/` (toggle line comment) not matching on keyboard layouts where those symbols require Shift/AltGr on a different key than on US QWERTY (e.g. Italian keyboards)
+
 ### Bug Fixes
 
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
