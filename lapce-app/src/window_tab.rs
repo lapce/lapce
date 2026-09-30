@@ -64,7 +64,10 @@ use crate::{
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
-    editor::location::{EditorLocation, EditorPosition},
+    editor::{
+        InlineFindDirection,
+        location::{EditorLocation, EditorPosition},
+    },
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -1316,12 +1319,8 @@ impl WindowTabData {
             SourceControlCommit => {
                 self.source_control.commit();
             }
-            SourceControlCopyActiveFileRemoteUrl => {
-                // TODO:
-            }
-            SourceControlDiscardActiveFileChanges => {
-                // TODO:
-            }
+            SourceControlCopyActiveFileRemoteUrl => {}
+            SourceControlDiscardActiveFileChanges => {}
             SourceControlDiscardTargetFileChanges => {
                 if let Some(diff) = data
                     .and_then(|data| serde_json::from_value::<FileDiff>(data).ok())
@@ -1342,9 +1341,7 @@ impl WindowTabData {
                     }
                 }
             }
-            SourceControlDiscardWorkspaceChanges => {
-                // TODO:
-            }
+            SourceControlDiscardWorkspaceChanges => {}
 
             // ==== UI ====
             ShowAbout => {
@@ -1502,7 +1499,7 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.find_refenrence(self.clone());
+                    editor_data.find_reference(self.clone());
                 }
             }
             GoToImplementation => {
@@ -1580,6 +1577,20 @@ impl WindowTabData {
                 }
             }
 
+            JumpHighlightNext => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Right);
+                }
+            }
+            JumpHighlightPrev => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Left);
+                }
+            }
         }
     }
 
@@ -2024,7 +2035,7 @@ impl WindowTabData {
                 match cmd.wait() {
                     Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
                     Err(e) => {
-                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                        event!(Level::ERROR, "Process exited with an error: {e}")
                     }
                 };
             }
@@ -2042,7 +2053,7 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal tab data: index={tab_index}");
+                    error!("could not find terminal tab data: index={tab_index}");
                     return;
                 };
                 let Some(raw) = tab.terminals.with_untracked(|x| {
@@ -2054,7 +2065,7 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal data: index={terminal_index}");
+                    error!("could not find terminal data: index={terminal_index}");
                     return;
                 };
                 raw.write().term.reset_state();

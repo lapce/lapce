@@ -3,13 +3,27 @@
 ## Unreleased
 
 ### Features/Changes
+- Added document highlight for LSPs which support this feature
+- (Un)confirmed state of the editor is properly (re)stored
+
+### Bug Fixes
+
+## 0.4.6
+
+### Features/Changes
+
+- Add `.har` file extension as recognised JSON language (<https://github.com/lapce/lapce/pull/3853>)
+- Remove builds for Ubuntu Oracular, add Ubuntu Plucky (<https://github.com/lapce/lapce/pull/3808>)
 
 ### Bug Fixes
 
 - Fix mouse wheel scrolling when viewing diff (<https://github.com/lapce/lapce/issues/3821>)
-- Fix editor tabs not selectable while appearing selectable
-- Fix flickering when reordering editor tabs
-- (Un)confirmed state of the editor is properly (re)stored
+- Fix editor tabs not selectable while appearing selectable (<https://github.com/lapce/lapce/pull/3818>)
+- Fix flickering when reordering editor tabs (<https://github.com/lapce/lapce/pull/3818>)
+- Fix diff viewer to scroll using mouse (<https://github.com/lapce/lapce/issues/3821>)
+- Fix updating window scale when it changes via settings tab (<https://github.com/lapce/lapce/issues/3832>)
+- Fix vendor tarball not being included in GitHub release
+- Fix cursor style inconsistencies (<https://github.com/lapce/lapce/pull/3819>)
 
 ## 0.4.5
 
@@ -69,7 +83,7 @@
 ### Features/Changes
 
 - Add fedora builds
-- Finish tree sitter dynamic libary support by downloading from https://github.com/lapce/tree-sitter-grammars
+- Finish tree sitter dynamic library support by downloading from https://github.com/lapce/tree-sitter-grammars
 - Saves scale configuration in settings to restore at startup
 - text in ui can be selected and copied
 - add right click context menu for editor tab
@@ -306,7 +320,7 @@
 - [#1459](https://github.com/lapce/lapce/pull/1459): Fix opening currently used logfile
 - [#1505](https://github.com/lapce/lapce/pull/1505): Fix proxy download for hosts with curl without -Z flag
 - [#1483](https://github.com/lapce/lapce/pull/1483): Fix showing the close icon for the first tab when opening multiple tab
-- [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regarless of the current focus
+- [#1477](https://github.com/lapce/lapce/pull/1477): Now use `esc` to close searchbar regardless of the current focus
 - [#1507](https://github.com/lapce/lapce/pull/1507): Fixed a crash when scratch buffer is closed
 - [#1547](https://github.com/lapce/lapce/pull/1547): Fix infinite cycle in workspace symbol search
 - [#1628](https://github.com/lapce/lapce/pull/1541): Fix kts files not being recognized

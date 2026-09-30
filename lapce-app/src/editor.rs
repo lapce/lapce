@@ -68,7 +68,7 @@ use crate::{
     completion::CompletionStatus,
     config::LapceConfig,
     db::LapceDb,
-    doc::{Doc, DocContent},
+    doc::{Doc, DocContent, DocumentHighlight},
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
@@ -267,14 +267,16 @@ impl EditorData {
         }
     }
 
-    /// Create a new local editor.  
+    /// Create a new local editor.
+    ///
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
     pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self::new_local_id(cx, EditorId::next(), editors, common)
     }
 
-    /// Create a new local editor with the given id.  
+    /// Create a new local editor with the given id.
+    ///
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
     pub fn new_local_id(
@@ -289,7 +291,8 @@ impl EditorData {
         Self::new(cx, editor, None, None, None, common)
     }
 
-    /// Create a new editor with a specific doc.  
+    /// Create a new editor with a specific doc.
+    ///
     /// You should prefer calling [`Editors::new_editor_doc`] / [`Editors::make_from_doc`] instead.
     pub fn new_doc(
         cx: Scope,
@@ -309,7 +312,7 @@ impl EditorData {
         self.editor.update_doc(doc, Some(style));
     }
 
-    /// Create a new editor using the same underlying [`Doc`]  
+    /// Create a new editor using the same underlying [`Doc`]
     pub fn copy(
         &self,
         cx: Scope,
@@ -392,7 +395,7 @@ impl EditorData {
         self.editor.active
     }
 
-    /// Get the line information for lines on the screen.  
+    /// Get the line information for lines on the screen.
     pub fn screen_lines(&self) -> RwSignal<ScreenLines> {
         self.editor.screen_lines
     }
@@ -406,7 +409,7 @@ impl EditorData {
         doc
     }
 
-    /// The signal for the editor's document.  
+    /// The signal for the editor's document.
     pub fn doc_signal(&self) -> DocSignal {
         DocSignal {
             inner: self.editor.doc_signal(),
@@ -1254,7 +1257,7 @@ impl EditorData {
             (start_position, position)
         });
 
-        enum DefinitionOrReferece {
+        enum DefinitionOrReference {
             Location(EditorLocation),
             References(Vec<Location>),
         }
@@ -1268,11 +1271,11 @@ impl EditorData {
             }
 
             match d {
-                DefinitionOrReferece::Location(location) => {
+                DefinitionOrReference::Location(location) => {
                     internal_command
                         .send(InternalCommand::JumpToLocation { location });
                 }
-                DefinitionOrReferece::References(locations) => {
+                DefinitionOrReference::References(locations) => {
                     internal_command.send(InternalCommand::PaletteReferences {
                         references: locations
                             .into_iter()
@@ -1333,7 +1336,7 @@ impl EditorData {
                                         }
                                         if references.len() == 1 {
                                             let location = &references[0];
-                                            send(DefinitionOrReferece::Location(
+                                            send(DefinitionOrReference::Location(
                                                 EditorLocation {
                                                     path: path_from_url(
                                                         &location.uri,
@@ -1349,7 +1352,7 @@ impl EditorData {
                                                 },
                                             ));
                                         } else {
-                                            send(DefinitionOrReferece::References(
+                                            send(DefinitionOrReference::References(
                                                 references,
                                             ));
                                         }
@@ -1358,7 +1361,7 @@ impl EditorData {
                             );
                         } else {
                             let path = path_from_url(&location.uri);
-                            send(DefinitionOrReferece::Location(EditorLocation {
+                            send(DefinitionOrReference::Location(EditorLocation {
                                 path,
                                 position: Some(EditorPosition::Position(
                                     location.range.start,
@@ -1430,7 +1433,7 @@ impl EditorData {
         );
     }
 
-    pub fn find_refenrence(&self, window_tab_data: WindowTabData) {
+    pub fn find_reference(&self, window_tab_data: WindowTabData) {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -3235,6 +3238,40 @@ impl EditorData {
             }
         })
     }
+
+    pub fn jump_highlight(&self, direction: InlineFindDirection) {
+        let doc = self.doc();
+        let cursor_offset = self.cursor().with_untracked(|c| c.offset());
+
+        let new_offset = doc.highlights.with_untracked(move |highlights| {
+            let Some(highlights) = highlights else {
+                return None;
+            };
+            let index =
+                DocumentHighlight::find_for_offset(highlights, cursor_offset)?;
+
+            let new_index = match direction {
+                InlineFindDirection::Left => match index {
+                    0 => highlights.len() - 1,
+                    val => val - 1,
+                },
+                InlineFindDirection::Right => match index + 1 {
+                    val if val >= highlights.len() => 0,
+                    val => val,
+                },
+            };
+
+            Some(highlights[new_index].start)
+        });
+
+        if let Some(new_offset) = new_offset {
+            self.run_move_command(
+                &lapce_core::movement::Movement::Offset(new_offset),
+                None,
+                Modifiers::empty(),
+            );
+        }
+    }
 }
 
 impl KeyPressFocus for EditorData {
@@ -3425,8 +3462,9 @@ impl KeyPressFocus for EditorData {
 
 /// Custom signal wrapper for [`Doc`], because [`Editor`] only knows it as a
 /// `Rc<dyn Document>`, and there is currently no way to have an `RwSignal<Rc<Doc>>` and
-/// an `RwSignal<Rc<dyn Document>>`.  
-/// This could possibly be swapped with a generic impl?
+/// an `RwSignal<Rc<dyn Document>>`.
+///
+// FIXME: This could possibly be swapped with a generic impl?
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DocSignal {
     // TODO: replace with ReadSignal once that impls `track`

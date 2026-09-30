@@ -221,6 +221,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                 // stop case-sensitive matching
                 ext => match ext.to_lowercase().as_str() {
                     "bat" => "bat",
+                    // spellchecker:ignore-next-line
                     "clj" | "cljs" | "cljc" | "edn" => "clojure",
                     "coffee" => "coffeescript",
                     "c" | "h" => "c",

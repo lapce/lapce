@@ -74,10 +74,10 @@ impl PluginServerHandler for LspClient {
 
     fn document_supported(
         &mut self,
-        lanaguage_id: Option<&str>,
+        language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
-        self.host.document_supported(lanaguage_id, path)
+        self.host.document_supported(language_id, path)
     }
 
     fn handle_handler_notification(

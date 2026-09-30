@@ -1723,8 +1723,8 @@ impl MainSplitData {
         let splits = self.splits.get_untracked();
         let split = splits.get(&split_id).copied()?;
 
-        let split_chilren = split.with_untracked(|split| split.children.clone());
-        let content = split_chilren.first()?;
+        let split_children = split.with_untracked(|split| split.children.clone());
+        let content = split_children.first()?;
         self.split_content_focus(&content.1);
 
         Some(())

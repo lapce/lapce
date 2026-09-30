@@ -408,7 +408,7 @@ impl FileExplorerData {
         let done = self
             .root
             .try_update(|root| {
-                // the directories in which the file are located are all readed and opened
+                // the directories in which the file are located are all read and opened
                 if root.get_file_node(&path).is_some() {
                     for current_path in path.ancestors() {
                         if let Some(file) = root.get_file_node_mut(current_path) {

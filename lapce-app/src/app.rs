@@ -13,7 +13,7 @@ use std::{
     },
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use floem::{
     IntoView, View,
@@ -126,9 +126,10 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
-    /// Path(s) to plugins to load.  
+    /// Path(s) to plugins to load.
+    ///
     /// This is primarily used for plugin development to make it easier to test changes to the
-    /// plugin without needing to copy the plugin to the plugins directory.  
+    /// plugin without needing to copy the plugin to the plugins directory.
     /// This will cause any plugin with the same author & name to not run.
     #[clap(long, action)]
     plugin_path: Vec<PathBuf>,
@@ -176,7 +177,10 @@ impl AppData {
     pub fn reload_config(&self) {
         let config =
             LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths);
+
         self.config.set(Arc::new(config));
+        self.window_scale.set(self.config.get().ui.scale());
+
         let windows = self.windows.get_untracked();
         for (_, window) in windows {
             window.reload_config();
@@ -304,7 +308,7 @@ impl AppData {
     ) -> floem::Application {
         let mut app = floem::Application::new();
 
-        let mut inital_windows = 0;
+        let mut initial_windows = 0;
 
         // Split user input into known existing directors and
         // file paths that exist or not
@@ -372,7 +376,7 @@ impl AppData {
                     move |window_id| app_data.app_view(window_id, info, files),
                     Some(config),
                 );
-                inital_windows += 1;
+                initial_windows += 1;
             }
         } else if files.is_none() {
             // There were no dirs and no files specified, so we'll load the last windows
@@ -397,7 +401,7 @@ impl AppData {
                             },
                             Some(config),
                         );
-                        inital_windows += 1;
+                        initial_windows += 1;
                     }
                 }
                 Err(err) => {
@@ -406,7 +410,7 @@ impl AppData {
             }
         }
 
-        if inital_windows == 0 {
+        if initial_windows == 0 {
             let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
                 size: Size::new(800.0, 600.0),
                 pos: Point::ZERO,
@@ -848,7 +852,7 @@ fn editor_tab_header(
                     .padding_horiz(6.)
                     .gap(6.)
                     .grid()
-                    .grid_template_columns(vec![auto(), fr(1.), auto()])
+                    .grid_template_columns(vec![auto(), fr(1_f32), auto()])
                     .apply_if(
                         config.get().ui.tab_separator_height
                             == TabSeparatorHeight::Full,
@@ -932,7 +936,9 @@ fn editor_tab_header(
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
-                .style(|s| s.align_items(Some(AlignItems::Center)).flex_grow(1.0)),
+                .style(|s| {
+                    s.align_items(Some(AlignItems::Center)).flex_grow(1.0f32)
+                }),
             empty()
                 .style(move |s| {
                     s.size_full()
@@ -1093,7 +1099,7 @@ fn editor_tab_header(
                 .style(move |s| s.items_center()),
             )
         })
-        .style(|s| s.flex_shrink(0.)),
+        .style(|s| s.flex_shrink(0f32)),
         container(
             scroll({
                 dyn_stack(items, key, view_fn)
@@ -1122,7 +1128,12 @@ fn editor_tab_header(
                     .size_full()
             }),
         )
-        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.).min_width(10.))
+        .style(|s| {
+            s.height_full()
+                .flex_grow(1.0f32)
+                .flex_basis(0.)
+                .min_width(10.)
+        })
         .debug_name("Tab scroll"),
         stack({
             let size = create_rw_signal(Size::ZERO);
@@ -1196,7 +1207,7 @@ fn editor_tab_header(
             let content_size = content_size.get();
             let scroll_offset = scroll_offset.get();
             s.height_full()
-                .flex_shrink(0.)
+                .flex_shrink(0f32)
                 .margin_left(PxPctAuto::Auto)
                 .apply_if(scroll_offset.x1 < content_size.width, |s| {
                     s.margin_left(0.)
@@ -1352,7 +1363,7 @@ fn editor_tab_content(
                         })
                         .style(move |s| {
                             s.height_full()
-                                .flex_grow(1.0)
+                                .flex_grow(1.0f32)
                                 .flex_basis(0.0)
                                 .border_right(1.0)
                                 .border_color(
@@ -1378,7 +1389,9 @@ fn editor_tab_content(
                         .on_event_cont(EventListener::PointerDown, move |_| {
                             focus_right.set(true);
                         })
-                        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.0)),
+                        .style(|s| {
+                            s.height_full().flex_grow(1.0f32).flex_basis(0.0)
+                        }),
                         diff_show_more_section_view(
                             &diff_editor_data.left,
                             &diff_editor_data.right,
@@ -2045,7 +2058,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
             .background(config.color(LapceColor::EDITOR_BACKGROUND))
             .apply_if(is_hidden, |s| s.display(Display::None))
             .width_full()
-            .flex_grow(1.0)
+            .flex_grow(1.0f32)
             .flex_basis(0.0)
     })
     .debug_name("Main Split")
@@ -2138,7 +2151,8 @@ pub fn clickable_icon_base(
     }
 }
 
-/// A tooltip with a label inside.  
+/// A tooltip with a label inside.
+///
 /// When styling an element that has the tooltip, it will style the child rather than the tooltip
 /// label.
 pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
@@ -2196,7 +2210,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                     main_split_width.set(width);
                 }
             })
-            .style(|s| s.flex_col().flex_grow(1.0))
+            .style(|s| s.flex_col().flex_grow(1.0f32))
         },
         panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
@@ -2285,7 +2299,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2352,7 +2366,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2429,7 +2443,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2498,7 +2512,7 @@ fn palette_item(
                     .style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .flex_basis(0.0)
                     }),
                 ))
@@ -2528,7 +2542,7 @@ fn palette_item(
                     )
                     .style(|s| {
                         s.flex_row()
-                            .flex_grow(1.0)
+                            .flex_grow(1.0f32)
                             .align_items(Some(AlignItems::Center))
                     }),
                     stack((dyn_stack(
@@ -2775,7 +2789,7 @@ fn palette_preview(window_tab_data: Rc<WindowTabData>) -> impl View {
         } else {
             Display::None
         })
-        .flex_grow(1.0)
+        .flex_grow(1.0f32)
     })
 }
 
@@ -2827,7 +2841,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .items_center()
         .pointer_events_none()
     })
-    .debug_name("Pallete Layer")
+    .debug_name("Palette Layer")
 }
 
 fn window_message_view(
@@ -2867,7 +2881,10 @@ fn window_message_view(
                     }),
                 ))
                 .style(move |s| {
-                    s.flex_col().min_width(0.0).flex_basis(0.0).flex_grow(1.0)
+                    s.flex_col()
+                        .min_width(0.0)
+                        .flex_basis(0.0)
+                        .flex_grow(1.0f32)
                 }),
                 clickable_icon(
                     || LapceIcons::CLOSE,
@@ -3417,7 +3434,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             s.margin_left(10.0)
                                 .min_width(0.0)
                                 .flex_basis(0.0)
-                                .flex_grow(1.0)
+                                .flex_grow(1.0f32)
                                 .selectable(false)
                                 .text_ellipsis()
                         }),
@@ -3608,7 +3625,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 .items_center()
         }),
         drag_window_area(empty())
-            .style(|s| s.height_full().flex_basis(0.0).flex_grow(1.0)),
+            .style(|s| s.height_full().flex_basis(0.0).flex_grow(1.0f32)),
         window_controls_view(
             window_command,
             false,
@@ -3834,7 +3851,9 @@ pub fn launch() {
     let plugin_paths = Arc::new(cli.plugin_path);
 
     let (tx, rx) = channel();
-    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
+    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx))
+        .context("Failed to spawn file watcher")
+        .unwrap();
     if let Some(path) = LapceConfig::settings_file() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
             tracing::error!("{:?}", err);
@@ -3902,8 +3921,8 @@ pub fn launch() {
                 for (_, window) in app_data.windows.get_untracked() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
-                            doc.syntax.update(|syntaxt| {
-                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            doc.syntax.update(|syntax| {
+                                *syntax = Syntax::from_language(syntax.language);
                             });
                             doc.trigger_syntax_change(None);
                         }

@@ -41,12 +41,12 @@ use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
         CodeActionResolveRequest, CodeLensRequest, CodeLensResolve, Completion,
-        DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition,
-        GotoImplementation, GotoTypeDefinition, HoverRequest, Initialize,
-        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
-        RegisterCapability, Rename, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkDoneProgressCreate,
-        WorkspaceSymbolRequest,
+        DocumentHighlightRequest, DocumentSymbolRequest, FoldingRangeRequest,
+        Formatting, GotoDefinition, GotoImplementation, GotoTypeDefinition,
+        HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
+        PrepareRenameRequest, References, RegisterCapability, Rename,
+        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
+        SignatureHelpRequest, WorkDoneProgressCreate, WorkspaceSymbolRequest,
     },
 };
 use parking_lot::Mutex;
@@ -83,13 +83,13 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
     }
 }
 
-pub trait ClonableCallback<Resp, Error>:
+pub trait CloneableCallback<Resp, Error>:
     FnOnce(PluginId, Result<Resp, Error>) + Send + DynClone
 {
 }
 
 impl<Resp, Error, F: Send + FnOnce(PluginId, Result<Resp, Error>) + DynClone>
-    ClonableCallback<Resp, Error> for F
+    CloneableCallback<Resp, Error> for F
 {
 }
 
@@ -858,6 +858,10 @@ impl PluginHostHandler {
             CallHierarchyIncomingCalls::METHOD => {
                 self.server_capabilities.call_hierarchy_provider.is_some()
             }
+            DocumentHighlightRequest::METHOD => self
+                .server_capabilities
+                .document_highlight_provider
+                .is_some(),
             _ => false,
         }
     }
@@ -1223,7 +1227,7 @@ impl PluginHostHandler {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -1286,7 +1290,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
+            Some(language_id),
             path,
             false,
         );

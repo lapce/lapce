@@ -296,7 +296,7 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
                         .z_index(100)
                 }),
             ))
-            .style(|s| s.flex_grow(1.0)),
+            .style(|s| s.flex_grow(1.0f32)),
         )
     } else {
         container(text_input_view)
@@ -351,7 +351,7 @@ fn file_explorer_view(
                             Color::TRANSPARENT
                         };
                         s.size(size, size)
-                            .flex_shrink(0.0)
+                            .flex_shrink(0.0f32)
                             .margin_left(10.0)
                             .color(color)
                     }),
@@ -378,7 +378,7 @@ fn file_explorer_view(
                             let size = config.ui.icon_size() as f32;
 
                             s.size(size, size)
-                                .flex_shrink(0.0)
+                                .flex_shrink(0.0f32)
                                 .margin_horiz(6.0)
                                 .apply_if(is_dir, |s| {
                                     s.color(

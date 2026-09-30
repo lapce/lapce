@@ -1,0 +1,17 @@
+# https://github.com/crate-ci/typos/blob/02ea592e44b3a53c302f697cddca7641cd051c3d/docs/reference.md
+
+[files]
+
+[default]
+extend-ignore-re = [
+    # Ignore lines that end with `# spellchecker:disable-line`
+    "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+    # Ignore the line after `# spellchecker:ignore-next-line`:
+    "(#|//)\\s*spellchecker:ignore-next-line\\n.*",
+    # Ignore blocks between `# spellchecker:off` and `# spellchecker:on`
+    "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
+]
+
+[default.extend-identifiers]
+
+[default.extend-words]

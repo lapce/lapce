@@ -23,9 +23,9 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 
 [workspace.package]
-version      = "0.4.5"
+version      = "0.4.6"
 edition      = "2024"
-rust-version = "1.87.0"
+rust-version = "1.98.0"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
@@ -38,7 +38,7 @@ clap              = { version = "4.5.0", default-features = false, features = ["
 crossbeam-channel = { version = "0.5.12" }
 directories       = { version = "4.0.1" }
 flate2            = { version = "1.0" }
-git2              = { version = "0.20.0", features = ["vendored-openssl"] }
+git2              = { version = "0.21.0", features = ["vendored-openssl", "vendored-libgit2"] }
 globset           = { version = "0.4.14" }
 hashbrown         = { version = "0.14.5", features = ["serde"] }
 im                = { version = "15.0.0", features = ["serde"] }
@@ -76,10 +76,17 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem = { git = "https://github.com/lapce/floem", rev = "e0dd862564e3afbad5cba8ebe60df166a7a41e56", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-# floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "e0dd862564e3afbad5cba8ebe60df166a7a41e56", features = ["serde"] }
-# floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
+[workspace.dependencies.floem]
+# path = "../floem"
+git = "https://github.com/lapce/floem"
+rev = "31fa8f444c37f4c314f47d88c23ffdbc25f2ab53"
+features = ["editor", "serde", "default-image-formats", "rfd-async-std"]
+
+[workspace.dependencies.floem-editor-core]
+# path = "../floem/editor-core/"
+git = "https://github.com/lapce/floem"
+rev = "31fa8f444c37f4c314f47d88c23ffdbc25f2ab53"
+features = ["serde"]
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug

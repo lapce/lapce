@@ -29,7 +29,7 @@ use serde_json::Value;
 use super::{
     PluginCatalogNotification, PluginCatalogRpcHandler,
     dap::{DapClient, DapRpcHandler, DebuggerData},
-    psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
+    psp::{CloneableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
 };
 use crate::plugin::{
@@ -83,7 +83,7 @@ impl PluginCatalog {
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
-        f: Box<dyn ClonableCallback<Value, RpcError>>,
+        f: Box<dyn CloneableCallback<Value, RpcError>>,
     ) {
         if let Some(plugin_id) = plugin_id {
             if let Some(plugin) = self.plugins.get(&plugin_id) {
@@ -179,7 +179,7 @@ impl PluginCatalog {
     pub fn shutdown_volt(
         &mut self,
         volt: VoltInfo,
-        f: Box<dyn ClonableCallback<Value, RpcError>>,
+        f: Box<dyn CloneableCallback<Value, RpcError>>,
     ) {
         let id = volt.id();
         for (plugin_id, plugin) in self.plugins.iter() {
