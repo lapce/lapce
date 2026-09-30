@@ -221,6 +221,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
+    #[strum(serialize = "file_explorer.rename")]
+    #[strum(message = "Rename File")]
+    FileExplorerRename,
+
+    #[strum(serialize = "file_explorer.trash")]
+    #[strum(message = "Trash File")]
+    FileExplorerTrash,
+
     #[strum(serialize = "open_ui_inspector")]
     #[strum(message = "Open Internal UI Inspector")]
     OpenUIInspector,

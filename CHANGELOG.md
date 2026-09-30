@@ -8,6 +8,8 @@
 
 - Implemented Folder/File choosing in remotes
 
+- The file explorer can now be focused with the mouse, and has keybinds for renaming/deleting files
+
 ### Bug Fixes
 
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
