@@ -762,6 +762,8 @@ impl WindowTabData {
                                 .send(WindowCommand::SetWorkspace { workspace });
                         }
                     });
+                } else {
+                    self.palette.run(PaletteKind::FileChooser);
                 }
             }
             CloseFolder => {
@@ -791,6 +793,8 @@ impl WindowTabData {
                             })
                         }
                     });
+                } else { // TODO: Force only choosing files?
+                    self.palette.run(PaletteKind::FileChooser);
                 }
             }
             NewFile => {
@@ -1129,7 +1133,7 @@ impl WindowTabData {
             }
             Palette => {
                 self.palette.run(PaletteKind::File);
-            }
+            },
             PaletteSymbol => {
                 self.palette.run(PaletteKind::DocumentSymbol);
             }

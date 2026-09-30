@@ -6,6 +6,7 @@ use crate::command::LapceWorkbenchCommand;
 pub enum PaletteKind {
     PaletteHelp,
     File,
+    FileChooser,
     Line,
     Command,
     Workspace,
@@ -39,6 +40,7 @@ impl PaletteKind {
             PaletteKind::Command => ":",
             PaletteKind::TerminalProfile => "<",
             PaletteKind::File
+            | PaletteKind::FileChooser
             | PaletteKind::Reference
             | PaletteKind::SshHost
             | PaletteKind::RunAndDebug
@@ -82,6 +84,7 @@ impl PaletteKind {
             PaletteKind::Workspace => Some(LapceWorkbenchCommand::PaletteWorkspace),
             PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
             PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
+            PaletteKind::FileChooser => None,
             PaletteKind::HelpAndFile => {
                 Some(LapceWorkbenchCommand::PaletteHelpAndFile)
             }
@@ -122,6 +125,7 @@ impl PaletteKind {
             #[cfg(windows)]
             PaletteKind::WslHost => input,
             PaletteKind::File
+            | PaletteKind::FileChooser
             | PaletteKind::Reference
             | PaletteKind::SshHost
             | PaletteKind::RunAndDebug

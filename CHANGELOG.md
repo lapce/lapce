@@ -6,6 +6,8 @@
 - Added document highlight for LSPs which support this feature
 - (Un)confirmed state of the editor is properly (re)stored
 
+- Implemented Folder/File choosing in remotes
+
 ### Bug Fixes
 
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
