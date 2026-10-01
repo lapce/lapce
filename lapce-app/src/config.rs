@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
+    sync::atomic::{AtomicU8, Ordering},
 };
 
 use ::core::slice;
@@ -40,6 +41,81 @@ pub mod svg;
 pub mod terminal;
 pub mod ui;
 pub mod watcher;
+
+const THEME_UNKNOWN: u8 = 0;
+const THEME_LIGHT: u8 = 1;
+const THEME_DARK: u8 = 2;
+
+static SYSTEM_THEME: AtomicU8 = AtomicU8::new(THEME_UNKNOWN);
+
+pub fn set_system_theme(dark: bool) {
+    SYSTEM_THEME.store(
+        if dark { THEME_DARK } else { THEME_LIGHT },
+        Ordering::Relaxed,
+    );
+}
+
+fn system_is_dark() -> Option<bool> {
+    match SYSTEM_THEME.load(Ordering::Relaxed) {
+        THEME_DARK => Some(true),
+        THEME_LIGHT => Some(false),
+        _ => None,
+    }
+}
+
+/// Detect system dark/light preference on Linux (Wayland compat).
+/// Tries: gsettings, GTK settings.ini, GTK theme name.
+pub fn detect_linux_system_theme() -> Option<bool> {
+    let home = std::env::var("HOME").ok()?;
+
+    // gsettings (GNOME)
+    if let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+        .output()
+    {
+        let s = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .trim_matches('\'')
+            .to_string();
+        match s.as_str() {
+            "prefer-dark" => return Some(true),
+            "prefer-light" => return Some(false),
+            _ => {}
+        }
+    }
+
+    // GTK 3/4 settings.ini: gtk-application-prefer-dark-theme
+    for path in [
+        format!("{home}/.config/gtk-4.0/settings.ini"),
+        format!("{home}/.config/gtk-3.0/settings.ini"),
+    ] {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if content.contains("gtk-application-prefer-dark-theme=1") {
+                return Some(true);
+            }
+        }
+    }
+
+    // GTK theme name contains "-dark"
+    for path in [
+        format!("{home}/.config/gtk-4.0/settings.ini"),
+        format!("{home}/.config/gtk-3.0/settings.ini"),
+    ] {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            for line in content.lines() {
+                if line.starts_with("gtk-theme-name") {
+                    let val =
+                        line.split('=').nth(1).unwrap_or("").trim().to_lowercase();
+                    if val.contains("-dark") || val == "adwaita-dark" {
+                        return Some(true);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
 
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
@@ -148,6 +224,20 @@ impl LapceConfig {
         lapce_config.available_icon_themes =
             Self::load_icon_themes(disabled_volts, extra_plugin_paths);
         lapce_config.resolve_theme(workspace);
+
+        if lapce_config.core.follow_system_theme {
+            if let Some(is_dark) = system_is_dark() {
+                let target = if is_dark {
+                    lapce_config.core.color_theme_dark.clone()
+                } else {
+                    lapce_config.core.color_theme_light.clone()
+                };
+                tracing::info!(
+                    "applying system theme override: is_dark={is_dark}, target={target}"
+                );
+                lapce_config.override_color_theme(workspace, &target);
+            }
+        }
 
         lapce_config.color_theme_list = lapce_config
             .available_color_themes
@@ -333,6 +423,14 @@ impl LapceConfig {
     pub fn set_color_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
         self.core.color_theme = theme.to_string();
         self.resolve_theme(workspace);
+    }
+
+    /// Override the color theme without persisting.
+    /// Used by system theme follow mode.
+    pub fn override_color_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
+        self.core.color_theme = theme.to_string();
+        self.resolve_theme(workspace);
+        self.core.color_theme = theme.to_string();
     }
 
     /// Set the active icon theme.  
