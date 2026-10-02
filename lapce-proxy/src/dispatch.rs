@@ -443,6 +443,67 @@ impl ProxyHandler for Dispatcher {
                 };
                 self.respond_rpc(id, result);
             }
+            AppendSearch {
+                pattern,
+                filepath,
+                filecontent,
+            } => {
+                static WORK_ID: AtomicU64 = AtomicU64::new(0);
+
+                let current_id =
+                    WORK_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                let proxy_rpc = self.proxy_rpc.clone();
+
+                thread::spawn(move || {
+                    let escaped_pattern = regex::escape(&pattern);
+
+                    if let Ok(matcher) = RegexMatcherBuilder::new()
+                        .case_insensitive(true)
+                        .build_literals(&[&escaped_pattern])
+                    {
+                        let mut searcher = SearcherBuilder::new().build();
+
+                        let mut line_matches = Vec::new();
+                        let _ = searcher.search_slice(
+                            &matcher,
+                            filecontent.to_string().as_bytes(),
+                            UTF8(|lnum, line| {
+                                let mymatch =
+                                    matcher.find(line.as_bytes())?.unwrap();
+                                line_matches.push((
+                                    lnum as usize,
+                                    (mymatch.start(), mymatch.end()),
+                                    line.to_string(),
+                                ));
+
+                                Ok(current_id
+                                    == WORK_ID
+                                        .load(std::sync::atomic::Ordering::Relaxed))
+                            }),
+                        );
+
+                        if current_id
+                            == WORK_ID.load(std::sync::atomic::Ordering::Relaxed)
+                        {
+                            proxy_rpc.handle_response(
+                                id,
+                                Ok(ProxyResponse::AppendSearchResponse {
+                                    line_matches,
+                                    filepath,
+                                }),
+                            );
+                            return;
+                        }
+                    }
+                    proxy_rpc.handle_response(
+                        id,
+                        Err(RpcError {
+                            code: 0,
+                            message: "cannot create matcher".to_string(),
+                        }),
+                    );
+                });
+            }
             GlobalSearch {
                 pattern,
                 case_sensitive,
