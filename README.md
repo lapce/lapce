@@ -38,6 +38,28 @@ Lapce (IPA: /læps/) is written in pure Rust, with a UI in [Floem](https://githu
 You can find pre-built releases for Windows, Linux and macOS [here](https://github.com/lapce/lapce/releases), or [installing with a package manager](docs/installing-with-package-manager.md).
 If you'd like to compile from source, you can find the [guide](docs/building-from-source.md).
 
+### Syntax highlighting
+
+Lapce normally downloads Tree-sitter grammars and queries on startup. If syntax highlighting is missing because the download failed, you can install them manually:
+
+1. Download **both** the `grammars-<os>-<architecture>.tar.zst` archive for your system (for example, `grammars-linux-x86_64.tar.zst`) and `queries.tar.zst` from the [grammar releases](https://github.com/lapce/tree-sitter-grammars/releases). Use archives from the same release, intended for your Lapce version. For Lapce 0.4.6, the 0.4.5 archives are a manual workaround when no matching release is available.
+2. Close Lapce. Extract the grammars into Lapce's local data `grammars` directory and the queries into its configuration `queries` directory, **not** beside the executable.
+
+   For Linux x86_64 stable builds, run the following from the directory containing the downloaded archives (requires GNU `tar` and `zstd`):
+
+   ```sh
+   grammars_dir="${XDG_DATA_HOME:-$HOME/.local/share}/lapce-stable/grammars"
+   queries_dir="${XDG_CONFIG_HOME:-$HOME/.config}/lapce-stable/queries"
+   mkdir -p "$grammars_dir" "$queries_dir"
+   tar --zstd -xf grammars-linux-x86_64.tar.zst -C "$grammars_dir"
+   tar --zstd -xf queries.tar.zst -C "$queries_dir"
+   ```
+
+   These default to `~/.local/share/lapce-stable/grammars` and `~/.config/lapce-stable/queries`, respectively. For nightly builds, replace `lapce-stable` with `lapce-nightly`; for debug builds, use `lapce-debug`.
+3. Check that files are directly under these directories (for example, `grammars/libtree-sitter-rust.so` and `queries/rust/highlights.scm` on Linux), without an extra archive directory, then restart Lapce.
+
+See the [syntax-highlighting documentation](https://docs.lapce.dev/features/syntax-highlighting) for background on grammars and queries.
+
 ## Contributing
 
 Guidelines for contributing to Lapce can be found in [`CONTRIBUTING.md`](CONTRIBUTING.md).

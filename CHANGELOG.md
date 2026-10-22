@@ -7,6 +7,7 @@
 - (Un)confirmed state of the editor is properly (re)stored
 - Implemented Folder/File choosing in remotes
 - The file explorer can now be focused with the mouse, and has keybinds for renaming/deleting files
+- Document manual grammar and query installation for missing syntax highlighting on Linux (<https://github.com/lapce/lapce/issues/3911>)
 
 ### Bug Fixes
 
