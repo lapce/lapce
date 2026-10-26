@@ -39,7 +39,7 @@ use crate::{
     command::InternalCommand,
     doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
-        EditorData,
+        EditorData, EditorViewKind,
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
     },
@@ -1158,11 +1158,16 @@ impl MainSplitData {
                     EditorTabChild::DiffEditor(diff_editor_id),
                     EditorTabChildSource::DiffEditor { left, right },
                 ) => {
-                    if !is_same_diff_editor(diff_editor_id, left, right) {
-                        if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
-                            diff_editor.left.update_doc(left.clone());
-                            diff_editor.right.update_doc(right.clone());
-                        }
+                    if !is_same_diff_editor(diff_editor_id, left, right)
+                        && let Some(diff_editor) = diff_editors.get(diff_editor_id)
+                    {
+                        // The current diff is based on the old documents. Reset both
+                        // views before swapping documents so screen-line computation
+                        // cannot apply stale diff ranges to the new buffers.
+                        diff_editor.left.kind.set(EditorViewKind::Normal);
+                        diff_editor.right.kind.set(EditorViewKind::Normal);
+                        diff_editor.left.update_doc(left.clone());
+                        diff_editor.right.update_doc(right.clone());
                     }
                     true
                 }
