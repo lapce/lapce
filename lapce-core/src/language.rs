@@ -420,6 +420,8 @@ pub enum LapceLanguage {
     Sway,
     #[strum(message = "Swift")]
     Swift,
+    #[strum(message = "SystemVerilog")]
+    Systemverilog,
     #[strum(message = "TCL")]
     Tcl,
     #[strum(message = "TOML")]
@@ -432,6 +434,8 @@ pub enum LapceLanguage {
     Typst,
     #[strum(message = "Verilog")]
     Verilog,
+    #[strum(message = "VHDL")]
+    Vhdl,
     #[strum(message = "Vue")]
     Vue,
     #[strum(message = "WASM")]
@@ -1575,6 +1579,19 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
     SyntaxProperties {
+        id: LapceLanguage::Systemverilog,
+        indent: Indent::tab(),
+        files: &[],
+        extensions: &["sv", "svh"],
+        comment: comment_properties!(),
+        tree_sitter: TreeSitterProperties {
+            grammar: Some("verilog"),
+            grammar_fn: Some("verilog"),
+            query: Some("verilog"),
+            ..TreeSitterProperties::DEFAULT
+        },
+    },
+    SyntaxProperties {
         id: LapceLanguage::Tcl,
         indent: Indent::tab(),
         files: &[],
@@ -1630,7 +1647,15 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Verilog,
         indent: Indent::tab(),
         files: &[],
-        extensions: &[],
+        extensions: &["v", "vh"],
+        comment: comment_properties!(),
+        tree_sitter: TreeSitterProperties::DEFAULT,
+    },
+    SyntaxProperties {
+        id: LapceLanguage::Vhdl,
+        indent: Indent::tab(),
+        files: &[],
+        extensions: &["vhd", "vhdl"],
         comment: comment_properties!(),
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
@@ -2063,7 +2088,7 @@ fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::LapceLanguage;
 
@@ -2071,5 +2096,113 @@ mod tests {
     fn test_language_from_path() {
         let l = LapceLanguage::from_path(&PathBuf::new().join("test.rs"));
         assert_eq!(l, LapceLanguage::Rust);
+    }
+
+    #[test]
+    fn test_hdl_language_from_path() {
+        for (extension, language) in [
+            ("v", LapceLanguage::Verilog),
+            ("vh", LapceLanguage::Verilog),
+            ("sv", LapceLanguage::Systemverilog),
+            ("svh", LapceLanguage::Systemverilog),
+            ("vhd", LapceLanguage::Vhdl),
+            ("vhdl", LapceLanguage::Vhdl),
+        ] {
+            for suffix in [extension.to_string(), extension.to_uppercase()] {
+                let path = PathBuf::from(format!("rtl/counter.{suffix}"));
+                assert_eq!(LapceLanguage::from_path_raw(&path), Some(language));
+            }
+        }
+    }
+
+    #[test]
+    fn test_hdl_language_names_and_grammars() {
+        for (language, name, grammar) in [
+            (LapceLanguage::Verilog, "Verilog", "verilog"),
+            (LapceLanguage::Systemverilog, "SystemVerilog", "verilog"),
+            (LapceLanguage::Vhdl, "VHDL", "vhdl"),
+        ] {
+            assert_eq!(LapceLanguage::from_name(name), Some(language));
+            assert_eq!(language.name(), name);
+            assert!(LapceLanguage::languages().contains(&name));
+            assert_eq!(language.grammar_name(), grammar);
+            assert_eq!(language.grammar_fn_name(), grammar);
+            assert_eq!(language.query_name(), grammar);
+        }
+    }
+
+    #[test]
+    fn test_existing_language_detection() {
+        for (filename, language) in [
+            ("main.rs", LapceLanguage::Rust),
+            ("main.ts", LapceLanguage::Typescript),
+            ("main.tsx", LapceLanguage::Tsx),
+            ("main.vue", LapceLanguage::Vue),
+            ("main.unknown", LapceLanguage::PlainText),
+        ] {
+            assert_eq!(LapceLanguage::from_path(Path::new(filename)), language);
+        }
+    }
+
+    #[test]
+    #[ignore = "requires installed Verilog and VHDL grammars and highlight queries"]
+    fn test_hdl_highlighting() {
+        use lapce_xi_rope::Rope;
+
+        use crate::syntax::Syntax;
+
+        for (filename, source, expected) in [
+            (
+                "counter.v",
+                "module counter(output reg [7:0] value);\n\
+                 // count\ninitial value = 8'd0;\nendmodule\n",
+                [
+                    ("module", "keyword"),
+                    ("// count", "comment"),
+                    ("8'd0", "constant"),
+                ],
+            ),
+            (
+                "counter.sv",
+                "class counter;\n// count\nint value = 1;\nendclass\n",
+                [
+                    ("class", "keyword"),
+                    ("// count", "comment"),
+                    ("int", "type.builtin"),
+                ],
+            ),
+            (
+                "counter.vhd",
+                "entity counter is\nend entity counter;\n\
+                 architecture rtl of counter is\n-- count\n\
+                 signal value : integer := 1;\nbegin\nend architecture rtl;\n",
+                [
+                    ("entity", "keyword"),
+                    ("-- count", "comment"),
+                    ("integer", "type"),
+                ],
+            ),
+        ] {
+            let mut syntax = Syntax::init(Path::new(filename));
+            syntax.parse(1, Rope::from(source), None);
+            let tree = syntax.layers.as_ref().unwrap().try_tree().unwrap();
+            assert!(
+                !tree.root_node().has_error(),
+                "{filename}: {}",
+                tree.root_node().to_sexp()
+            );
+            let styles = syntax.styles.as_ref().unwrap();
+            for (token, scope) in expected {
+                let start = source.find(token).unwrap();
+                assert!(
+                    styles.iter().any(|(range, style)| {
+                        range.start() <= start
+                            && range.end() >= start + token.len()
+                            && style.fg_color.as_deref() == Some(scope)
+                    }),
+                    "{filename}: missing {scope} highlight for {token:?}"
+                );
+            }
+        }
     }
 }
