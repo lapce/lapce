@@ -758,14 +758,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: TreeSitterProperties::DEFAULT,
     },
     SyntaxProperties {
-        id: LapceLanguage::FSharp,
-        indent: Indent::tab(),
-        files: &[],
-        extensions: &[],
-        comment: comment_properties!(),
-        tree_sitter: TreeSitterProperties::DEFAULT,
-    },
-    SyntaxProperties {
         id: LapceLanguage::Fish,
         indent: Indent::tab(),
         files: &[],
@@ -791,6 +783,14 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Fortran,
+        indent: Indent::tab(),
+        files: &[],
+        extensions: &[],
+        comment: comment_properties!(),
+        tree_sitter: TreeSitterProperties::DEFAULT,
+    },
+    SyntaxProperties {
+        id: LapceLanguage::FSharp,
         indent: Indent::tab(),
         files: &[],
         extensions: &[],
@@ -2065,7 +2065,22 @@ fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
 mod tests {
     use std::path::PathBuf;
 
-    use super::LapceLanguage;
+    use super::{LANGUAGES, LapceLanguage};
+
+    #[test]
+    fn test_language_properties_order() {
+        assert_eq!(LANGUAGES.len(), LapceLanguage::Zig as usize + 1);
+        for (index, properties) in LANGUAGES.iter().enumerate() {
+            assert_eq!(properties.id as usize, index, "{:?}", properties.id);
+        }
+    }
+
+    #[test]
+    fn test_fish_grammar_from_path() {
+        let language = LapceLanguage::from_path(&PathBuf::from("config.fish"));
+        assert_eq!(language, LapceLanguage::Fish);
+        assert_eq!(language.grammar_name(), "fish");
+    }
 
     #[test]
     fn test_language_from_path() {
