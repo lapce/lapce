@@ -11,6 +11,9 @@ default-run  = "lapce"
 lapce-app   = { path = "./lapce-app" }
 lapce-proxy = { path = "./lapce-proxy" }
 
+[build-dependencies]
+winresource = "0.1.34"
+
 [[bin]]
 name = "lapce"
 path = "lapce-app/src/bin/lapce.rs"
