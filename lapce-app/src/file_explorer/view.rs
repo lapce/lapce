@@ -558,7 +558,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         .with(|info| info.confirmed)
                         .map(|confirmed| confirmed.get())
                         .unwrap_or(true),
-                    |s| s.font_style(FontStyle::Italic),
+                    |s| s.font_style(FontStyle::Normal),
                 )
             }),
         ))
