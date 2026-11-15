@@ -27,7 +27,7 @@ use lapce_rpc::{
         Duplicating, FileNodeItem, FileNodeViewKind, Naming, NamingState, NewNode,
         Renaming,
     },
-    proxy::ProxyResponse,
+    proxy::{PathRequest, ProxyResponse},
 };
 
 use crate::{
@@ -65,8 +65,12 @@ impl KeyPressFocus for FileExplorerData {
     }
 
     fn check_condition(&self, condition: Condition) -> bool {
-        self.naming.with_untracked(Naming::is_accepting_input)
-            && condition == Condition::ModalFocus
+        (self.naming.with_untracked(Naming::is_accepting_input)
+            && condition == Condition::ModalFocus)
+            || matches!(
+                condition,
+                Condition::PanelFocus | Condition::FileExplorerFocus
+            )
     }
 
     fn run_command(
@@ -146,6 +150,32 @@ impl FileExplorerData {
         data
     }
 
+    /// Rename the currently selected file, if it exists.
+    pub fn rename_selected(&self) {
+        if let Some(file) = self.select.get_untracked() {
+            if let Some(path) = file.path() {
+                self.naming.set(Naming::Renaming(Renaming {
+                    state: NamingState::Naming,
+                    path: path.to_path_buf(),
+                    editor_needs_reset: true,
+                }));
+            }
+        }
+    }
+
+    /// Trash the currently selected file, if it exists.
+    pub fn trash_selected(&self) {
+        if let Some(file) = self.select.get_untracked() {
+            if let Some(path) = file.path() {
+                self.common.proxy.trash_path(path.to_path_buf(), |res| {
+                    if let Err(err) = res {
+                        tracing::warn!("Failed to trash path: {:?}", err);
+                    }
+                })
+            }
+        }
+    }
+
     /// Reload the file explorer data via reading the root directory.  
     /// Note that this will not update immediately.
     pub fn reload(&self) {
@@ -195,7 +225,8 @@ impl FileExplorerData {
         let send = {
             let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
-                let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
+                let Ok(ProxyResponse::ReadDirResponse { mut items, .. }) = result
+                else {
                     done(false);
                     return;
                 };
@@ -250,7 +281,9 @@ impl FileExplorerData {
         };
 
         // Ask the proxy for the directory information
-        self.common.proxy.read_dir(path.to_path_buf(), send);
+        self.common
+            .proxy
+            .read_dir(PathRequest::Path(path.to_path_buf()), send);
     }
 
     /// Returns `true` if `path` exists in the file explorer tree and is a directory, `false`

@@ -64,7 +64,10 @@ use crate::{
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
-    editor::location::{EditorLocation, EditorPosition},
+    editor::{
+        InlineFindDirection,
+        location::{EditorLocation, EditorPosition},
+    },
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -216,6 +219,10 @@ impl KeyPressFocus for WindowTabData {
             Condition::SourceControlFocus => {
                 self.common.focus.get_untracked()
                     == Focus::Panel(PanelKind::SourceControl)
+            }
+            Condition::FileExplorerFocus => {
+                self.common.focus.get_untracked()
+                    == Focus::Panel(PanelKind::FileExplorer)
             }
             _ => false,
         }
@@ -759,6 +766,8 @@ impl WindowTabData {
                                 .send(WindowCommand::SetWorkspace { workspace });
                         }
                     });
+                } else {
+                    self.palette.run(PaletteKind::FileChooser);
                 }
             }
             CloseFolder => {
@@ -788,6 +797,8 @@ impl WindowTabData {
                             })
                         }
                     });
+                } else { // TODO: Force only choosing files?
+                    self.palette.run(PaletteKind::FileChooser);
                 }
             }
             NewFile => {
@@ -813,8 +824,25 @@ impl WindowTabData {
             SaveAll => {
                 self.main_split.editors.with_editors_untracked(|editors| {
                     let mut paths = HashSet::new();
-                    for (_, editor_data) in editors.iter() {
-                        let doc = editor_data.doc();
+                    for (editor_id, editor_data) in editors.iter() {
+                        // Defensive safeguard: `floem`'s `Editor::doc()` panics if the reactive scope was
+                        // already destroyed. This catches "ghost" editors (like closed Settings or Plugin tabs)
+                        // that leaked into the map, preventing "Save All" from crashing the entire app.
+                        let doc_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            editor_data.doc()
+                        }));
+
+                        let doc = match doc_result {
+                            Ok(document) => document,
+                            Err(_) => {
+                                tracing::warn!(
+                                    "Ghost editor caught and bypassed during Save All. View ID: {:?}",
+                                    editor_id
+                                );
+                                continue;
+                            }
+                        };
+
                         let should_save = if let DocContent::File { path, .. } =
                             doc.content.get_untracked()
                         {
@@ -822,7 +850,6 @@ impl WindowTabData {
                                 false
                             } else {
                                 paths.insert(path.clone());
-
                                 true
                             }
                         } else {
@@ -1035,6 +1062,14 @@ impl WindowTabData {
                 }
             }
 
+            // ==== File Explorer ====
+            FileExplorerRename => {
+                self.file_explorer.rename_selected();
+            }
+            FileExplorerTrash => {
+                self.file_explorer.trash_selected();
+            }
+
             // ==== Terminal ====
             NewTerminalTab => {
                 self.terminal.new_tab(
@@ -1110,7 +1145,7 @@ impl WindowTabData {
             }
             Palette => {
                 self.palette.run(PaletteKind::File);
-            }
+            },
             PaletteSymbol => {
                 self.palette.run(PaletteKind::DocumentSymbol);
             }
@@ -1574,6 +1609,20 @@ impl WindowTabData {
                 }
             }
 
+            JumpHighlightNext => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Right);
+                }
+            }
+            JumpHighlightPrev => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    editor_data.jump_highlight(InlineFindDirection::Left);
+                }
+            }
         }
     }
 
@@ -2623,8 +2672,7 @@ impl WindowTabData {
     /// Toggle a specific kind of panel.
     fn toggle_panel_focus(&self, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer
-            | PanelKind::Plugin
+            PanelKind::Plugin
             | PanelKind::Problem
             | PanelKind::Debug
             | PanelKind::CallHierarchy
@@ -2635,9 +2683,10 @@ impl WindowTabData {
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
             }
-            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
-                self.is_panel_focused(kind)
-            }
+            PanelKind::Terminal
+            | PanelKind::SourceControl
+            | PanelKind::Search
+            | PanelKind::FileExplorer => self.is_panel_focused(kind),
         };
         if should_hide {
             self.hide_panel(kind);

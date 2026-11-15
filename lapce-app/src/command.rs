@@ -221,6 +221,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
+    #[strum(serialize = "file_explorer.rename")]
+    #[strum(message = "Rename File")]
+    FileExplorerRename,
+
+    #[strum(serialize = "file_explorer.trash")]
+    #[strum(message = "Trash File")]
+    FileExplorerTrash,
+
     #[strum(serialize = "open_ui_inspector")]
     #[strum(message = "Open Internal UI Inspector")]
     OpenUIInspector,
@@ -600,6 +608,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "add_run_debug_config")]
     #[strum(message = "Add Run Debug Config")]
     AddRunDebugConfig,
+
+    #[strum(serialize = "jump_highlight_next")]
+    #[strum(message = "Jump to next document highlight")]
+    JumpHighlightNext,
+
+    #[strum(serialize = "jump_highlight_prev")]
+    #[strum(message = "Jump to previous document highlight")]
+    JumpHighlightPrev,
 }
 
 #[derive(Clone, Debug)]

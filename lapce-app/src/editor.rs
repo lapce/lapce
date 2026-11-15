@@ -68,7 +68,7 @@ use crate::{
     completion::CompletionStatus,
     config::LapceConfig,
     db::LapceDb,
-    doc::{Doc, DocContent},
+    doc::{Doc, DocContent, DocumentHighlight},
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
@@ -105,6 +105,7 @@ pub struct EditorInfo {
     pub unsaved: Option<String>,
     pub offset: usize,
     pub scroll_offset: (f64, f64),
+    pub confirmed: Option<bool>,
 }
 
 impl EditorInfo {
@@ -124,7 +125,8 @@ impl EditorInfo {
                     doc,
                     Some(editor_tab_id),
                     None,
-                    None,
+                    self.confirmed
+                        .map(|confirmed| data.scope.create_rw_signal(confirmed)),
                     common,
                 );
                 editor.go_to_location(
@@ -365,6 +367,7 @@ impl EditorData {
             unsaved,
             offset,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
+            confirmed: Some(self.confirmed.get_untracked()),
         }
     }
 
@@ -3234,6 +3237,40 @@ impl EditorData {
                 actual_line
             }
         })
+    }
+
+    pub fn jump_highlight(&self, direction: InlineFindDirection) {
+        let doc = self.doc();
+        let cursor_offset = self.cursor().with_untracked(|c| c.offset());
+
+        let new_offset = doc.highlights.with_untracked(move |highlights| {
+            let Some(highlights) = highlights else {
+                return None;
+            };
+            let index =
+                DocumentHighlight::find_for_offset(highlights, cursor_offset)?;
+
+            let new_index = match direction {
+                InlineFindDirection::Left => match index {
+                    0 => highlights.len() - 1,
+                    val => val - 1,
+                },
+                InlineFindDirection::Right => match index + 1 {
+                    val if val >= highlights.len() => 0,
+                    val => val,
+                },
+            };
+
+            Some(highlights[new_index].start)
+        });
+
+        if let Some(new_offset) = new_offset {
+            self.run_move_command(
+                &lapce_core::movement::Movement::Offset(new_offset),
+                None,
+                Modifiers::empty(),
+            );
+        }
     }
 }
 

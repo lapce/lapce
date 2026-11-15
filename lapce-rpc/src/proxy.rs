@@ -12,10 +12,11 @@ use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CodeAction, CodeActionResponse,
-    CodeLens, CompletionItem, Diagnostic, DocumentSymbolResponse, FoldingRange,
-    GotoDefinitionResponse, Hover, InlayHint, InlineCompletionResponse,
-    InlineCompletionTriggerKind, Location, Position, PrepareRenameResponse,
-    SelectionRange, SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    CodeLens, CompletionItem, Diagnostic, DocumentHighlight, DocumentSymbolResponse,
+    FoldingRange, GotoDefinitionResponse, Hover, InlayHint,
+    InlineCompletionResponse, InlineCompletionTriggerKind, Location, Position,
+    PrepareRenameResponse, SelectionRange, SymbolInformation, TextDocumentItem,
+    TextEdit, WorkspaceEdit,
     request::{GotoImplementationResponse, GotoTypeDefinitionResponse},
 };
 use parking_lot::Mutex;
@@ -54,6 +55,12 @@ pub struct SearchMatch {
     pub start: usize,
     pub end: usize,
     pub line_content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PathRequest {
+    Home,
+    Path(PathBuf),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,7 +180,7 @@ pub enum ProxyRequest {
         path: String,
     },
     ReadDir {
-        path: PathBuf,
+        path: PathRequest,
     },
     Save {
         rev: u64,
@@ -219,6 +226,10 @@ pub enum ProxyRequest {
     },
     ReferencesResolve {
         items: Vec<Location>,
+    },
+    GetDocumentHighlights {
+        path: PathBuf,
+        position: Position,
     },
 }
 
@@ -369,6 +380,7 @@ pub enum ProxyResponse {
         content: String,
     },
     ReadDirResponse {
+        dir: FileNodeItem,
         items: Vec<FileNodeItem>,
     },
     CompletionResolveResponse {
@@ -467,6 +479,9 @@ pub enum ProxyResponse {
     SaveResponse {},
     ReferencesResolveResponse {
         items: Vec<FileLine>,
+    },
+    GetDocumentHighlights {
+        highlights: Option<Vec<DocumentHighlight>>,
     },
 }
 
@@ -830,7 +845,7 @@ impl ProxyRpcHandler {
         self.request(ProxyRequest::GetOpenFilesContent {})
     }
 
-    pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn read_dir(&self, path: PathRequest, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::ReadDir { path }, f);
     }
 
@@ -1025,6 +1040,18 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetDocumentSymbols { path }, f);
+    }
+
+    pub fn get_document_highlights(
+        &self,
+        path: PathBuf,
+        position: Position,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GetDocumentHighlights { path, position },
+            f,
+        );
     }
 
     pub fn get_workspace_symbols(
