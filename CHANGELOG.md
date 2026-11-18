@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 
+- Fix incorrect syntax property lookup for Fish, Fluent, Forth, Fortran and F#
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
 
 ## 0.4.6
