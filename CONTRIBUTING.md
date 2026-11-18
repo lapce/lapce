@@ -32,7 +32,7 @@ Bugs should also be reported on GitHub via [issues](https://github.com/lapce/lap
 
 If you encounter a bug when using Lapce, check the issues to see if anyone else has encountered it. If it already exists, you can use emoji reactions so we can see community interest in specific issues and how important they are.
 
-Please follow the rule of [NoPlusOne](https://github.com/golang/go/wiki/NoPlusOne)
+Please follow the rule of [NoPlusOne](https://go.dev/wiki/NoPlusOne)
 
 ## Pull Requests
 
