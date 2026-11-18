@@ -11,6 +11,7 @@
 ### Bug Fixes
 
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
+- Fix file explorer staying empty while large workspaces are registered with the file watcher
 
 ## 0.4.6
 
