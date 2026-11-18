@@ -308,6 +308,8 @@ pub enum LapceLanguage {
     Java,
     #[strum(message = "JavaScript")]
     Javascript,
+    #[strum(message = "Jinja2")]
+    Jinja2,
     #[strum(message = "JSDoc")]
     Jsdoc,
     #[strum(message = "JSON")]
@@ -1005,6 +1007,20 @@ const LANGUAGES: &[SyntaxProperties] = &[
             grammar: None,
             grammar_fn: None,
             query: None,
+            code_glance: (&["source_file", "program"], &["source_file"]),
+            sticky_headers: &[],
+        },
+    },
+    SyntaxProperties {
+        id: LapceLanguage::Jinja2,
+        indent: Indent::space(4),
+        files: &[],
+        extensions: &["jinja", "jinja2", "j2"],
+        comment: comment_properties!("{#", "#}"),
+        tree_sitter: TreeSitterProperties {
+            grammar: None,
+            grammar_fn: None,
+            query: Some("jinja"),
             code_glance: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
