@@ -3,6 +3,7 @@ mod key;
 pub mod keymap;
 mod loader;
 mod press;
+mod virtual_key;
 
 use std::{path::PathBuf, rc::Rc, str::FromStr, time::SystemTime};
 
