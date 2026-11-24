@@ -9,6 +9,9 @@
 - Implemented Folder/File choosing in remotes
 - The file explorer can now be focused with the mouse, and has keybinds for renaming/deleting files
 
+- In modal (Vim) mode, bind `/` to open the search bar (was previously bound to go-to-line)
+- Fix vim-mode symbol keybindings (`/`, `^`, `$`, `%`, `*`, `<`, `>`, `:`) and `ctrl+/` (toggle line comment) not matching on keyboard layouts where those symbols require Shift/AltGr on a different key than on US QWERTY (e.g. Italian keyboards)
+
 ### Bug Fixes
 
 - Fix incorrect syntax property lookup for Fish, Fluent, Forth, Fortran and F#

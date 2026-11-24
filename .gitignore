@@ -1,4 +1,5 @@
 .vscode
+.codegraph/
 .lapce
 .idea
 .fleet
