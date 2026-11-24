@@ -589,3 +589,87 @@ impl FileNodeItem {
         i
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file_node(path: &str, is_dir: bool) -> FileNodeItem {
+        FileNodeItem {
+            path: PathBuf::from(path),
+            is_dir,
+            read: false,
+            open: false,
+            children: HashMap::new(),
+            children_open_count: 0,
+        }
+    }
+
+    // Regression for #2730: capitalized files should not jump to the top of
+    // the list when mixed with lowercase ones. The sort must be
+    // case-insensitive — `README.md` and `docker-compose.yaml` should order
+    // alphabetically by their lowercased names ('d' < 'r'), so
+    // `docker-compose.yaml` comes first.
+    #[test]
+    fn sorted_children_is_case_insensitive_for_files() {
+        let mut parent = file_node("/repo", true);
+        let readme = file_node("/repo/README.md", false);
+        let dockerfile = file_node("/repo/docker-compose.yaml", false);
+        parent.children.insert(readme.path.clone(), readme);
+        parent.children.insert(dockerfile.path.clone(), dockerfile);
+
+        let names: Vec<String> = parent
+            .sorted_children()
+            .iter()
+            .map(|c| c.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(names, vec!["docker-compose.yaml", "README.md"]);
+    }
+
+    // Directories must always sort before files regardless of case, and
+    // the existing `is_dir` precedence shouldn't be regressed by the
+    // case-insensitive change.
+    #[test]
+    fn sorted_children_keeps_dirs_before_files() {
+        let mut parent = file_node("/repo", true);
+        let zsubdir = file_node("/repo/zzz_subdir", true);
+        let afile = file_node("/repo/aaa.txt", false);
+        let mfile = file_node("/repo/MMM.md", false);
+        parent.children.insert(zsubdir.path.clone(), zsubdir);
+        parent.children.insert(afile.path.clone(), afile);
+        parent.children.insert(mfile.path.clone(), mfile);
+
+        let names: Vec<String> = parent
+            .sorted_children()
+            .iter()
+            .map(|c| c.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+
+        // Directory first, then files in case-insensitive alphabetical order.
+        assert_eq!(names, vec!["zzz_subdir", "aaa.txt", "MMM.md"]);
+    }
+
+    // Numeric ordering inside file names should follow `human_sort`
+    // (natural-order) rather than lexicographic — `file-2.txt` before
+    // `file-10.txt`.
+    #[test]
+    fn sorted_children_uses_natural_numeric_ordering() {
+        let mut parent = file_node("/repo", true);
+        for name in ["file-1.txt", "file-2.txt", "file-10.txt", "file-20.txt"] {
+            let node = file_node(&format!("/repo/{name}"), false);
+            parent.children.insert(node.path.clone(), node);
+        }
+
+        let names: Vec<String> = parent
+            .sorted_children()
+            .iter()
+            .map(|c| c.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            names,
+            vec!["file-1.txt", "file-2.txt", "file-10.txt", "file-20.txt"]
+        );
+    }
+}
