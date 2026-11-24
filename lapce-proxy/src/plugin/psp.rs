@@ -557,10 +557,14 @@ pub fn handle_plugin_server_message(
         Ok(value @ JsonRpc::Request(_)) => {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let id = value.get_id().unwrap();
+            let params = value
+                .get_params()
+                .cloned()
+                .unwrap_or_else(|| Params::from(serde_json::Value::Null));
             let rpc = PluginServerRpc::HostRequest {
                 id: id.clone(),
                 method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
+                params,
                 resp: ResponseSender::new(tx),
             };
             server_rpc.handle_rpc(rpc);
@@ -579,9 +583,13 @@ pub fn handle_plugin_server_message(
             Some(resp)
         }
         Ok(value @ JsonRpc::Notification(_)) => {
+            let params = value
+                .get_params()
+                .cloned()
+                .unwrap_or_else(|| Params::from(serde_json::Value::Null));
             let rpc = PluginServerRpc::HostNotification {
                 method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
+                params,
                 from: from.to_string(),
             };
             server_rpc.handle_rpc(rpc);
