@@ -4,7 +4,12 @@ use alacritty_terminal::{
     grid::Dimensions,
     index::Side,
     selection::{Selection, SelectionType},
-    term::{RenderableContent, cell::Flags, test::TermSize},
+    term::{
+        RenderableContent,
+        cell::Flags,
+        search::{Match, RegexSearch},
+        test::TermSize,
+    },
 };
 use floem::{
     Renderer, View, ViewId,
@@ -13,11 +18,13 @@ use floem::{
     kurbo::Stroke,
     peniko::{
         Color,
-        kurbo::{Point, Rect, Size},
+        kurbo::{Line, Point, Rect, Size},
     },
     pointer::PointerInputEvent,
     prelude::SignalTrack,
-    reactive::{ReadSignal, RwSignal, SignalGet, SignalWith, create_effect},
+    reactive::{
+        ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith, create_effect,
+    },
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
 };
@@ -25,10 +32,12 @@ use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use lsp_types::Position;
 use parking_lot::RwLock;
-use regex::Regex;
 use unicode_width::UnicodeWidthChar;
 
-use super::{panel::TerminalPanelData, raw::RawTerminal};
+use super::{
+    panel::TerminalPanelData,
+    raw::{RawTerminal, visible_regex_match_iter},
+};
 use crate::{
     command::InternalCommand,
     config::{LapceConfig, color::LapceColor},
@@ -42,6 +51,15 @@ use crate::{
 
 /// Threshold used for double_click/triple_click.
 const CLICK_THRESHOLD: u128 = 400;
+
+/// What a recognized hyperlink in the terminal points to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum LinkKind {
+    /// A `path:line:col` reference, jumps to a location in the editor.
+    File,
+    /// An `http(s)://` URL, opened in the system browser.
+    Url,
+}
 
 enum TerminalViewState {
     Config,
@@ -70,7 +88,9 @@ pub struct TerminalView {
     launch_error: RwSignal<Option<String>>,
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
-    hyper_regs: Vec<Regex>,
+    hyper_links: Vec<(LinkKind, RegexSearch)>,
+    hovered_link: Option<(Match, LinkKind)>,
+    hovering_link: RwSignal<bool>,
     previous_mouse_action: MouseAction,
     current_mouse_action: MouseAction,
 }
@@ -85,6 +105,7 @@ pub fn terminal_view(
     launch_error: RwSignal<Option<String>>,
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
+    hovering_link: RwSignal<bool>,
 ) -> TerminalView {
     let id = ViewId::new();
 
@@ -125,8 +146,11 @@ pub fn terminal_view(
         is_focused
     });
 
-    // for rust
-    let reg = regex::Regex::new("[\\w\\\\/-]+\\.(rs)?(toml)?:\\d+(:\\d+)?").unwrap();
+    // path:line:col references, e.g. produced by compiler/linter diagnostics
+    let file_link =
+        RegexSearch::new("[\\w./\\\\-]+\\.\\w+:\\d+(:\\d+)?").unwrap();
+    let url_link =
+        RegexSearch::new("https?://[^\\s\"'<>\\(\\)\\[\\]\\{\\}]+").unwrap();
 
     TerminalView {
         id,
@@ -141,7 +165,9 @@ pub fn terminal_view(
         launch_error,
         internal_command,
         workspace,
-        hyper_regs: vec![reg],
+        hyper_links: vec![(LinkKind::File, file_link), (LinkKind::Url, url_link)],
+        hovered_link: None,
+        hovering_link,
         previous_mouse_action: Default::default(),
         current_mouse_action: Default::default(),
     }
@@ -170,22 +196,36 @@ impl TerminalView {
         (width.max(1), height.max(1))
     }
 
-    fn click(&self, pos: Point) -> Option<()> {
+    /// Finds the hyperlink match (if any) under the given pixel position, by
+    /// scanning the visible viewport with each of the known link regexes.
+    fn link_at(&mut self, pos: Point) -> Option<(Match, LinkKind)> {
+        let point = self.get_terminal_point(pos);
         let raw = self.raw.read();
-        let position = self.get_terminal_point(pos);
-        let start_point = raw.term.semantic_search_left(position);
-        let end_point = raw.term.semantic_search_right(position);
-        let mut selection =
-            Selection::new(SelectionType::Simple, start_point, Side::Left);
-        selection.update(end_point, Side::Right);
-        selection.include_all();
-        if let Some(selection) = selection.to_range(&raw.term) {
-            let content = raw.term.bounds_to_string(selection.start, selection.end);
-            if let Some(match_str) =
-                self.hyper_regs.iter().find_map(|x| x.find(&content))
+        for (kind, regex) in self.hyper_links.iter_mut() {
+            if let Some(m) = visible_regex_match_iter(&raw.term, regex)
+                .find(|m| m.contains(&point))
             {
-                let hyperlink = match_str.as_str();
-                let content: Vec<&str> = hyperlink.split(':').collect();
+                return Some((m, *kind));
+            }
+        }
+        None
+    }
+
+    fn click(&mut self, pos: Point) -> Option<()> {
+        let (m, kind) = self.link_at(pos)?;
+        let content = {
+            let raw = self.raw.read();
+            raw.term.bounds_to_string(*m.start(), *m.end())
+        };
+        match kind {
+            LinkKind::Url => {
+                if let Err(err) = open::that(&content) {
+                    tracing::error!("failed to open url {content}: {err}");
+                }
+                Some(())
+            }
+            LinkKind::File => {
+                let content: Vec<&str> = content.split(':').collect();
                 let (file, line, col) = (
                     content.first()?,
                     content.get(1).and_then(|x: &&str| x.parse::<u32>().ok())?,
@@ -207,10 +247,9 @@ impl TerminalView {
                         same_editor_tab: false,
                     },
                 });
-                return Some(());
+                Some(())
             }
         }
-        None
     }
 
     fn update_mouse_action_by_down(&mut self, mouse: &PointerInputEvent) {
@@ -502,6 +541,18 @@ impl View for TerminalView {
         event: &Event,
     ) -> EventPropagation {
         match event {
+            Event::PointerMove(e) => {
+                let hovered = if e.modifiers.control() {
+                    self.link_at(e.pos)
+                } else {
+                    None
+                };
+                if hovered != self.hovered_link {
+                    self.hovered_link = hovered;
+                    self.hovering_link.set(self.hovered_link.is_some());
+                    _cx.app_state_mut().request_paint(self.id);
+                }
+            }
             Event::PointerDown(e) => {
                 self.update_mouse_action_by_down(e);
             }
@@ -658,9 +709,7 @@ impl View for TerminalView {
         let raw = self.raw.read();
         let term = &raw.term;
         let content = term.renderable_content();
-
-        // let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
-        // self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
+        let display_offset = content.display_offset;
 
         if let Some(selection) = content.selection.as_ref() {
             let start_line = selection.start.line.0 + content.display_offset as i32;
@@ -708,6 +757,33 @@ impl View for TerminalView {
         }
 
         self.paint_content(cx, content, line_height, char_size, &config);
+
+        if let Some((m, _)) = &self.hovered_link {
+            let start_line =
+                (m.start().line.0 + display_offset as i32).max(0) as usize;
+            let end_line = (m.end().line.0 + display_offset as i32).max(0) as usize;
+            let link_color = config.color(LapceColor::EDITOR_LINK);
+            for line in start_line..=end_line {
+                let left_col = if line == start_line {
+                    m.start().column.0
+                } else {
+                    0
+                };
+                let right_col = if line == end_line {
+                    m.end().column.0 + 1
+                } else {
+                    term.last_column().0
+                };
+                let x0 = left_col as f64 * char_width;
+                let x1 = right_col as f64 * char_width;
+                let y = line as f64 * line_height + line_height - 2.0;
+                cx.stroke(
+                    &Line::new(Point::new(x0, y), Point::new(x1, y)),
+                    link_color,
+                    &Stroke::new(1.0),
+                );
+            }
+        }
         // if data.find.visual {
         //     if let Some(search_string) = data.find.search_string.as_ref() {
         //         if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
