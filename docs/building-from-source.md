@@ -7,13 +7,79 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 2. Install dependencies for your operating system:
 
 #### Ubuntu
+2.1  install dependencies
 ```sh
 sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev
 ```
+2.2  Follow instructions below to set path to lapce, where path to 
+lapce is like: 
+```
+home/YOURNAME/lapce/target/release/lapce
+```
+
+2.3  Create a symbolic link:
+- Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
+     ```bash
+     ln -s home/YOURNAME/lapce/target/release/lapce ~/.local/bin/
+     ```
+
+2.4 Add the directory to PATH (if necessary):
+     ```bash
+     export PATH="home/YOURNAME/lapce/target/release/lapce:$PATH"
+     ```
+
+2.5  Refresh the shell:
+- Run the following command to reload the shell configuration:
+     ```
+     source ~/.bashrc
+     ```
+
+- Now you can call "lapce ." or "lapce --version" from cli
+
 #### Fedora
+2.1  install dependencies
 ```sh
 sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel wayland-devel openssl-devel pkgconf
 ```
+
+Follow instructions below to set path to lapce, where path to 
+lapce is like: 
+```
+home/YOURNAME/lapce/target/release/lapce
+```
+
+2.1  Install Pearl (from official fedora source) to avoid a build-fail
+
+https://developer.fedoraproject.org/tech/languages/perl/perl-installation.html
+```bash
+$ sudo dnf install perl-core
+```
+
+
+2.2 Create the ~/.local/bin directory
+```bash
+mkdir -p ~/.local/bin
+```
+
+2.3  Create a symbolic link:
+- Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
+     ```bash
+     ln -s home/YOURNAME/lapce/target/release/lapce ~/.local/bin/lapce
+     ```
+
+2.4  Add the directory to PATH (if necessary):
+     ```bash
+     export PATH="$PATH:$HOME/.local/bin"
+     ```
+
+2.5  Refresh the shell:
+- Run the following command to reload the shell configuration:
+     ```
+     source ~/.bashrc
+     ```
+
+- Now you can call "lapce ." or "lapce --version" from cli
+
 #### Void Linux
 ```sh
 sudo xbps-install -S base-devel clang libxkbcommon-devel vulkan-loader wayland-devel
