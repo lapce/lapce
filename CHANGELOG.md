@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- Add file type detection and syntax highlighting for Verilog, SystemVerilog and VHDL
 - Added document highlight for LSPs which support this feature
 - (Un)confirmed state of the editor is properly (re)stored
 - Implemented Folder/File choosing in remotes
@@ -10,6 +11,7 @@
 
 ### Bug Fixes
 
+- Fix incorrect syntax property lookup for Fish, Fluent, Forth, Fortran and F#
 - Fix crash on Save All after closing settings (<https://github.com/lapce/lapce/issues/3867>)
 
 ## 0.4.6
