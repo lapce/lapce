@@ -560,7 +560,7 @@ pub fn handle_plugin_server_message(
             let rpc = PluginServerRpc::HostRequest {
                 id: id.clone(),
                 method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
+                params: value.get_params().unwrap_or(Params::None(())),
                 resp: ResponseSender::new(tx),
             };
             server_rpc.handle_rpc(rpc);
@@ -581,7 +581,7 @@ pub fn handle_plugin_server_message(
         Ok(value @ JsonRpc::Notification(_)) => {
             let rpc = PluginServerRpc::HostNotification {
                 method: value.get_method().unwrap().to_string(),
-                params: value.get_params().unwrap(),
+                params: value.get_params().unwrap_or(Params::None(())),
                 from: from.to_string(),
             };
             server_rpc.handle_rpc(rpc);
