@@ -245,6 +245,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "htm" | "html" | "xhtml" => "html",
                     "ini" => "ini",
                     "java" | "class" => "java",
+                    "jinja" | "j2" => "jinja2",
                     "js" => "javascript",
                     "jsx" => "javascriptreact",
                     "json" => "json",
